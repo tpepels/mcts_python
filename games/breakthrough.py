@@ -172,40 +172,7 @@ def evaluate(state, player):
 
 # Lorenz evaluation functions
 
-
-def in_bounds(x, y):
-    return 0 <= x < 8 and 0 <= y < 8
-
-
-def is_safe(x, y, player, state):
-    row_offsets = [-1, -1, 1, 1]
-    col_offsets = [-1, 1, -1, 1]
-    attackers = 0
-    defenders = 0
-
-    opponent = 3 - player
-
-    for i in range(4):
-        new_x = x + row_offsets[i]
-        new_y = y + col_offsets[i]
-
-        if in_bounds(new_x, new_y):
-            piece = state.board[new_x][new_y]
-
-            if player == 1:
-                if i < 2 and piece == opponent:
-                    attackers += 1
-                elif i >= 2 and piece == player:
-                    defenders += 1
-            else:
-                if i < 2 and piece == player:
-                    defenders += 1
-                elif i >= 2 and piece == opponent:
-                    attackers += 1
-
-    return attackers <= defenders
-
-
+# List of values representing the importance of each square on the board.
 lorentz_values = [
     5,
     15,
@@ -275,6 +242,14 @@ lorentz_values = [
 
 
 def lorenz_evaluation(state, player):
+    """
+    Evaluates the current game state using the Lorenz evaluation function, which
+    takes into account the positioning of pieces on the board.
+
+    :param state: The game state to evaluate.
+    :param player: The player to evaluate for (1 or 2).
+    :return: The evaluation score for the given player.
+    """
     opponent = 3 - player
 
     p1eval = 0
@@ -288,14 +263,14 @@ def lorenz_evaluation(state, player):
                 base_value = lorentz_values[x * 8 + y]
                 p1eval += base_value
 
-                if is_safe(x, y, player):
+                if is_safe(x, y, player, state):
                     p1eval += 0.5 * base_value
 
             elif piece == opponent:
                 base_value = lorentz_values[(7 - x) * 8 + y]
                 p2eval += base_value
 
-                if is_safe(x, y, opponent):
+                if is_safe(x, y, opponent, state):
                     p2eval += 0.5 * base_value
 
     if player == 1:
@@ -307,6 +282,14 @@ def lorenz_evaluation(state, player):
 
 
 def piece_mobility(position, player, state):
+    """
+    Calculates the mobility of a piece at the given position.
+
+    :param position: The position of the piece on the board.
+    :param player: The player to which the piece belongs (1 or 2).
+    :param state: The game state.
+    :return: The mobility value of the piece.
+    """
     row, col = divmod(position, 8)
     mobility = 0
 
@@ -321,11 +304,26 @@ def piece_mobility(position, player, state):
 
 
 def is_endgame(state):
+    """
+    Determines if the game is in the endgame phase.
+
+    :param state: The game state.
+    :return: True if the game is in the endgame phase, False otherwise.
+    """
     pieces_count = sum(1 for cell in state if cell != 0)
     return pieces_count <= 8  # i.e. half of the pieces are remaining on the board
 
 
 def lorenz_enhanced_evaluation(state, player):
+    """
+    Evaluates the current game state using an enhanced Lorenz evaluation function,
+    which takes into account the positioning of pieces, their mobility, and the
+    endgame phase.
+
+    :param state: The game state to evaluate.
+    :param player: The player to evaluate for (1 or 2).
+    :return: The evaluation score for the given player.
+    """
     board_values = 0
     mobility_values = 0
     for position, piece in enumerate(state):
@@ -350,3 +348,52 @@ def lorenz_enhanced_evaluation(state, player):
         board_values += endgame_bonus
 
     return board_values + mobility_values
+
+
+def is_safe(x, y, player, state):
+    """
+    Determines if a piece at position (x, y) is safe from being captured.
+
+    :param x: The x-coordinate of the piece.
+    :param y: The y-coordinate of the piece.
+    :param player: The player to which the piece belongs (1 or 2).
+    :param state: The game state.
+    :return: True if the piece is safe, False otherwise.
+    """
+    row_offsets = [-1, -1, 1, 1]
+    col_offsets = [-1, 1, -1, 1]
+    attackers = 0
+    defenders = 0
+
+    opponent = 3 - player
+
+    for i in range(4):
+        new_x = x + row_offsets[i]
+        new_y = y + col_offsets[i]
+
+        if in_bounds(new_x, new_y):
+            piece = state.board[new_x][new_y]
+
+            if player == 1:
+                if i < 2 and piece == opponent:
+                    attackers += 1
+                elif i >= 2 and piece == player:
+                    defenders += 1
+            else:
+                if i < 2 and piece == player:
+                    defenders += 1
+                elif i >= 2 and piece == opponent:
+                    attackers += 1
+
+    return attackers <= defenders
+
+
+def in_bounds(x, y):
+    """
+    Determines if the given coordinates (x, y) are within the board bounds.
+
+    :param x: The x-coordinate.
+    :param y: The y-coordinate.
+    :return: True if the coordinates are within the board bounds, False otherwise.
+    """
+    return 0 <= x < 8 and 0 <= y < 8

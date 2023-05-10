@@ -2,6 +2,10 @@ import math
 from collections import deque
 from games.gamestate import GameState
 
+# Constants
+DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+N = 10
+
 
 def visualize_amazons(state):
     board = state.board
@@ -10,9 +14,9 @@ def visualize_amazons(state):
         for j in range(10):
             piece = board[i][j]
             if piece == 1:
-                row.append("P")
+                row.append("W")
             elif piece == 2:
-                row.append("Q")
+                row.append("B")
             elif piece == -1:
                 row.append("A")
             else:
@@ -62,10 +66,11 @@ class AmazonsGameState(GameState):
         Get a list of legal actions for the current player.
         """
         actions = []
-        for x in range(10):
-            for y in range(10):
-                if self.board[x][y] == self.player:
-                    actions.extend(self.get_legal_moves(x, y))
+        queens = queens_from_board(self.board, self.player == 1)
+
+        for x, y in queens:
+            actions.extend(self.get_legal_moves(x, y))
+
         return actions
 
     def get_legal_moves(self, x, y):
@@ -73,15 +78,18 @@ class AmazonsGameState(GameState):
         Get a list of legal moves for the given Amazon piece at position (x, y).
         """
         moves = []
-        for dx in range(-1, 2):
-            for dy in range(-1, 2):
-                if dx == 0 and dy == 0:
-                    continue
-                nx, ny = x + dx, y + dy
-                while 0 <= nx < 10 and 0 <= ny < 10 and self.board[nx][ny] == 0:
-                    moves.append((x, y, nx, ny))
-                    nx += dx
-                    ny += dy
+
+        # Iterate through all possible move directions.
+        for direction in DIRECTIONS:
+            dx, dy = direction
+            nx, ny = x + dx, y + dy
+
+            # Find all legal moves in the current direction.
+            while 0 <= nx < N and 0 <= ny < N and self.board[nx][ny] == 0:
+                moves.append((x, y, nx, ny))
+                nx += dx
+                ny += dy
+
         return moves
 
     def is_terminal(self):
@@ -106,10 +114,6 @@ class AmazonsGameState(GameState):
 # The evaluate function takes an Amazons game state and the player number (1 or 2) as input.
 # It computes the number of legal moves and the number of controlled squares for each player.
 # It then calculates the difference between the players for each metric and combines them with equal weights (0.5) to produce an evaluation score.
-
-# Constants
-N = 10
-DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 
 def evaluate(state, player):
@@ -149,9 +153,6 @@ def evaluate(state, player):
 
     # Return a weighted combination of the differences as the evaluation score.
     return 0.5 * move_difference + 0.5 * controlled_squares_difference
-
-
-DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 
 def count_reachable_squares(state, x, y):
@@ -336,6 +337,9 @@ def territory_compare(ours, theirs):
         for row in range(N)
         for col in range(N)
     )
+
+
+# Several helper functions for the game and evaluation functions
 
 
 def in_bounds(row, col):
