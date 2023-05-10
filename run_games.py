@@ -1,7 +1,11 @@
 import random
-from monte_carlo_tree_search import MCTS, UCTNode
-from breakthrough import BreakthroughGameState, evaluate as evaluate_breakthrough, visualize_breakthrough
-from amazons import AmazonsGameState, evaluate as evaluate_amazons, visualize_amazons
+from ai.monte_carlo_tree_search import MCTS, UCTNode
+from games.breakthrough import (
+    BreakthroughGameState,
+    evaluate as evaluate_breakthrough,
+    visualize_breakthrough,
+)
+from games.amazons import AmazonsGameState, evaluate as evaluate_amazons, visualize_amazons
 
 
 def run_experiment(game_type, player1, player2, num_games, **kwargs):

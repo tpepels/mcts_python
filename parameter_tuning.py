@@ -2,13 +2,10 @@ import math
 import multiprocessing
 from functools import partial
 from itertools import product
-import random
-from monte_carlo_tree_search import MCTS, UCTNode
-from breakthrough_gamestate import BreakthroughGameState
-from amazons_gamestate import AmazonsGameState
-from breakthrough_evaluation import evaluate as evaluate_breakthrough
-from amazons_evaluation import evaluate as evaluate_amazons
-from run_games import run_experiment, mcts_play
+
+from games.amazons import AmazonsGameState, evaluate as evaluate_amazons
+from games.breakthrough import BreakthroughGameState, evaluate as evaluate_breakthrough
+from run_games import mcts_play
 
 
 def experiment(game_type, mcts_simulations, evaluation_function, num_games):

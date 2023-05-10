@@ -1,7 +1,7 @@
 import math
 import random
 
-from ai_player import AIPlayer
+from ai.ai_player import AIPlayer
 
 # I've made changes to the uct method and added the select, update, simulate, expand,
 # and playout methods in the UCTNode class, as well as updated the run and best_action methods in the MCTS class.

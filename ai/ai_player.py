@@ -1,6 +1,4 @@
 import abc
-import random
-import math
 
 
 class AIPlayer(abc.ABC):

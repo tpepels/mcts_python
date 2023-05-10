@@ -1,6 +1,12 @@
 import unittest
 
-from breakthrough import BreakthroughGameState
+from games.breakthrough import (
+    BreakthroughGameState,
+    is_endgame,
+    lorenz_enhanced_evaluation,
+    lorenz_evaluation,
+    piece_mobility,
+)
 
 
 class TestGameState(unittest.TestCase):
@@ -27,75 +33,7 @@ class TestGameState(unittest.TestCase):
         self.assertEqual(len(legal_actions), (3 * 6) + (2 * 2))
 
     def test_get_legal_actions_blocked_pieces(self):
-        state = BreakthroughGameState(
-            board=[
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-            ],
-            player=1,
-        )
+        state = BreakthroughGameState(player=1)
         legal_actions = state.get_legal_actions()
 
         # All pieces of player 1 are blocked by their own pieces, so there should be no legal moves.
@@ -119,75 +57,7 @@ class TestGameState(unittest.TestCase):
         self.assertEqual(len(capture_actions), 0)
 
     def test_get_legal_actions_reach_opponent_home_row(self):
-        state = BreakthroughGameState(
-            board=[
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                101,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-                202,
-            ],
-            player=1,
-        )
+        state = BreakthroughGameState()
         state.board[15] = 0
         state.board[23] = 101
         legal_actions = state.get_legal_actions()
@@ -222,6 +92,36 @@ class TestGameState(unittest.TestCase):
 
         state = BreakthroughGameState()
         self.assertEqual(state.get_reward(), 0, "Reward should be 0 for non-terminal state")
+
+
+class TestLorenzEvaluation(unittest.TestCase):
+    def setUp(self):
+        self.state = [
+            # Fill in your test board state
+        ]
+        self.player = 1
+        self.opponent = 3 - self.player
+
+    def test_lorenz_evaluation(self):
+        result = lorenz_evaluation(self.state, self.player)
+        expected_result = 0  # Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_piece_mobility(self):
+        position = 0  # Set a test position for the piece
+        result = piece_mobility(position, self.player, self.state)
+        expected_result = 0  # Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_is_endgame(self):
+        result = is_endgame(self.state)
+        expected_result = False  # Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_lorenz_enhanced_evaluation(self):
+        result = lorenz_enhanced_evaluation(self.state, self.player)
+        expected_result = 0  # Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
 
 
 if __name__ == "__main__":

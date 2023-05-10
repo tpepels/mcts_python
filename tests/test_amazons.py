@@ -1,5 +1,7 @@
 import unittest
-from amazons import AmazonsGameState, evaluate, count_reachable_squares, visualize_amazons
+import math
+
+from games.amazons import AmazonsGameState, evaluate, count_reachable_squares, visualize_amazons, Heuristic
 
 
 class TestAmazonsGameState(unittest.TestCase):
@@ -69,6 +71,59 @@ class TestAmazonsGameState(unittest.TestCase):
             success = False
 
         self.assertTrue(success)
+
+
+class TestHeuristic(unittest.TestCase):
+    def setUp(self):
+        self.board = [
+            # TODO Fill in your test board state
+        ]
+        self.is_white_player = True
+        self.max_depth = 5
+        self.heuristic = Heuristic(self.board, self.is_white_player, self.max_depth)
+
+    def test_kill_save_queens(self):
+        result = self.heuristic.kill_save_queens()
+        expected_result = 0  # TODO Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_immediate_moves_heuristic(self):
+        result = self.heuristic.immediate_moves_heuristic()
+        expected_result = 0  # TODO Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_mobility_heuristic(self):
+        result = self.heuristic.mobility_heuristic()
+        expected_result = 0  # TODO Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_territory_heuristic(self):
+        result = self.heuristic.territory_heuristic()
+        expected_result = 0  # TODO Set the expected result based on your test board state
+        self.assertEqual(result, expected_result)
+
+    def test_territory_helper(self):
+        out = [[math.inf] * self.heuristic.N for _ in range(self.heuristic.N)]
+        queen_position = (2, 2)  # TODO Set a queen position for the test
+        self.heuristic.territory_helper(queen_position, out)
+
+        # Set the expected result based on your test board state and queen_position
+        expected_out = [
+            # TODO Fill in the expected territory matrix
+        ]
+        self.assertEqual(out, expected_out)
+
+    def test_territory_compare(self):
+        ours = [
+            # TODO Fill in the test 'ours' territory matrix
+        ]
+        theirs = [
+            #  TODO Fill in the test 'theirs' territory matrix
+        ]
+
+        result = self.heuristic.territory_compare(ours, theirs)
+        expected_result = 0  # TODO Set the expected result based on your test matrices
+        self.assertEqual(result, expected_result)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import math
 import random
 
-from ai_player import AIPlayer
+from ai.ai_player import AIPlayer
 
 
 class UCTNode:
