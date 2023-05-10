@@ -1,20 +1,30 @@
 from games.gamestate import GameState
 
 
-def visualize_breakthrough(state):
-    board = state.board
+def visualize_breakthrough(state, characters=True):
+    """
+    Visualize the board for the Breakthrough game.
+
+    :param state: The Breakthrough game state.
+    :param characters: If True, print the board with characters, otherwise print raw values.
+    """
+    if characters:
+        cell_representation = {0: ".", 100: "W", 200: "B"}
+    else:
+        cell_representation = {0: "0", 100: "100", 200: "200"}
+        print("[", end=None)
+
     for i in range(8):
-        row = []
-        for j in range(8):
-            piece = board[i][j]
-            if piece // 100 == 1:
-                row.append("P")
-            elif piece // 100 == 2:
-                row.append("Q")
-            else:
-                row.append(".")
-        print(" ".join(row))
-    print("\n")
+        row = [cell_representation.get(piece // 100 * 100, ".") for piece in state.board[i * 8 : i * 8 + 8]]
+        if not characters:
+            print(", ".join(row))
+        else:
+            print(" ".join(row))
+
+    if not characters:
+        print("]")
+    else:
+        print("\n")
 
 
 class BreakthroughGameState(GameState):
@@ -40,22 +50,26 @@ class BreakthroughGameState(GameState):
                 self.board[48 + i] = 100 + i  # Initialize player 1 pieces
         else:
             self.board = board
+
         self.player = player
 
     def apply_action(self, action):
         """
-        Apply the given action to the game state and return a new game state.
+        Apply the given action to create a new game state. The current state is not altered by this method.
         Actions are represented as a tuple (from_position, to_position).
 
         :param action: The action to apply.
         :return: A new game state with the action applied.
         """
         from_position, to_position = action
-        piece = self.board[from_position]
-        self.board[from_position] = 0  # Remove the piece from its current position
-        self.board[to_position] = piece  # Place the piece at its new position
+        new_board = self.board.copy()
+
+        piece = new_board[from_position]
+        new_board[from_position] = 0  # Remove the piece from its current position
+        new_board[to_position] = piece  # Place the piece at its new position
+
         return BreakthroughGameState(
-            self.board, 3 - self.player
+            new_board, 3 - self.player
         )  # Return new state with the other player's turn
 
     def get_legal_actions(self):
@@ -77,12 +91,15 @@ class BreakthroughGameState(GameState):
 
             for dc in (-1, 0, 1):  # Check all possible moves
                 new_row, new_col = row + dr, col + dc
-                if not self.in_bounds(new_row, new_col):  # Skip if the move is out of bounds
+
+                if not in_bounds(new_row, new_col):  # Skip if the move is out of bounds
                     continue
 
                 new_position = new_row * 8 + new_col
                 # If the destination position is empty or occupied by an opponent's piece, the move is legal
-                if self.board[new_position] == 0 or self.board[new_position] // 100 != self.player:
+                if self.board[new_position] == 0 or (
+                    dc != 0 and self.board[new_position] // 100 != self.player
+                ):
                     legal_actions.append((position, new_position))
 
         return legal_actions
@@ -93,10 +110,17 @@ class BreakthroughGameState(GameState):
 
         :return: True if the game state is terminal, False otherwise.
         """
-        return any(
-            (piece // 100 == self.player and (piece % 100) // 8 == (7 if self.player == 1 else 0))
-            for piece in self.board
-        )
+        # Check for player 2 winning
+        for piece in self.board[0:8]:
+            if piece // 100 == 2:  # Player 2 pieces have values 200 and above
+                return True
+
+        # Check for player 1 winning
+        for piece in self.board[56:64]:
+            if piece // 100 == 1:  # Player 1 pieces have values 100 and above
+                return True
+
+        return False
 
     def get_reward(self):
         """
@@ -105,19 +129,17 @@ class BreakthroughGameState(GameState):
 
         :return: The reward for the current game state.
         """
-        if self.is_terminal():
-            return 1 if self.player == 1 else -1
+        # Check for player 1 winning
+        for piece in self.board[0:8]:
+            if piece // 100 == 2:  # Player 2 pieces have values 200 and above
+                return -1
+
+        # Check for player 2 winning
+        for piece in self.board[56:64]:
+            if piece // 100 == 1:  # Player 1 pieces have values 100 and above
+                return 1
+
         return 0
-
-    def in_bounds(self, r, c):
-        """
-        Check if a given position is within the bounds of the board.
-
-        :param r: The row index.
-        :param c: The column index.
-        :return: True if the position is in bounds, False otherwise.
-        """
-        return 0 <= r < 8 and 0 <= c < 8
 
 
 # The evaluate function takes a Breakthrough game state and the player number (1 or 2) as input.

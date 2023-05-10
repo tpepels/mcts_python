@@ -7,33 +7,36 @@ DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 
 N = 10
 
 
-def visualize_amazons(state):
+def visualize_amazons(state, characters=True):
     board = state.board
+
+    if characters:
+        cell_representation = {1: "W", 2: "B", -1: "-", 0: "."}
+    else:
+        cell_representation = {1: "1", 2: "2", -1: "-1", 0: "0"}
+        print("[", end=None)
+
     for i in range(10):
-        row = []
-        for j in range(10):
-            piece = board[i][j]
-            if piece == 1:
-                row.append("W")
-            elif piece == 2:
-                row.append("B")
-            elif piece == -1:
-                row.append("A")
-            else:
-                row.append(".")
-        print(" ".join(row))
-    print("\n")
+        row = [cell_representation[piece] for piece in board[i]]
+        if not characters:
+            print(f"[{', '.join(row)}],")
+        else:
+            print(" ".join(row))
+
+    if not characters:
+        print("]")
+    else:
+        print("\n")
 
 
 class AmazonsGameState(GameState):
-    def __init__(self, board=None, player=1, action=None):
+    def __init__(self, board=None, player=1):
         """
         Initialize the game state with the given board, player, and action.
         If no board is provided, a new one is initialized.
         """
         self.board = board if board is not None else self.initialize_board()
         self.player = player
-        self.action = action
 
     def initialize_board(self):
         """
@@ -42,11 +45,12 @@ class AmazonsGameState(GameState):
         Empty spaces are represented by 0, and blocked spaces are represented by -1.
         """
         board = [[0] * 10 for _ in range(10)]
-        for i in (0, 9):
-            board[0][i] = board[9][i] = 1
-            board[i][0] = board[i][9] = 2
         board[0][3] = board[0][6] = 1
         board[9][3] = board[9][6] = 2
+
+        board[3][9] = board[3][0] = 1
+        board[6][9] = board[6][0] = 2
+
         return board
 
     def apply_action(self, action):
@@ -59,7 +63,7 @@ class AmazonsGameState(GameState):
         new_board[x2][y2] = new_board[x1][y1]  # Move the piece to the new position
         new_board[x1][y1] = 0  # Remove the piece from its old position
         new_board[x3][y3] = -1  # Block the position where the arrow was shot
-        return AmazonsGameState(new_board, 3 - self.player, action)
+        return AmazonsGameState(new_board, 3 - self.player)
 
     def get_legal_actions(self):
         """
@@ -75,7 +79,7 @@ class AmazonsGameState(GameState):
 
     def get_legal_moves(self, x, y):
         """
-        Get a list of legal moves for the given Amazon piece at position (x, y).
+        Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
         """
         moves = []
 
@@ -86,17 +90,51 @@ class AmazonsGameState(GameState):
 
             # Find all legal moves in the current direction.
             while 0 <= nx < N and 0 <= ny < N and self.board[nx][ny] == 0:
-                moves.append((x, y, nx, ny))
+                arrow_shots = self.get_legal_arrow_shots(nx, ny)
+                for arrow_shot in arrow_shots:
+                    moves.append((x, y, nx, ny, arrow_shot[0], arrow_shot[1]))
                 nx += dx
                 ny += dy
 
         return moves
 
+    def get_legal_arrow_shots(self, x, y):
+        """
+        Get a list of legal arrow shots for the given Amazon piece at position (x, y).
+        """
+        arrow_shots = []
+
+        # Iterate through all possible shot directions.
+        for direction in DIRECTIONS:
+            dx, dy = direction
+            nx, ny = x + dx, y + dy
+
+            # Find all legal arrow shots in the current direction.
+            while 0 <= nx < N and 0 <= ny < N and self.board[nx][ny] == 0:
+                arrow_shots.append((nx, ny))
+                nx += dx
+                ny += dy
+
+        return arrow_shots
+
+    def has_legal_moves(self):
+        """
+        Check if the current player has any legal moves left.
+
+        :return: True if the current player has legal moves, False otherwise.
+        """
+        for x in range(N):
+            for y in range(N):
+                if self.board[x][y] == self.player:
+                    if self.get_legal_moves(x, y):
+                        return True
+        return False
+
     def is_terminal(self):
         """
         Check if the current game state is terminal (i.e., one player has no legal moves left).
         """
-        return not self.get_legal_actions()
+        return not self.has_legal_moves()
 
     def get_reward(self):
         """
@@ -107,8 +145,7 @@ class AmazonsGameState(GameState):
         """
         if self.is_terminal():
             return 1 if self.player != 1 else -1
-        else:
-            return 0
+        return 0
 
 
 # The evaluate function takes an Amazons game state and the player number (1 or 2) as input.

@@ -1,5 +1,5 @@
 import unittest
-from ai.mcts_im import UCTNode, MCTS
+from ai.mcts import UCTNode, MCTS
 
 
 class DummyGameState:
