@@ -1,5 +1,5 @@
+import random
 import unittest
-import math
 
 from games.amazons import AmazonsGameState, evaluate, count_reachable_squares, visualize_amazons
 
@@ -60,51 +60,66 @@ class TestAmazonsGameState(unittest.TestCase):
 
         self.assertNotEqual(state.player, new_state.player)
 
-    def test_get_legal_actions(self):
+    def test_random_actions(self):
         state = AmazonsGameState()
-        actions = state.get_legal_actions()
+        for n in range(100):  # Do 100 random actions on the board
+            if state.is_terminal():
+                break
+            actions = state.get_legal_actions()
+            state = state.apply_action(*random.sample(actions, 1))
+            board = state.board
+            # Check if there are still 8 Amazons
+            white_amazons = sum(row.count(1) for row in board)
+            black_amazons = sum(row.count(2) for row in board)
+            arrows = sum(row.count(-1) for row in board)
 
-        self.assertTrue(len(actions) > 0)
-        self.assertTrue((0, 0, 1, 1, 1, 2) in actions)
+            self.assertEqual(
+                white_amazons,
+                4,
+                f"Incorrect number of white Amazons after {n+1} moves. Gamestate: {visualize_amazons(state)}.",
+            )
+            self.assertEqual(
+                black_amazons,
+                4,
+                f"Incorrect number of black Amazons after {n+1} moves. Gamestate: {visualize_amazons(state)}.",
+            )
+            self.assertEqual(
+                arrows,
+                n + 1,
+                f"Incorrect number of arrows after {n+1} moves. Gamestate: {visualize_amazons(state)}.",
+            )
 
     def test_is_terminal(self):
-        state = AmazonsGameState()
-        self.assertFalse(state.is_terminal())
+        non_terminal_state = AmazonsGameState()
+        self.assertFalse(non_terminal_state.is_terminal())
+
+        terminal_board = [[-1] * 10 for _ in range(10)]
+        terminal_board[5][3] = terminal_board[5][1] = terminal_board[0][3] = 1
+        terminal_board[3][7] = terminal_board[1][7] = terminal_board[3][2] = 2
+
+        terminal_state = AmazonsGameState(terminal_board)
+        visualize_amazons(terminal_state)
+        self.assertTrue(terminal_state.is_terminal())
+        terminal_state.player = 1
+        self.assertEqual(terminal_state.get_reward(), -1)
+        terminal_state.player = 2
+        self.assertEqual(terminal_state.get_reward(), 1)
 
         terminal_board = [[-1] * 10 for _ in range(10)]
         terminal_state = AmazonsGameState(terminal_board)
         self.assertTrue(terminal_state.is_terminal())
 
-    def test_get_reward(self):
-        state = AmazonsGameState()
-        self.assertEqual(state.get_reward(), 0)
-
-        terminal_board = [[-1] * 10 for _ in range(10)]
-        terminal_state = AmazonsGameState(terminal_board)
-        self.assertEqual(terminal_state.get_reward(), 1)
-
-        terminal_state_opponent = AmazonsGameState(terminal_board, player=2)
-        self.assertEqual(terminal_state_opponent.get_reward(), -1)
-
     def test_evaluate(self):
+        # TODO Deze moet je nog implementeren
         state = AmazonsGameState()
         eval_value = evaluate(state, 1)
         self.assertIsNotNone(eval_value)
 
     def test_count_reachable_squares(self):
+        # TODO Deze moet je nog implementeren
         state = AmazonsGameState()
         reachable_squares = count_reachable_squares(state, 0, 0)
         self.assertIsNotNone(reachable_squares)
-
-    def test_visualize_amazons(self):
-        state = AmazonsGameState()
-        try:
-            visualize_amazons(state)
-            success = True
-        except Exception:
-            success = False
-
-        self.assertTrue(success)
 
 
 # class TestHeuristic(unittest.TestCase):

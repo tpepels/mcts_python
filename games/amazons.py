@@ -9,24 +9,27 @@ N = 10
 
 def visualize_amazons(state, characters=True):
     board = state.board
+    output = ""
 
     if characters:
         cell_representation = {1: "W", 2: "B", -1: "-", 0: "."}
     else:
         cell_representation = {1: "1", 2: "2", -1: "-1", 0: "0"}
-        print("[", end=None)
+        output += "["
 
     for i in range(10):
         row = [cell_representation[piece] for piece in board[i]]
         if not characters:
-            print(f"[{', '.join(row)}],")
+            output += f"[{', '.join(row)}],\n"
         else:
-            print(" ".join(row))
+            output += " ".join(row) + "\n"
 
     if not characters:
-        print("]")
+        output += "]"
     else:
-        print("\n")
+        output += "\n"
+
+    return output
 
 
 class AmazonsGameState(GameState):
@@ -73,11 +76,11 @@ class AmazonsGameState(GameState):
         queens = queens_from_board(self.board, self.player == 1)
 
         for x, y in queens:
-            actions.extend(self.get_legal_moves(x, y))
+            actions.extend(self.get_legal_moves_for_amazon(x, y))
 
         return actions
 
-    def get_legal_moves(self, x, y):
+    def get_legal_moves_for_amazon(self, x, y):
         """
         Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
         """
@@ -90,7 +93,7 @@ class AmazonsGameState(GameState):
 
             # Find all legal moves in the current direction.
             while 0 <= nx < N and 0 <= ny < N and self.board[nx][ny] == 0:
-                arrow_shots = self.get_legal_arrow_shots(nx, ny)
+                arrow_shots = self.get_legal_arrow_shots(nx, ny, x, y)
                 for arrow_shot in arrow_shots:
                     moves.append((x, y, nx, ny, arrow_shot[0], arrow_shot[1]))
                 nx += dx
@@ -98,7 +101,7 @@ class AmazonsGameState(GameState):
 
         return moves
 
-    def get_legal_arrow_shots(self, x, y):
+    def get_legal_arrow_shots(self, x, y, ox, oy):
         """
         Get a list of legal arrow shots for the given Amazon piece at position (x, y).
         """
@@ -110,7 +113,7 @@ class AmazonsGameState(GameState):
             nx, ny = x + dx, y + dy
 
             # Find all legal arrow shots in the current direction.
-            while 0 <= nx < N and 0 <= ny < N and self.board[nx][ny] == 0:
+            while 0 <= nx < N and 0 <= ny < N and (self.board[nx][ny] == 0 or (nx == ox and ny == oy)):
                 arrow_shots.append((nx, ny))
                 nx += dx
                 ny += dy
@@ -126,7 +129,7 @@ class AmazonsGameState(GameState):
         for x in range(N):
             for y in range(N):
                 if self.board[x][y] == self.player:
-                    if self.get_legal_moves(x, y):
+                    if self.get_legal_moves_for_amazon(x, y):
                         return True
         return False
 
@@ -139,8 +142,7 @@ class AmazonsGameState(GameState):
     def get_reward(self):
         """
         Get the reward for the current player in the current game state.
-        If the game state is terminal, the reward is 1 for the winning player and -1 for the losing player
-        If the game state is terminal, the reward is 1 for the winning player and -1 for the losing player.
+
         Otherwise, the reward is 0.
         """
         if self.is_terminal():
@@ -173,12 +175,12 @@ def evaluate(state, player):
             piece = state.board[x][y]
 
             if piece == player:
-                moves = state.get_legal_moves(x, y)
+                moves = state.get_legal_moves_for_amazon(x, y)
                 player_moves += len(moves)
                 player_controlled_squares += count_reachable_squares(state, x, y)
 
             elif piece == opponent:
-                moves = state.get_legal_moves(x, y)
+                moves = state.get_legal_moves_for_amazon(x, y)
                 opponent_moves += len(moves)
                 opponent_controlled_squares += count_reachable_squares(state, x, y)
 
