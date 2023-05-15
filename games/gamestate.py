@@ -50,3 +50,17 @@ class GameState(ABC):
         :return: The reward value.
         """
         pass
+
+
+import numpy as np
+
+
+def normalize(value, a):
+    """
+    Normalize value with range [-a,a] to [-1, 1] using tanh
+
+    Args:
+        value (float): the value to normalize
+        a (float): absolute max
+    """
+    return np.tanh(value / a)

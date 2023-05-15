@@ -1,6 +1,7 @@
 import math
+import numpy as np
 from collections import deque
-from games.gamestate import GameState
+from games.gamestate import GameState, normalize
 
 # Constants
 DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
@@ -26,8 +27,6 @@ def visualize_amazons(state, characters=True):
 
     if not characters:
         output += "]"
-    else:
-        output += "\n"
 
     return output
 
@@ -155,7 +154,7 @@ class AmazonsGameState(GameState):
 # It then calculates the difference between the players for each metric and combines them with equal weights (0.5) to produce an evaluation score.
 
 
-def evaluate(state, player):
+def evaluate(state, player, m=(0.5, 0.5), a=1, norm=True):
     """
     Evaluate the given game state from the perspective of the specified player.
 
@@ -177,12 +176,12 @@ def evaluate(state, player):
             if piece == player:
                 moves = state.get_legal_moves_for_amazon(x, y)
                 player_moves += len(moves)
-                player_controlled_squares += count_reachable_squares(state, x, y)
+                player_controlled_squares += count_reachable_squares(state.board, x, y)
 
             elif piece == opponent:
                 moves = state.get_legal_moves_for_amazon(x, y)
                 opponent_moves += len(moves)
-                opponent_controlled_squares += count_reachable_squares(state, x, y)
+                opponent_controlled_squares += count_reachable_squares(state.board, x, y)
 
     # Calculate the differences between player's and opponent's moves and controlled squares.
     move_difference = (player_moves - opponent_moves) / (player_moves + opponent_moves)
@@ -191,10 +190,13 @@ def evaluate(state, player):
     )
 
     # Return a weighted combination of the differences as the evaluation score.
-    return 0.5 * move_difference + 0.5 * controlled_squares_difference
+    if norm:
+        return normalize(m[0] * move_difference + m[1] * controlled_squares_difference, a)
+    else:
+        return m[0] * move_difference + m[1] * controlled_squares_difference
 
 
-def count_reachable_squares(state, x, y):
+def count_reachable_squares(board, x, y):
     """
     Count the number of squares reachable by the piece at the given position (x, y) in the game state.
 
@@ -211,7 +213,7 @@ def count_reachable_squares(state, x, y):
         nx, ny = x + dx, y + dy
 
         # Count the number of empty squares along the direction.
-        while 0 <= nx < N and 0 <= ny < N and state.board[nx][ny] == 0:
+        while 0 <= nx < N and 0 <= ny < N and board[nx][ny] == 0:
             reachable += 1
             nx += dx
             ny += dy
@@ -219,72 +221,65 @@ def count_reachable_squares(state, x, y):
     return reachable
 
 
-def evaluate_lieberum(state, player):
+def evaluate_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5, 0.2), a=50, norm=True):
     is_white_player = player == 1
     board = state.board
     max_depth = math.inf
+
     my_queen_positions = queens_from_board(board, is_white_player)
     their_queen_positions = queens_from_board(board, not is_white_player)
 
-    # Define all the internal helper functions here
-    # ... (All the other helper functions, but now without `self` and adapted to use the variables defined above)
+    if m[0] > 0:
+        terr = territory_heuristic(
+            their_queen_positions, my_queen_positions, state.board, max_depth=max_depth
+        )
+    else:
+        terr = 0
+
+    if m[2] > 0 or m[3] > 0:
+        kill_save, imm_mob = kill_save_queens_immediate_moves(
+            their_queen_positions, my_queen_positions, state.board
+        )
+    else:
+        kill_save = imm_mob = 0
+
+    if m[3] > 0:
+        mob_heur = mobility_heuristic(their_queen_positions, my_queen_positions, state.board)
+    else:
+        mob_heur = 0
 
     # Calculate the utility of the current board state using a combination of heuristics.
-    utility = (
-        8 * territory_heuristic(their_queen_positions, my_queen_positions, state.board, max_depth=max_depth)
-        + 2 * mobility_heuristic(their_queen_positions, my_queen_positions, state.board)
-        + 10 * kill_save_queens(their_queen_positions, my_queen_positions, state.board)
-    )
-    return utility
+    utility = m[0] * terr + m[1] * kill_save + m[2] * imm_mob + m[3] * mob_heur
+
+    if norm:
+        return normalize(utility, a)
+    else:
+        return utility
 
 
-def kill_save_queens(their_queen_positions, my_queen_positions, board):
+def kill_save_queens_immediate_moves(their_queen_positions, my_queen_positions, board):
     """
     Calculate the kill-save heuristic, which is the difference between the number of the player's free queens
     and the number of the opponent's free queens.
-    """
-    total = 0
-    for queen in my_queen_positions:
-        free = False
-        for direction in DIRECTIONS:
-            new_position = generate_new_position(queen, direction)
-            if is_valid_position(board, new_position):
-                free = True
-                break
-        if free:
-            total += 1
 
-    for queen in their_queen_positions:
-        free = False
-        for direction in DIRECTIONS:
-            new_position = generate_new_position(queen, direction)
-            if is_valid_position(board, new_position):
-                free = True
-                break
-        if free:
-            total -= 1
-
-    return total
-
-
-def immediate_moves_heuristic(their_queen_positions, my_queen_positions, board):
-    """
     Calculate the immediate moves heuristic, which is the difference between the number of the player's legal
     immediate moves and the number of the opponent's legal immediate moves.
     """
-    total = 0
+    kill_save = 0
+    imm_moves = 0
     for queen in my_queen_positions:
-        for direction in DIRECTIONS:
-            new_position = generate_new_position(queen, direction)
-            if is_valid_position(board, new_position):
-                total += 1
+        count = count_reachable_squares(board, *queen)
+        imm_moves += count
+        if count > 0:
+            kill_save += 1
 
     for queen in their_queen_positions:
-        for direction in DIRECTIONS:
-            new_position = generate_new_position(queen, direction)
-            if is_valid_position(board, new_position):
-                total -= 1
-    return total
+        count = count_reachable_squares(board, *queen)
+        imm_moves -= count
+        if count > 0:
+            kill_save -= 1
+
+    return kill_save, imm_moves
 
 
 def mobility_heuristic(their_queen_positions, my_queen_positions, board):
@@ -292,32 +287,39 @@ def mobility_heuristic(their_queen_positions, my_queen_positions, board):
     Calculate the mobility heuristic, which is the difference between the number of reachable squares for
     the player's queens and the number of reachable squares for the opponent's queens.
     """
-    ours = [[0] * N for _ in range(N)]
-    theirs = [[0] * N for _ in range(N)]
+    my_score = 0
+    their_score = 0
 
     for queen in my_queen_positions:
-        old_pos = queen
-        for direction in DIRECTIONS:
-            new_pos = generate_new_position(old_pos, direction)
-            while is_valid_position(board, new_pos):
-                ours[new_pos[0]][new_pos[1]] = max(1, ours[new_pos[0]][new_pos[1]])
-                new_pos = generate_new_position(new_pos, direction)
-
+        my_score += flood_fill(board, queen)
     for queen in their_queen_positions:
-        old_pos = queen
-        for direction in DIRECTIONS:
-            new_pos = generate_new_position(old_pos, direction)
-            while is_valid_position(board, new_pos):
-                theirs[new_pos[0]][new_pos[1]] = max(1, theirs[new_pos[0]][new_pos[1]])
-                new_pos = generate_new_position(new_pos, direction)
+        their_score += flood_fill(board, queen)
+    return my_score - their_score
 
-    return reduce_matrix(sub_matrix(ours, theirs)) + 1
+
+def flood_fill(board, pos):
+    stack = [pos]
+    visited = set()
+
+    while stack:
+        x, y = stack.pop()
+        visited.add((x, y))
+
+        for direction in DIRECTIONS:
+            new_pos = generate_new_position((x, y), direction)
+
+            if can_move_to(board, new_pos) and new_pos not in visited:
+                stack.append(new_pos)
+    # print(f"__{pos}__{board[pos[0]][pos[1]]}__{visited}__n:{len(visited) - 1}")
+    return len(visited) - 1
 
 
 def territory_heuristic(their_queen_positions, my_queen_positions, board, max_depth=math.inf):
     """
     Calculate the territory heuristic, which is the difference between the number of squares controlled by
     the player's queens and the number of squares controlled by the opponent's queens.
+
+    Note that this is an expensive method
     """
     my_territory = [[math.inf] * N for _ in range(N)]
     their_territory = [[math.inf] * N for _ in range(N)]
@@ -341,7 +343,7 @@ def territory_helper(queen_position, board, out, max_depth):
 
     for direction in DIRECTIONS:
         new_pos = generate_new_position(queen_position, direction)
-        if is_valid_position(board, new_pos):
+        if can_move_to(board, new_pos):
             queue.append((direction, 1, new_pos))
 
     while queue:
@@ -357,7 +359,7 @@ def territory_helper(queen_position, board, out, max_depth):
 
         for next_direction in DIRECTIONS:
             new_pos = generate_new_position(curr_pos, next_direction)
-            if not is_valid_position(board, new_pos):
+            if not can_move_to(board, new_pos):
                 continue
 
             if next_direction == direction:
@@ -395,13 +397,13 @@ def generate_new_position(position, direction):
     return position[0] + direction[0], position[1] + direction[1]
 
 
-def is_valid_position(board, position):
+def can_move_to(board, position):
     """
     Check if the given position is valid on the board, i.e., it is within bounds and not blocked
-    by an arrow (-1).
+    by an arrow (-1) or another piece.
     """
     row, col = position
-    return in_bounds(row, col) and board[row][col] != -1
+    return in_bounds(row, col) and board[row][col] == 0
 
 
 def queens_from_board(board, is_white_player):
@@ -419,17 +421,3 @@ def initialize_matrix(matrix, value):
     """
     for row in range(len(matrix)):
         matrix[row] = [value] * len(matrix[row])
-
-
-def sub_matrix(matrix_a, matrix_b):
-    """
-    Subtract matrix_b from matrix_a element-wise, and return the resulting matrix.
-    """
-    return [[a - b for a, b in zip(row_a, row_b)] for row_a, row_b in zip(matrix_a, matrix_b)]
-
-
-def reduce_matrix(matrix):
-    """
-    Sum all the elements in the given matrix and return the total.
-    """
-    return sum([matrix[row][col] for row in range(len(matrix)) for col in range(len(matrix[row]))])
