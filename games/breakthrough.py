@@ -1,3 +1,4 @@
+from pprint import pprint
 from games.gamestate import GameState, normalize
 
 
@@ -156,6 +157,26 @@ class BreakthroughGameState(GameState):
 
         return 0
 
+    def is_capture(self, move):
+        """
+        Check if the given move results in a capture.
+
+        :param move: The move to check as a tuple (from_position, to_position).
+        :return: True if the move results in a capture, False otherwise.
+        """
+        from_position, to_position = move
+
+        # Check if the destination cell contains an opponent's piece
+        if self.board[to_position] // 100 == 3 - self.player:
+            from_row, from_col = divmod(from_position, 8)
+            to_row, to_col = divmod(to_position, 8)
+
+            # Ensure the move is diagonal
+            if abs(from_row - to_row) == 1 and abs(from_col - to_col) == 1:
+                return True
+
+        return False
+
 
 # The evaluate function takes a Breakthrough game state and the player number (1 or 2) as input.
 # It computes the number of pieces for each player, the average distance of the pieces to the opponent's side,
@@ -164,43 +185,52 @@ class BreakthroughGameState(GameState):
 # with weights to produce an evaluation score.
 
 
-def evaluate(state, player, m=(0.4, 0.4, 0.2), a=100, norm=False):
+def evaluate(state, player, m=(0.4, 0.4, 0.2, 0.1), a=100, norm=False):
     opponent = 3 - player
 
-    player_pieces = 0
-    opponent_pieces = 0
-    player_distance = 0
-    opponent_distance = 0
-    player_near_opponent_side = 0
-    opponent_near_opponent_side = 0
+    metrics = {
+        player: {"pieces": 0, "distance": 0, "near_opponent_side": 0, "blocked": 0},
+        opponent: {"pieces": 0, "distance": 0, "near_opponent_side": 0, "blocked": 0},
+    }
 
     for position in range(64):
         piece = state.board[position]
         x, y = divmod(position, 8)
+        piece_player = piece // 100
 
-        if piece // 100 == player:
-            player_pieces += 1
-            player_distance += 7 - x if player == 1 else x
-            if (player == 1 and x >= 6) or (player == 2 and x <= 1):
-                player_near_opponent_side += 1
+        if piece_player in [player, opponent]:
+            metrics[piece_player]["pieces"] += 1
+            dist = 7 - x if piece_player == 2 else x
+            metrics[piece_player]["distance"] += dist
+            if (piece_player == 2 and x >= 5) or (piece_player == 1 and x <= 2):
+                metrics[piece_player]["near_opponent_side"] += 7 - dist  # the close the better
+            if is_piece_blocked(position, state.board):
+                metrics[piece_player]["blocked"] += 1
 
-        elif piece // 100 == opponent:
-            opponent_pieces += 1
-            opponent_distance += 7 - x if opponent == 1 else x
-            if (opponent == 1 and x >= 6) or (opponent == 2 and x <= 1):
-                opponent_near_opponent_side += 1
-
-    if player_pieces == 0 or opponent_pieces == 0:
+    if metrics[player]["pieces"] == 0 or metrics[opponent]["pieces"] == 0:
         return 0
 
-    piece_difference = (player_pieces - opponent_pieces) / (player_pieces + opponent_pieces)
-    avg_distance_difference = (opponent_distance - player_distance) / (player_pieces + opponent_pieces)
-    near_opponent_side_difference = (player_near_opponent_side - opponent_near_opponent_side) / (
-        player_pieces + opponent_pieces
+    piece_difference = (metrics[player]["pieces"] - metrics[opponent]["pieces"]) / (
+        metrics[player]["pieces"] + metrics[opponent]["pieces"]
+    )
+    avg_distance_difference = (metrics[opponent]["distance"] - metrics[player]["distance"]) / (
+        metrics[player]["pieces"] + metrics[opponent]["pieces"]
+    )
+    near_opponent_side_difference = (
+        metrics[player]["near_opponent_side"] - metrics[opponent]["near_opponent_side"]
+    ) / (metrics[player]["pieces"] + metrics[opponent]["pieces"])
+
+    blocked_difference = (metrics[opponent]["blocked"] - metrics[player]["blocked"]) / (
+        metrics[player]["pieces"] + metrics[opponent]["pieces"]
     )
 
+    pprint(metrics)
+
     eval_value = (
-        m[0] * piece_difference + m[1] * avg_distance_difference + m[2] * near_opponent_side_difference
+        m[0] * piece_difference
+        + m[1] * avg_distance_difference
+        + m[2] * near_opponent_side_difference
+        + m[3] * blocked_difference
     )
 
     if norm:
@@ -289,7 +319,6 @@ def lorenz_evaluation(state, player, m=(0.5,), a=200, norm=True):
     :param player: The player to evaluate for (1 or 2).
     :return: The evaluation score for the given player.
     """
-    opponent = 3 - player
 
     p1eval = 0
     p2eval = 0
@@ -334,6 +363,10 @@ def lorenz_enhanced_evaluation(state, player, m=(0.5, 10, 0.5, 0.5), a=200, norm
     """
     board_values = 0
     mobility_values = 0
+    safety_values = 0
+    endgame_values = 0
+
+    opponent = 3 - player
 
     for position, piece in enumerate(state.board):
         if piece == 0:
@@ -344,19 +377,22 @@ def lorenz_enhanced_evaluation(state, player, m=(0.5, 10, 0.5, 0.5), a=200, norm
 
         if piece_player == player:
             board_values += piece_value
-            mobility_values += piece_mobility(position, player, state.board)
+            mobility_values += piece_mobility(position, piece_player, state.board)
         else:
             board_values -= piece_value
+            mobility_values -= piece_mobility(position, piece_player, state.board)
 
         if is_safe(position, piece_player, state.board):
             safety_bonus = m[0] * piece_value
-            board_values += safety_bonus if piece_player == player else -safety_bonus
+            safety_values += safety_bonus if piece_player == player else -safety_bonus
 
     if is_endgame(state.board):
-        endgame_bonus = sum(1 for piece in state.board if piece != 0 and piece // 100 == player) * m[1]
-        board_values += endgame_bonus
+        endgame_values = m[1] * (
+            sum(1 for piece in state.board if piece != 0 and piece // 100 == player)
+            - sum(1 for piece in state.board if piece != 0 and piece // 100 == opponent)
+        )
 
-    eval_value = m[2] * board_values + m[3] * mobility_values
+    eval_value = endgame_values + m[2] * board_values + m[3] * mobility_values + safety_values
 
     if norm:
         return normalize(eval_value, a)
@@ -472,3 +508,28 @@ def get_player_pieces(board, player):
         if board[pos] // 100 == player:
             piece_positions.append(pos)
     return piece_positions
+
+
+def is_piece_blocked(position, board):
+    """
+    Check if the given piece is blocked and cannot move one position forward.
+
+    :param position: The position of the piece to check.
+    :return: True if the piece is blocked, False otherwise.
+    """
+    piece = board[position]
+    if piece == 0:
+        raise ValueError("Invalid piece")
+
+    player = piece // 100
+    row, col = divmod(position, 8)
+    dr = -1 if player == 1 else 1  # Determine the direction of movement based on the current player
+
+    for dc in [-1, 0, 1]:
+        new_row, new_col = row + dr, col + dc
+        if in_bounds(new_row, new_col):
+            new_position = new_row * 8 + new_col
+            if board[new_position] == 0 or (dc != 0 and board[new_position] // 100 != player):
+                return False
+
+    return True  # The piece is blocked

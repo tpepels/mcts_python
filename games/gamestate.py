@@ -51,6 +51,16 @@ class GameState(ABC):
         """
         pass
 
+    @abstractmethod
+    def is_capture(self, move):
+        """
+        Check if a move results in a capture of pieces
+
+        Args:
+            move (bool): true if the move captures, false otherwise
+        """
+        pass
+
 
 import numpy as np
 

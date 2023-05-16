@@ -148,6 +148,16 @@ class AmazonsGameState(GameState):
             return 1 if self.player != 1 else -1
         return 0
 
+    def is_capture(self, move):
+        """
+        Check if the given move results in a capture.
+
+        :param move: The move to check as a tuple (from_position, to_position).
+        :return: True if the move results in a capture, False otherwise.
+        """
+
+        return False
+
 
 # The evaluate function takes an Amazons game state and the player number (1 or 2) as input.
 # It computes the number of legal moves and the number of controlled squares for each player.

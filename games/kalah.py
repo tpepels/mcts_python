@@ -2,15 +2,29 @@ from games.gamestate import GameState
 
 
 def visualize_kalah(state):
+    """
+    Visualize the current game state.
+    """
     top_row = " ".join(
-        [str(state.board[i]).rjust(2) for i in range(state.num_houses + 1, len(state.board))][::-1]
+        [str(state.board[i]).rjust(2) + f" ({i})" for i in range(state.num_houses - 1, -1, -1)]
     )
 
-    bottom_row = " ".join([str(state.board[i]).rjust(2) for i in range(state.num_houses)])
-    player1_store = str(state.board[state.num_houses]).rjust(2)
-    player2_store = str(state.board[-1]).rjust(2)
+    bottom_row = " ".join(
+        [
+            str(state.board[i]).rjust(2) + f" ({i})"
+            for i in range(state.num_houses + 1, 2 * state.num_houses + 1)
+        ]
+    )
 
-    return f"Player 2: {player2_store}\n{top_row}\n{bottom_row}\nPlayer 1: {player1_store}"
+    player2_store = str(state.board[-1]).rjust(2)
+    player1_store = str(state.board[state.num_houses]).rjust(2)
+
+    return (
+        f"Player 1's store: {player1_store}\n"
+        f"{top_row}\n"
+        f"{bottom_row}\n"
+        f"Player 2's store: {player2_store}"
+    )
 
 
 class KalahGameState(GameState):
@@ -42,15 +56,17 @@ class KalahGameState(GameState):
         if not self._is_valid_move(action):
             raise ValueError("Invalid move")
 
-        new_board, next_player = self._sow_seeds(action)
+        new_board, next_player, last_index = self._sow_seeds(action)
+
+        # cap = False
 
         # Capture opponent's seeds if the last seed is sown in an empty house on the player's side and the opposite house has seeds.
-        last_index = (action + new_board[action]) % len(new_board)
         if (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12):
             if new_board[last_index] == 1:
-                opposite_house = self._opposite_house(last_index)
+                opposite_house = 12 - last_index
                 if new_board[opposite_house] > 0:
                     # Capture seeds
+                    # cap = True
                     captured_seeds = new_board[opposite_house] + 1
                     new_board[opposite_house] = 0
                     new_board[last_index] = 0
@@ -75,6 +91,26 @@ class KalahGameState(GameState):
                     new_board[i] = 0
 
         new_state = KalahGameState(new_board, next_player)
+        # if new_state.is_terminal():
+        #     print(f"Move {action} by {self.player} leads to a terminal position!")
+        #     print(visualize_kalah(self))
+        #     print("Resulting in gamestate:")
+        #     print(visualize_kalah(new_state))
+        #     print("-==-" * 6)
+
+        # if self.player == next_player:
+        #     print(f"Move {action} by {self.player} leads another move yay!")
+        #     print(visualize_kalah(self))
+        #     print("Resulting in gamestate:")
+        #     print(visualize_kalah(new_state))
+        #     print("-==-" * 6)
+
+        # if cap:
+        #     print(f"Move {action} by {self.player} leads to capture!")
+        #     print(visualize_kalah(self))
+        #     print("Resulting in gamestate:")
+        #     print(visualize_kalah(new_state))
+        #     print("-==-" * 6)
         return new_state
 
     def get_legal_actions(self):
@@ -147,21 +183,7 @@ class KalahGameState(GameState):
             else:
                 next_player = 3 - self.player
 
-        return board_copy, next_player
-
-    def _opposite_house(self, house):
-        """
-        Get the index of the house opposite to the given house index.
-
-        :param house: The index of the house.
-        :return: The index of the opposite house.
-        """
-        if 0 <= house <= 5:
-            return 12 - house
-        elif 7 <= house <= 12:
-            return 12 - (house - 7)
-        else:
-            raise ValueError("Invalid house index")
+        return board_copy, next_player, index
 
     def _is_valid_move(self, index):
         """
@@ -170,11 +192,42 @@ class KalahGameState(GameState):
         :param index: The index of the house to pick up seeds from.
         :return: True if the move is valid, False otherwise.
         """
-        if self.player == 1 and 0 <= index <= 5 and self.board[index] > 0:
-            return True
-        elif self.player == 2 and 7 <= index <= 12 and self.board[index] > 0:
-            return True
+
+        if self.is_terminal():  # Stop moving in a terminal state
+            return False
+
+        return (self.player == 1 and 0 <= index <= 5 and self.board[index] > 0) or (
+            self.player == 2 and 7 <= index <= 12 and self.board[index] > 0
+        )
+
+    def is_capture(self, move):
+        """
+        Check if the given move results in a capture.
+
+        :param move: The move to check, represented as the index of the house to pick up seeds from.
+        :return: True if the move results in a capture, False otherwise.
+        """
+        # TODO Hier was je gebleven, je moet count-passes gebruiken om te bepalen waar je uit komt
+        if not self._is_valid_move(move):
+            raise ValueError("Invalid move")
+
+        seeds = self.board[move]
+        last_index = (move + seeds) % len(self.board - 1)
+
+        if (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12):
+            if self.board[last_index] == 0 and self.board[12 - last_index] > 0:
+                return True
+
         return False
+
+
+def count_passes(seeds, size, start, k):
+    rounds = seeds // size
+    remaining_steps = seeds % size
+
+    if (start >= k and (remaining_steps + start) >= k) or (start < k and remaining_steps + start >= size + k):
+        rounds += 1
+    return rounds
 
 
 def simple_evaluation_function(state: KalahGameState, player: int) -> float:
@@ -184,7 +237,7 @@ def simple_evaluation_function(state: KalahGameState, player: int) -> float:
         return state.board[7] - state.board[0]
 
 
-def sophisticated_evaluation_function(state: KalahGameState, player: int) -> float:
+def enhanced_evaluation_function(state: KalahGameState, player: int) -> float:
     if player == 1:
         opponent = 2
         player_houses = range(1, 7)
