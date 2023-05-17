@@ -28,7 +28,7 @@ def visualize_kalah(state):
 
 
 class KalahGameState(GameState):
-    def __init__(self, board=None, player=1, num_houses=6, num_seeds=4):
+    def __init__(self, board=None, player=1):
         """
         Initialize the Kalah game state.
 
@@ -38,12 +38,12 @@ class KalahGameState(GameState):
         :param player: The player whose turn it is, 1 for player 1 and 2 for player 2 (default: 1).
         """
         if board is None:
-            board = [num_seeds] * (num_houses * 2 + 2)
-            board[num_houses] = 0
-            board[-1] = 0
+            board = [4] * 14  # 12 houses plus two pits
+            board[6] = 0  # player 1's pit
+            board[-1] = 0  # player 2's pit
         self.board = board
         self.player = player
-        self.num_houses = num_houses
+        self.num_houses = 6
 
     def apply_action(self, action):
         """
@@ -58,15 +58,22 @@ class KalahGameState(GameState):
 
         new_board, next_player, last_index = self._sow_seeds(action)
 
-        # cap = False
+        cap = False
 
         # Capture opponent's seeds if the last seed is sown in an empty house on the player's side and the opposite house has seeds.
         if (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12):
             if new_board[last_index] == 1:
                 opposite_house = 12 - last_index
                 if new_board[opposite_house] > 0:
+                    if not self.is_capture(action):
+                        print("Capture but no is_capture")
+                        print(visualize_kalah(self))
+                        print(action)
+                        self.is_capture(action, True)
+                        return None
+
                     # Capture seeds
-                    # cap = True
+                    cap = True
                     captured_seeds = new_board[opposite_house] + 1
                     new_board[opposite_house] = 0
                     new_board[last_index] = 0
@@ -75,6 +82,13 @@ class KalahGameState(GameState):
                         new_board[6] += captured_seeds
                     else:
                         new_board[13] += captured_seeds
+
+        if cap == False and self.is_capture(action):
+            print("No capture but is_capture!")
+            print(visualize_kalah(self))
+            print(action)
+            self.is_capture(action, True)
+            return None
 
         # Check if one side is empty and move all seeds on the other side to the respective store
         p1_houses_empty = all(new_board[i] == 0 for i in range(0, 6))
@@ -200,32 +214,70 @@ class KalahGameState(GameState):
             self.player == 2 and 7 <= index <= 12 and self.board[index] > 0
         )
 
-    def is_capture(self, move):
+    def is_capture(self, move, _print=False):
         """
         Check if the given move results in a capture.
 
         :param move: The move to check, represented as the index of the house to pick up seeds from.
         :return: True if the move results in a capture, False otherwise.
         """
-        # TODO Hier was je gebleven, je moet count-passes gebruiken om te bepalen waar je uit komt
         if not self._is_valid_move(move):
             raise ValueError("Invalid move")
 
         seeds = self.board[move]
-        last_index = (move + seeds) % len(self.board - 1)
 
-        if (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12):
-            if self.board[last_index] == 0 and self.board[12 - last_index] > 0:
+        # Calculate how often the opponent's pit is passed
+        size = len(self.board)
+        passes = count_passes(
+            seeds=seeds,
+            move=move,
+            k=6 if self.player == 2 else 13,
+            size=size,
+        )
+        # Calculate total steps considering the opponent's store
+        total_steps = move + seeds + passes
+        last_index = total_steps % (13 + passes)  # And, finally the index where the last stone is dropped
+
+        opp = 12 - last_index
+        passed_opp = total_steps > opp if move < opp else total_steps > size + opp
+        rounds = seeds // 13
+        # if we end up where we started, that means that we are in a house with 0 seeds, but the board still
+        # has the seeds in it.
+        if ((self.board[last_index] == 0 and rounds == 0) or last_index == move) and (
+            (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12)
+        ):
+            # Either the opposing side had a stone before, or we dropped one in it
+            if self.board[opp] > 0 or passed_opp:
+                if _print:
+                    print(
+                        f"YES capture {move=} {seeds=} {last_index=} {total_steps=} {passes=} {passed_opp=}"
+                    )
                 return True
-
+        if _print:
+            print(f"NO capture {move=} {seeds=} {last_index=} {total_steps=} {passes=} {passed_opp=}")
         return False
 
 
-def count_passes(seeds, size, start, k):
+def count_passes(seeds, move, k, size=13):
+    """
+    Function can be used to determine the last index of a given move without having to execute the full move.
+
+    Args:
+        seeds (int): the number of seeds picked up
+        size (int): the size of the board (default = 13)
+        move (int): The position the seeds are picked up from
+        k (int): The function counts how often position k is passed (6 for p1 13 for p2 if we count the stores)
+
+    Returns:
+        int: How often k is passed given the parameters
+    """
     rounds = seeds // size
     remaining_steps = seeds % size
 
-    if (start >= k and (remaining_steps + start) >= k) or (start < k and remaining_steps + start >= size + k):
+    # if (move >= k and (remaining_steps + move) % size >= k) or (
+    #     move < k and remaining_steps + move >= size + k
+    # ):
+    if remaining_steps + move >= size + k:
         rounds += 1
     return rounds
 
