@@ -241,7 +241,7 @@ def evaluate(state, player, m=(0.4, 0.4, 0.2, 0.1), a=100, norm=False):
 
 # Lorenz evaluation functions
 
-# List of values representing the importance of each square on the board.
+# List of values representing the importance of each square on the board. In view of player 2.
 lorentz_values = [
     5,
     15,
