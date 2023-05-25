@@ -219,7 +219,7 @@ def evaluate_amazons(state, player, m=(0.5, 0.5), a=1, norm=True):
         return m[0] * move_difference + m[1] * controlled_squares_difference
 
 
-def evaluate_amazons_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5, 0.2), a=50, norm=True):
+def evaluate_amazons_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5), a=50, norm=True):
     is_white_player = player == 1
     board = state.board
     max_depth = math.inf
@@ -234,7 +234,7 @@ def evaluate_amazons_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5, 0.2), a=50, 
     else:
         terr = 0
 
-    if m[2] > 0 or m[3] > 0:
+    if m[1] > 0 or m[2] > 0:
         kill_save, imm_mob = kill_save_queens_immediate_moves(
             their_queen_positions, my_queen_positions, state.board
         )

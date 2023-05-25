@@ -1,3 +1,4 @@
+from functools import partial
 import time
 
 from ai.alpha_beta import AlphaBetaPlayer
@@ -36,7 +37,15 @@ game_dict = {
 player_dict = {"alphabeta": AlphaBetaPlayer, "mcts": MCTSPlayer}
 
 
-def run_game(game_key, ai_key, eval_keys, game_params, ai_params):
+def run_game(
+    game_key,
+    ai_key,
+    eval_keys,
+    game_params,
+    ai_params,
+    eval_params_p1: dict = None,
+    eval_params_p2: dict = None,
+):
     """
     Run a game simulation between two AI players using provided parameters.
 
@@ -68,6 +77,8 @@ def run_game(game_key, ai_key, eval_keys, game_params, ai_params):
         specific AI class. Common parameters might include "depth" for the search depth in an Alpha-Beta player,
         or "num_simulations" for the number of simulations to run in an MCTS player.
 
+    eval_params_p1, eval_params_p2: dict
+        Two dictionaries that can be used to pass parameters to the respective evaluation functions (m and a).
     """
     # Fetch the corresponding classes from the dictionaries
     game_class = game_dict[game_key]
@@ -76,6 +87,11 @@ def run_game(game_key, ai_key, eval_keys, game_params, ai_params):
     # Fetch the corresponding evaluation functions
     eval_function_p1 = eval_dict[eval_keys["p1"]]
     eval_function_p2 = eval_dict[eval_keys["p2"]]
+
+    if eval_params_p1 is not None:
+        eval_function_p1 = partial(eval_function_p1, **eval_params_p1)
+    if eval_params_p2 is not None:
+        eval_function_p2 = partial(eval_function_p2, **eval_params_p2)
 
     # Initialize game state
     game = game_class(**game_params)
@@ -112,7 +128,13 @@ import time
 
 
 def run_game_experiment(
-    game_key: str, ai_key: str, eval_keys: dict, game_params: dict, ai_params: dict
+    game_key: str,
+    ai_key: str,
+    eval_keys: dict,
+    game_params: dict,
+    ai_params: dict,
+    eval_params_p1: dict = None,
+    eval_params_p2: dict = None,
 ) -> Tuple[str, str, float, Tuple[float, float], int]:
     # Fetch the corresponding classes from the dictionaries
     game_class = game_dict[game_key]
@@ -121,6 +143,11 @@ def run_game_experiment(
     # Fetch the corresponding evaluation functions
     eval_function_p1 = eval_dict[eval_keys["p1"]]
     eval_function_p2 = eval_dict[eval_keys["p2"]]
+
+    if eval_params_p1 is not None:
+        eval_function_p1 = partial(eval_function_p1, **eval_params_p1)
+    if eval_params_p2 is not None:
+        eval_function_p2 = partial(eval_function_p2, **eval_params_p2)
 
     # Initialize game state
     game = game_class(**game_params)
@@ -131,6 +158,11 @@ def run_game_experiment(
 
     # Initialize stats
     setup = f"Game: {game_key} with parameters {game_params}. AI: {ai_key} with parameters {ai_params} and evaluation functions {eval_keys}"
+    if eval_params_p1 is not None:
+        setup += f" with p1 parameters {eval_params_p1}"
+    if eval_params_p2 is not None:
+        setup += f" with p2 parameters {eval_params_p2}"
+
     game_output = []
     times = {1: [], 2: []}
     start_time_total = time.time()
@@ -161,22 +193,21 @@ def run_game_experiment(
 
 import gspread
 import multiprocessing
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 
 def run_multiple_game_experiments(
     n_games: int, game_key: str, ai_key: str, eval_keys: dict, game_params: dict, ai_params: dict
 ):
     # Use credentials to create a client to interact with the Google Drive API
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        "client_secret.json", scope
-    )  # Provide path to your client_secret.json
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_file("client_secret.json", scopes=scopes)
     client = gspread.authorize(creds)
 
     # Create a new Google Sheets document
     title = f"Game Results for {n_games} games with {game_key} and {ai_key}"
     sheet = client.create(title)
+    sheet.share("tpepels@gmail.com", perm_type="user", role="writer")  # Share the sheet with your account
 
     # Write headers
     worksheet = sheet.get_worksheet(0)
@@ -184,8 +215,7 @@ def run_multiple_game_experiments(
         ["Experiment", "Setup", "Game Output", "Total Time", "Avg Time p1", "Avg Time p2", "Result"], 1
     )
 
-    # Define a function to run a single game and record results to Google Sheets
-    def run_single_game(game_key, ai_key, eval_keys, game_params, ai_params):
+    def run_single_game(i, game_key, ai_key, eval_keys, game_params, ai_params):
         setup, game_output, total_time, avg_time_per_move, result = run_game_experiment(
             game_key, ai_key, eval_keys, game_params, ai_params
         )
@@ -195,4 +225,7 @@ def run_multiple_game_experiments(
 
     # Run n_games instances of the game in parallel, distributing across the available CPU cores
     with multiprocessing.Pool() as pool:
-        pool.starmap(run_single_game, [(game_key, ai_key, eval_keys, game_params, ai_params)] * n_games)
+        pool.starmap(
+            run_single_game,
+            [(i, game_key, ai_key, eval_keys, game_params, ai_params) for i in range(n_games)],
+        )
