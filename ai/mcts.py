@@ -157,7 +157,7 @@ class UCTNode:
         return self.total_value / self.visits if self.visits != 0 else 0
 
 
-class MCTS(AIPlayer):
+class MCTSPlayer(AIPlayer):
     def init(self, node_class, state, num_simulations, exploration_param=1.0):
         """
         Initialize a Monte Carlo Tree Search (MCTS) player.

@@ -1,30 +1,4 @@
-from games.gamestate import GameState, normalize
-
-
-def visualize_kalah(state):
-    """
-    Visualize the current game state.
-    """
-    top_row = " ".join(
-        [str(state.board[i]).rjust(2) + f" ({i})" for i in range(state.num_houses - 1, -1, -1)]
-    )
-
-    bottom_row = " ".join(
-        [
-            str(state.board[i]).rjust(2) + f" ({i})"
-            for i in range(state.num_houses + 1, 2 * state.num_houses + 1)
-        ]
-    )
-
-    player2_store = str(state.board[-1]).rjust(2)
-    player1_store = str(state.board[state.num_houses]).rjust(2)
-
-    return (
-        f"Player 1's store: {player1_store}\n"
-        f"{top_row}\n"
-        f"{bottom_row}\n"
-        f"Player 2's store: {player2_store}"
-    )
+from games.gamestate import GameState, normalize, win, loss, draw
 
 
 class KalahGameState(GameState):
@@ -112,6 +86,15 @@ class KalahGameState(GameState):
         #     print("-==-" * 6)
         return new_state
 
+    def skip_turn(self):
+        """Used for the null-move heuristic in alpha-beta search
+
+        Returns:
+            BreakthroughGameState: A new gamestate in which the players are switched but no move performed
+        """
+        new_board = self.board.copy()
+        return KalahGameState(new_board, 3 - self.player)
+
     def get_legal_actions(self):
         """
         Get a list of legal actions for the current game state.
@@ -134,9 +117,9 @@ class KalahGameState(GameState):
         )
         return player1_houses_empty or player2_houses_empty
 
-    def get_reward(self):
+    def get_reward(self, player):
         """
-        The reward is 1 for player 1 if they have won, -1 for player 2 if they have won, and 0 otherwise.
+        Returns the reward value of a terminal state [-1, 0, 1] (loss/draw/win)
 
         :return: The reward value.
         """
@@ -147,11 +130,11 @@ class KalahGameState(GameState):
         player2_score = self.board[-1]
 
         if player1_score > player2_score:
-            return 1
+            return win if player == 1 else loss
         elif player1_score < player2_score:
-            return -1
+            return loss if player == 1 else win
         else:
-            return 0
+            return draw
 
     def _sow_seeds(self, index):
         """
@@ -229,6 +212,53 @@ class KalahGameState(GameState):
                 return True
         return False
 
+    def evaluate_move(self, move):
+        """
+        Evaluates the given move using a heuristic based on the potential benefits of the move.
+
+        :param move: The move to evaluate.
+        :return: The heuristic score for the move.
+        """
+
+        # Initialize score to 0
+        score = 0
+
+        # Check if the move results in a capture and assign a positive score
+        if self.is_capture(move):
+            score += 2
+
+        # Check if the move results in another move for the current player and assign a positive score
+        last_index, _ = calc_last_index_total_steps(self.board[move], move, 13 if self.player == 1 else 6)
+        if (self.player == 1 and last_index == 6) or (self.player == 2 and last_index == 6):
+            score += 1
+
+        return score
+
+    def visualize(self):
+        """
+        Visualize the current game state.
+        """
+        top_row = " ".join(
+            [str(self.board[i]).rjust(2) + f" ({i})" for i in range(self.num_houses - 1, -1, -1)]
+        )
+
+        bottom_row = " ".join(
+            [
+                str(self.board[i]).rjust(2) + f" ({i})"
+                for i in range(self.num_houses + 1, 2 * self.num_houses + 1)
+            ]
+        )
+
+        player2_store = str(self.board[-1]).rjust(2)
+        player1_store = str(self.board[self.num_houses]).rjust(2)
+
+        return (
+            f"Player 1's store: {player1_store}\n"
+            f"{top_row}\n"
+            f"{bottom_row}\n"
+            f"Player 2's store: {player2_store}"
+        )
+
 
 def calc_last_index_total_steps(seeds, move, k, size=13):
     passes = count_passes(
@@ -266,14 +296,14 @@ def count_passes(seeds, move, k, size=13):
     return rounds
 
 
-def simple_evaluation_function(state: KalahGameState, player: int) -> float:
+def evaluate_kalah(state: KalahGameState, player: int) -> float:
     if player == 1:
         return state.board[6] - state.board[-1]
     else:
         return state.board[-1] - state.board[6]
 
 
-def enhanced_evaluation_function(
+def evaluate_kalah_enhanced(
     state: KalahGameState, player: int, m=(1.0, 0.5, 0.25, 0.5, 0.5), a=5, norm=True
 ) -> float:
     if player == 1:

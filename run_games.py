@@ -1,118 +1,198 @@
-import random
-from ai.monte_carlo_tree_search import MCTS, UCTNode
+import time
+
+from ai.alpha_beta import AlphaBetaPlayer
+from ai.mcts import MCTSPlayer
+from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
 from games.breakthrough import (
     BreakthroughGameState,
-    evaluate as evaluate_breakthrough,
-    visualize_breakthrough,
+    evaluate_breakthrough,
+    lorenz_evaluation,
+    lorenz_enhanced_evaluation,
 )
-from games.amazons import AmazonsGameState, evaluate as evaluate_amazons, visualize_amazons
+from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
+from games.kalah import KalahGameState, evaluate_kalah, evaluate_kalah_enhanced
+
+# Contains all possible evaluation functions for use in factory
+eval_dict = {
+    evaluate_tictactoe.__name__: evaluate_tictactoe,
+    evaluate_breakthrough.__name__: evaluate_breakthrough,
+    lorenz_evaluation.__name__: lorenz_evaluation,
+    lorenz_enhanced_evaluation.__name__: lorenz_enhanced_evaluation,
+    evaluate_amazons.__name__: evaluate_amazons,
+    evaluate_amazons_lieberum.__name__: evaluate_amazons_lieberum,
+    evaluate_kalah.__name__: evaluate_kalah,
+    evaluate_kalah_enhanced.__name__: evaluate_kalah_enhanced,
+}
+
+# Contains all possible games for use in factory
+game_dict = {
+    "tictactoe": TicTacToeGameState,
+    "breakthrough": BreakthroughGameState,
+    "amazons": AmazonsGameState,
+    "kalah": KalahGameState,
+}
+
+# Contains all possible ai players for use in factory
+player_dict = {"alphabeta": AlphaBetaPlayer, "mcts": MCTSPlayer}
 
 
-def run_experiment(game_type, player1, player2, num_games, **kwargs):
-    if game_type == "breakthrough":
-        game_state_cls = BreakthroughGameState
-        visualization_fn = visualize_breakthrough
-    elif game_type == "amazons":
-        game_state_cls = AmazonsGameState
-        visualization_fn = visualize_amazons
-    else:
-        raise ValueError(f"Unknown game type '{game_type}'")
+def run_game(game_key, ai_key, eval_keys, game_params, ai_params):
+    """
+    Run a game simulation between two AI players using provided parameters.
 
-    player1_wins = 0
-    player2_wins = 0
-    for game_idx in range(num_games):
-        state = game_state_cls()
-        while not state.is_terminal():
-            if state.player == 1:
-                action = player1(state, **kwargs)
-            else:
-                action = player2(state, **kwargs)
-            state = state.apply_action(action)
+    This function initializes a game state and two AI players, then conducts a turn-based game until
+    a terminal state is reached. After each action, it prints the player, chosen action, evaluation
+    value, and the time taken for the AI to decide on the action.
 
-        reward = state.get_reward()
-        if reward == 1:
-            player1_wins += 1
-        elif reward == -1:
-            player2_wins += 1
+    At the end of the game, it prints the final game state and the game's result for player 1.
 
-        print(f"Game {game_idx + 1} result: Player 1 wins - {player1_wins}, Player 2 wins - {player2_wins}")
+    Parameters
+    ----------
+    game_key : str
+        The key to select the game from the `game_dict`. Should correspond to one of the supported game types:
+        "tictactoe", "breakthrough", "amazons", or "kalah".
 
+    ai_key : str
+        The key to select the AI player class from the `player_dict`. Should be either "alphabeta" or "mcts".
 
-def human_input(state, visualization_fn, *args, **kwargs):
-    visualization_fn(state)
-    action_str = input(
-        "Enter your move (e.g., 'x1 y1 x2 y2 x3 y3' for Amazons or 'x1 y1 x2 y2' for Breakthrough): "
-    )
-    action = tuple(map(int, action_str.split()))
-    return action
+    eval_keys : dict
+        A dictionary containing two keys "p1" and "p2", with values corresponding to the keys of the `eval_dict`.
+        These are used to select the evaluation function for each player.
 
+    game_params : dict
+        A dictionary of parameters to pass to the game state initializer. The required parameters depend on the
+        specific game.
 
-def mcts_play(state, num_simulations, evaluation_fn, *args, **kwargs):
-    mcts = MCTS(UCTNode, state, num_simulations, evaluation_fn)
-    return mcts.best_action()
+    ai_params : dict
+        A dictionary of parameters to pass to the AI player initializers. The required parameters depend on the
+        specific AI class. Common parameters might include "depth" for the search depth in an Alpha-Beta player,
+        or "num_simulations" for the number of simulations to run in an MCTS player.
 
+    """
+    # Fetch the corresponding classes from the dictionaries
+    game_class = game_dict[game_key]
+    ai_class = player_dict[ai_key]
 
-def main():
-    game_type = input("Enter game type ('breakthrough' or 'amazons'): ").strip()
-    player1_type = input("Enter player 1 type ('human' or 'mcts'): ").strip()
-    player2_type = input("Enter player 2 type ('human' or 'mcts'): ").strip()
+    # Fetch the corresponding evaluation functions
+    eval_function_p1 = eval_dict[eval_keys["p1"]]
+    eval_function_p2 = eval_dict[eval_keys["p2"]]
 
-    if game_type == "breakthrough":
-        game_state_cls = BreakthroughGameState
-        visualization_fn = visualize_breakthrough
-        evaluation_fn = evaluate_breakthrough
-    elif game_type == "amazons":
-        game_state_cls = AmazonsGameState
-        visualization_fn = visualize_amazons
-        evaluation_fn = evaluate_amazons
-    else:
-        raise ValueError(f"Unknown game type '{game_type}'")
+    # Initialize game state
+    game = game_class(**game_params)
 
-    if player1_type == "human":
-        player1_fn = human_input
-    elif player1_type == "mcts":
-        player1_fn = mcts_play
-    else:
-        raise ValueError(f"Unknown player 1 type '{player1_type}'")
+    # Initialize two AI players
+    p1 = ai_class(player=1, evaluate=eval_function_p1, **ai_params)
+    p2 = ai_class(player=2, evaluate=eval_function_p2, **ai_params)
 
-    if player2_type == "human":
-        player2_fn = human_input
-    elif player2_type == "mcts":
-        player2_fn = mcts_play
-    else:
-        raise ValueError(f"Unknown player 2 type '{player2_type}'")
-
-    if "mcts" in (player1_type, player2_type):
-        num_simulations = int(input("Enter the number of MCTS simulations: ").strip())
-
-    state = game_state_cls()
-    while not state.is_terminal():
-        if state.player == 1:
-            action = (
-                player1_fn(
-                    state, visualization_fn, num_simulations=num_simulations, evaluation_fn=evaluation_fn
-                )
-                if player1_type == "mcts"
-                else player1_fn(state, visualization_fn)
+    while not game.is_terminal():
+        start_time = time.time()
+        if game.player == 1:
+            action, v = p1.best_action(game)
+            elapsed_time = time.time() - start_time
+            print(
+                f"Player 1's turn. Chosen action: {action} v:{v:.3f}. Search took {elapsed_time:.1f} seconds."
             )
         else:
-            action = (
-                player2_fn(
-                    state, visualization_fn, num_simulations=num_simulations, evaluation_fn=evaluation_fn
-                )
-                if player2_type == "mcts"
-                else player2_fn(state, visualization_fn)
+            action, v = p2.best_action(game)
+            elapsed_time = time.time() - start_time
+            print(
+                f"Player 2's turn. Chosen action: {action} v:{v:3f}. Search took {elapsed_time:.1f} seconds."
             )
-        state = state.apply_action(action)
 
-    print("Game over!")
-    if state.get_reward() == 1:
-        print("Player 1 wins!")
-    elif state.get_reward() == -1:
-        print("Player 2 wins!")
-    else:
-        print("It's a draw!")
+        game = game.apply_action(action)
+
+        print(game.visualize())
+
+    result = game.get_reward(1)
+    print(f"Game Over. Result for p1: {result}")
 
 
-if __name__ == "__main__":
-    main()
+from typing import List, Tuple
+import time
+
+
+def run_game_experiment(
+    game_key: str, ai_key: str, eval_keys: dict, game_params: dict, ai_params: dict
+) -> Tuple[str, str, float, Tuple[float, float], int]:
+    # Fetch the corresponding classes from the dictionaries
+    game_class = game_dict[game_key]
+    ai_class = player_dict[ai_key]
+
+    # Fetch the corresponding evaluation functions
+    eval_function_p1 = eval_dict[eval_keys["p1"]]
+    eval_function_p2 = eval_dict[eval_keys["p2"]]
+
+    # Initialize game state
+    game = game_class(**game_params)
+
+    # Initialize two AI players
+    p1 = ai_class(player=1, evaluate=eval_function_p1, **ai_params)
+    p2 = ai_class(player=2, evaluate=eval_function_p2, **ai_params)
+
+    # Initialize stats
+    setup = f"Game: {game_key} with parameters {game_params}. AI: {ai_key} with parameters {ai_params} and evaluation functions {eval_keys}"
+    game_output = []
+    times = {1: [], 2: []}
+    start_time_total = time.time()
+
+    while not game.is_terminal():
+        start_time_move = time.time()
+        if game.player == 1:
+            action, v = p1.best_action(game)
+        else:
+            action, v = p2.best_action(game)
+
+        elapsed_time_move = time.time() - start_time_move
+        times[game.player].append(elapsed_time_move)
+
+        game_output.append(
+            f"Player {game.player}, action: {action}, v: {v:.3f}, time: {elapsed_time_move:.3f}"
+        )
+        game = game.apply_action(action)
+        game_output.append(f"State: {eval_function_p1(game, 1)=} {eval_function_p2(game, 2)=}")
+        game_output.append(game.visualize())
+
+    total_time = time.time() - start_time_total
+    avg_time_per_move = (sum(times[1]) / len(times[1]), sum(times[2]) / len(times[2]))
+    result = game.get_reward(1)
+
+    return setup, "\n".join(game_output), total_time, avg_time_per_move, result
+
+
+import gspread
+import multiprocessing
+from oauth2client.service_account import ServiceAccountCredentials
+
+
+def run_multiple_game_experiments(
+    n_games: int, game_key: str, ai_key: str, eval_keys: dict, game_params: dict, ai_params: dict
+):
+    # Use credentials to create a client to interact with the Google Drive API
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        "client_secret.json", scope
+    )  # Provide path to your client_secret.json
+    client = gspread.authorize(creds)
+
+    # Create a new Google Sheets document
+    title = f"Game Results for {n_games} games with {game_key} and {ai_key}"
+    sheet = client.create(title)
+
+    # Write headers
+    worksheet = sheet.get_worksheet(0)
+    worksheet.insert_row(
+        ["Experiment", "Setup", "Game Output", "Total Time", "Avg Time p1", "Avg Time p2", "Result"], 1
+    )
+
+    # Define a function to run a single game and record results to Google Sheets
+    def run_single_game(game_key, ai_key, eval_keys, game_params, ai_params):
+        setup, game_output, total_time, avg_time_per_move, result = run_game_experiment(
+            game_key, ai_key, eval_keys, game_params, ai_params
+        )
+        avg_time_p1, avg_time_p2 = avg_time_per_move
+        # Append the result to the sheet
+        worksheet.append_row([i, setup, game_output, total_time, avg_time_p1, avg_time_p2, result])
+
+    # Run n_games instances of the game in parallel, distributing across the available CPU cores
+    with multiprocessing.Pool() as pool:
+        pool.starmap(run_single_game, [(game_key, ai_key, eval_keys, game_params, ai_params)] * n_games)

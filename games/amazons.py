@@ -1,34 +1,11 @@
 import math
 import numpy as np
 from collections import deque
-from games.gamestate import GameState, normalize
+from games.gamestate import GameState, normalize, win, loss, draw
 
 # Constants
 DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 N = 10
-
-
-def visualize_amazons(state, characters=True):
-    board = state.board
-    output = ""
-
-    if characters:
-        cell_representation = {1: "W", 2: "B", -1: "-", 0: "."}
-    else:
-        cell_representation = {1: "1", 2: "2", -1: "-1", 0: "0"}
-        output += "["
-
-    for i in range(10):
-        row = [cell_representation[piece] for piece in board[i]]
-        if not characters:
-            output += f"[{', '.join(row)}],\n"
-        else:
-            output += " ".join(row) + "\n"
-
-    if not characters:
-        output += "]"
-
-    return output
 
 
 class AmazonsGameState(GameState):
@@ -65,6 +42,15 @@ class AmazonsGameState(GameState):
         new_board[x2][y2] = new_board[x1][y1]  # Move the piece to the new position
         new_board[x1][y1] = 0  # Remove the piece from its old position
         new_board[x3][y3] = -1  # Block the position where the arrow was shot
+        return AmazonsGameState(new_board, 3 - self.player)
+
+    def skip_turn(self):
+        """Used for the null-move heuristic in alpha-beta search
+
+        Returns:
+            AmazonsGameState: A new gamestate in which the players are switched but no move performed
+        """
+        new_board = [row[:] for row in self.board]
         return AmazonsGameState(new_board, 3 - self.player)
 
     def get_legal_actions(self):
@@ -138,15 +124,15 @@ class AmazonsGameState(GameState):
         """
         return not self.has_legal_moves()
 
-    def get_reward(self):
+    def get_reward(self, player):
         """
-        Get the reward for the current player in the current game state.
+        Get the reward for the player in the current game state.
 
-        Otherwise, the reward is 0.
+        :return: In case of a win or loss 1 or -1 otherwise, the reward is 0.
         """
-        if self.is_terminal():
-            return 1 if self.player != 1 else -1
-        return 0
+        if not self.has_legal_moves():
+            return win if self.player != player else loss
+        return draw
 
     def is_capture(self, move):
         """
@@ -158,13 +144,40 @@ class AmazonsGameState(GameState):
 
         return False
 
+    def evaluate_move(self, move):
+        """
+        Evaluate the given move using a simple heuristic:
+        Each move to a location closer to the center of the board is valued.
+        If the move involves shooting an arrow that restricts the mobility of an opponent's Amazon, the value is increased.
+
+        :param move: The move to evaluate.
+        :return: The heuristic value of the move.
+        """
+        # Extract the start and end positions of the amazon and the arrow shot from the move
+        _, _, end_x, end_y, arrow_x, arrow_y = move
+        # Calculate score based on the distance of the Amazon's move from the center
+        score = abs(5 - end_x) + abs(5 - end_y)
+        # Add value to the score based on the distance of the arrow shot from the Amazon
+        arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
+        score += arrow_distance
+        return score
+
+    def visualize(self):
+        output = ""
+        cell_representation = {1: "W", 2: "B", -1: "-", 0: "."}
+        for i in range(10):
+            row = [cell_representation[piece] for piece in self.board[i]]
+            output += " ".join(row) + "\n"
+
+        return output
+
 
 # The evaluate function takes an Amazons game state and the player number (1 or 2) as input.
 # It computes the number of legal moves and the number of controlled squares for each player.
 # It then calculates the difference between the players for each metric and combines them with equal weights (0.5) to produce an evaluation score.
 
 
-def evaluate(state, player, m=(0.5, 0.5), a=1, norm=True):
+def evaluate_amazons(state, player, m=(0.5, 0.5), a=1, norm=True):
     """
     Evaluate the given game state from the perspective of the specified player.
 
@@ -206,32 +219,7 @@ def evaluate(state, player, m=(0.5, 0.5), a=1, norm=True):
         return m[0] * move_difference + m[1] * controlled_squares_difference
 
 
-def count_reachable_squares(board, x, y):
-    """
-    Count the number of squares reachable by the piece at the given position (x, y) in the game state.
-
-    :param state: The game state to evaluate.
-    :param x: The x-coordinate of the piece.
-    :param y: The y-coordinate of the piece.
-    :return: The number of reachable squares.
-    """
-    reachable = 0
-
-    # Iterate through all possible move directions.
-    for direction in DIRECTIONS:
-        dx, dy = direction
-        nx, ny = x + dx, y + dy
-
-        # Count the number of empty squares along the direction.
-        while 0 <= nx < N and 0 <= ny < N and board[nx][ny] == 0:
-            reachable += 1
-            nx += dx
-            ny += dy
-
-    return reachable
-
-
-def evaluate_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5, 0.2), a=50, norm=True):
+def evaluate_amazons_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5, 0.2), a=50, norm=True):
     is_white_player = player == 1
     board = state.board
     max_depth = math.inf
@@ -265,6 +253,31 @@ def evaluate_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5, 0.2), a=50, norm=Tru
         return normalize(utility, a)
     else:
         return utility
+
+
+def count_reachable_squares(board, x, y):
+    """
+    Count the number of squares reachable by the piece at the given position (x, y) in the game state.
+
+    :param state: The game state to evaluate.
+    :param x: The x-coordinate of the piece.
+    :param y: The y-coordinate of the piece.
+    :return: The number of reachable squares.
+    """
+    reachable = 0
+
+    # Iterate through all possible move directions.
+    for direction in DIRECTIONS:
+        dx, dy = direction
+        nx, ny = x + dx, y + dy
+
+        # Count the number of empty squares along the direction.
+        while 0 <= nx < N and 0 <= ny < N and board[nx][ny] == 0:
+            reachable += 1
+            nx += dx
+            ny += dy
+
+    return reachable
 
 
 def kill_save_queens_immediate_moves(their_queen_positions, my_queen_positions, board):

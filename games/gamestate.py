@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
 
+win = float("inf")
+loss = -float("inf")
+draw = 0
+
 
 class GameState(ABC):
     """
@@ -43,9 +47,9 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def get_reward(self):
+    def get_reward(self, player):
         """
-        The reward is 1 for player 1 if they have won, -1 for player 2 if they have won, and 0 otherwise.
+        Return the reward of the terminal state in view of player
 
         :return: The reward value.
         """
@@ -58,6 +62,25 @@ class GameState(ABC):
 
         Args:
             move (bool): true if the move captures, false otherwise
+        """
+        pass
+
+    @abstractmethod
+    def evaluate_move(self, move):
+        """
+        Evaluates a move (used for playouts and move-ordering).
+
+        :param move: The move to evaluate.
+        :return: a numeric evaluation of the move given the current gamestate
+        """
+        pass
+
+    @abstractmethod
+    def visualize(self):
+        """
+        Generate a string representation of the game
+
+        :returns: String representation of the game
         """
         pass
 

@@ -1,32 +1,5 @@
 from pprint import pprint
-from games.gamestate import GameState, normalize
-
-
-def visualize_breakthrough(state, characters=True):
-    """
-    Visualize the board for the Breakthrough game.
-
-    :param state: The Breakthrough game state.
-    :param characters: If True, print the board with characters, otherwise print raw values.
-    """
-    result = ""
-    if characters:
-        cell_representation = {0: ".", 1: "W", 2: "B"}
-    else:
-        cell_representation = {0: "0", 1: "100", 2: "200"}
-        result += "[\n"
-
-    for i in range(8):
-        row = [cell_representation.get(piece // 100, ".") for piece in state.board[i * 8 : i * 8 + 8]]
-        formatted_row = " ".join(row) if characters else ", ".join(row)
-        result += f"{i} {formatted_row}\n"
-
-    if not characters:
-        result += "]"
-
-    column_numbers = "  " + " ".join(map(str, range(0, 8))) + "\n"
-
-    return column_numbers + result
+from games.gamestate import GameState, normalize, win, loss, draw
 
 
 class BreakthroughGameState(GameState):
@@ -76,6 +49,15 @@ class BreakthroughGameState(GameState):
             )  # Return new state with the other player's turn
         else:
             return BreakthroughGameState(new_board, self.player)  # Don't change the turn, board is terminal
+
+    def skip_turn(self):
+        """Used for the null-move heuristic in alpha-beta search
+
+        Returns:
+            BreakthroughGameState: A new gamestate in which the players are switched but no move performed
+        """
+        new_board = self.board.copy()
+        return BreakthroughGameState(new_board, 3 - self.player)
 
     def get_legal_actions(self):
         """
@@ -138,24 +120,24 @@ class BreakthroughGameState(GameState):
 
         return False
 
-    def get_reward(self):
+    def get_reward(self, player):
         """
         Get the reward for the current game state.
-        The reward is 1 for player 1 if they have won, -1 for player 2 if they have won, and 0 otherwise.
+        The reward is 1 for player if they have won, -1 for player if they have lost, and 0 otherwise.
 
         :return: The reward for the current game state.
         """
         # Check for player 1 winning
         for piece in self.board[0:8]:
-            if piece // 100 == 1:  # Player 2 pieces have values 200 and above
-                return 1
+            if piece // 100 == 1:  # Player 1 pieces have values 100 and above
+                return win if player == 1 else loss
 
         # Check for player 2 winning
         for piece in self.board[56:64]:
-            if piece // 100 == 2:  # Player 1 pieces have values 100 and above
-                return -1
+            if piece // 100 == 2:  # Player 2 pieces have values 100 and above
+                return win if player == 2 else loss
 
-        return 0
+        return draw
 
     def is_capture(self, move):
         """
@@ -177,6 +159,55 @@ class BreakthroughGameState(GameState):
 
         return False
 
+    def evaluate_move(self, move):
+        """
+        Evaluate the given move using a simple heuristic: each step forward is worth 1 point,
+        and capturing an opponent's piece is worth 2 points.
+
+        :param move: The move to evaluate.
+        :return: The heuristic value of the move.
+        """
+        from_position, to_position = move
+        from_row, _ = divmod(from_position, 8)
+        to_row, _ = divmod(to_position, 8)
+
+        # Player 1 views the lorenz_values in reverse
+        if self.player == 1:
+            to_position = 63 - to_position
+
+        # Reward moving forward
+        base_value = lorentz_values[to_position]  # Use lorentz_values for base_value
+        score = abs(to_row - from_row) * base_value
+
+        # Reward capturing
+        if self.is_capture(move):
+            score ^= 2  # square score if it's a capture
+
+        # Reward safe positions
+        if is_safe(to_position, self.player, self.board):
+            score += base_value  # Add base_value again if the position is safe
+
+        return score
+
+    def visualize(self):
+        """
+        Visualize the board for the Breakthrough game.
+
+        :param state: The Breakthrough game state.
+        :param characters: If True, print the board with characters, otherwise print raw values.
+        """
+        result = ""
+        cell_representation = {0: ".", 1: "W", 2: "B"}
+
+        for i in range(8):
+            row = [cell_representation.get(piece // 100, ".") for piece in self.board[i * 8 : i * 8 + 8]]
+            formatted_row = " ".join(row)
+            result += f"{i} {formatted_row}\n"
+
+        column_numbers = "  " + " ".join(map(str, range(0, 8))) + "\n"
+
+        return column_numbers + result
+
 
 # The evaluate function takes a Breakthrough game state and the player number (1 or 2) as input.
 # It computes the number of pieces for each player, the average distance of the pieces to the opponent's side,
@@ -185,7 +216,7 @@ class BreakthroughGameState(GameState):
 # with weights to produce an evaluation score.
 
 
-def evaluate(state, player, m=(0.4, 0.4, 0.2, 0.1), a=100, norm=False):
+def evaluate_breakthrough(state, player, m=(0.4, 0.4, 0.2, 0.1), a=100, norm=False):
     opponent = 3 - player
 
     metrics = {
