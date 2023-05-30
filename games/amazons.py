@@ -1,34 +1,94 @@
 import math
-import numpy as np
+import random
 from collections import deque
 from games.gamestate import GameState, normalize, win, loss, draw
 
 # Constants
 DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-N = 10
 
 
 class AmazonsGameState(GameState):
-    def __init__(self, board=None, player=1):
+    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
+    zobrist_tables = {
+        size: [[[random.randint(1, 2**64 - 1) for _ in range(4)] for _ in range(size)] for _ in range(size)]
+        for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
+    }
+
+    def __init__(
+        self,
+        board=None,
+        player=1,
+        board_size=10,
+        n_moves=0,
+        white_queens=None,
+        black_queens=None,
+        board_hash=None,
+    ):
         """
         Initialize the game state with the given board, player, and action.
         If no board is provided, a new one is initialized.
         """
-        self.board = board if board is not None else self.initialize_board()
+        self.board_size = board_size
         self.player = player
+        self.mid = math.ceil(self.board_size / 2)
+        self.n_moves = n_moves
+
+        self.board_hash = board_hash
+        self.zobrist_table = self.zobrist_tables[self.board_size]
+
+        # Keep track of the queen positions so we can avoid having to scan the board for them
+        if black_queens is None:
+            self.black_queens = []
+        elif board is not None:
+            self.black_queens = black_queens
+
+        if white_queens is None:
+            self.white_queens = []
+        elif board is not None:
+            self.white_queens = white_queens
+
+        self.board = board if board is not None else self.initialize_board()
+
+        if self.board_hash is None:
+            self.board_hash = 0
+            for i in range(self.board_size):
+                for j in range(self.board_size):
+                    # Inititally, the board contains empty spaces (0), and four queens
+                    self.board_hash ^= self.zobrist_table[i][j][self.board[i][j] % 10]
+            self.board_hash ^= self.players_bitstrings[self.player]
 
     def initialize_board(self):
         """
         Initialize the game board with the starting positions of the Amazon pieces.
-        The board is a 10x10 grid with player 1's pieces represented by 1 and player 2's pieces represented by 2.
+        The board is a grid with player 1's pieces represented by 1 and player 2's pieces represented by 2.
         Empty spaces are represented by 0, and blocked spaces are represented by -1.
         """
-        board = [[0] * 10 for _ in range(10)]
-        board[0][3] = board[0][6] = 1
-        board[9][3] = board[9][6] = 2
 
-        board[3][9] = board[3][0] = 1
-        board[6][9] = board[6][0] = 2
+        self.white_queens = []  # 10, 11, 12, 13
+        self.black_queens = []  # 20, 21, 22, 23
+
+        board = [[0] * self.board_size for _ in range(self.board_size)]
+        mid = self.board_size // 2
+
+        # Place the black queens
+        board[0][mid - 2] = 20
+        self.black_queens.append((0, mid - 2))
+        board[0][mid + 1] = 21
+        self.black_queens.append((0, mid + 1))
+        board[mid - 2][0] = 22
+        self.black_queens.append((mid - 2, 0))
+        board[mid - 2][self.board_size - 1] = 23
+        self.black_queens.append((mid - 2, self.board_size - 1))
+
+        # Now the white queens
+        board[self.board_size - 1][mid - 2] = 10
+        self.white_queens.append((self.board_size - 1, mid - 2))
+        board[self.board_size - 1][mid + 1] = 11
+        self.white_queens.append((self.board_size - 1, mid + 1))
+        board[mid + 1][0] = 12
+        self.white_queens.append((mid + 1, 0))
+        board[mid + 1][self.board_size - 1] = 13
+        self.white_queens.append((mid + 1, self.board_size - 1))
 
         return board
 
@@ -39,10 +99,40 @@ class AmazonsGameState(GameState):
         """
         x1, y1, x2, y2, x3, y3 = action
         new_board = [row[:] for row in self.board]
+        moving_queen = new_board[x1][y1]  # Save the moving queen number
         new_board[x2][y2] = new_board[x1][y1]  # Move the piece to the new position
         new_board[x1][y1] = 0  # Remove the piece from its old position
         new_board[x3][y3] = -1  # Block the position where the arrow was shot
-        return AmazonsGameState(new_board, 3 - self.player)
+
+        # Update board hash for the movement
+        board_hash = (
+            self.board_hash
+            ^ self.zobrist_table[x1][y1][self.player]
+            ^ self.zobrist_table[x2][y2][self.player]
+            ^ self.zobrist_table[x1][y1][0]
+            ^ self.zobrist_table[x3][y3][-1]
+            ^ self.players_bitstrings[self.player]
+            ^ self.players_bitstrings[3 - self.player]
+        )
+        # Copy the lists of queen positions, and update the position of the moving queen
+
+        new_white_queens = self.white_queens.copy()
+        new_black_queens = self.black_queens.copy()
+
+        if self.player == 1 and new_white_queens is not None:
+            new_white_queens[moving_queen % 10] = (x2, y2)
+        elif self.player == 2 and new_black_queens is not None:
+            new_black_queens[moving_queen % 10] = (x2, y2)
+
+        return AmazonsGameState(
+            new_board,
+            3 - self.player,
+            self.board_size,
+            self.n_moves + 1,
+            white_queens=new_white_queens,
+            black_queens=new_black_queens,
+            board_hash=board_hash,
+        )
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search
@@ -51,17 +141,19 @@ class AmazonsGameState(GameState):
             AmazonsGameState: A new gamestate in which the players are switched but no move performed
         """
         new_board = [row[:] for row in self.board]
-        return AmazonsGameState(new_board, 3 - self.player)
+        # Pass the same board hash since this is only used for null moves
+        return AmazonsGameState(new_board, 3 - self.player, board_hash=self.board_hash)
 
     def get_legal_actions(self):
         """
         Get a list of legal actions for the current player.
         """
         actions = []
-        queens = queens_from_board(self.board, self.player == 1)
+        queens = self.white_queens if self.player == 1 else self.black_queens
 
-        for x, y in queens:
-            actions.extend(self.get_legal_moves_for_amazon(x, y))
+        # We start at 1 because the first position is not used
+        for queen in queens:
+            actions.extend(self.get_legal_moves_for_amazon(*queen))
 
         return actions
 
@@ -77,33 +169,25 @@ class AmazonsGameState(GameState):
             nx, ny = x + dx, y + dy
 
             # Find all legal moves in the current direction.
-            while 0 <= nx < N and 0 <= ny < N and self.board[nx][ny] == 0:
-                arrow_shots = self.get_legal_arrow_shots(nx, ny, x, y)
-                for arrow_shot in arrow_shots:
-                    moves.append((x, y, nx, ny, arrow_shot[0], arrow_shot[1]))
+            while 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[nx][ny] == 0:
+                # Iterate through all possible arrow shot directions.
+                for arrow_direction in DIRECTIONS:
+                    adx, ady = arrow_direction
+                    a_nx, a_ny = nx + adx, ny + ady
+                    # Find all legal arrow shots in the current direction.
+                    while (0 <= a_nx < self.board_size and 0 <= a_ny < self.board_size) and (
+                        self.board[a_nx][a_ny] == 0 or (a_nx == x and a_ny == y)
+                    ):
+                        moves.append((x, y, nx, ny, a_nx, a_ny))
+                        a_nx += adx
+                        a_ny += ady
+
+                        if not (0 <= a_nx < self.board_size and 0 <= a_ny < self.board_size):
+                            break
                 nx += dx
                 ny += dy
 
         return moves
-
-    def get_legal_arrow_shots(self, x, y, ox, oy):
-        """
-        Get a list of legal arrow shots for the given Amazon piece at position (x, y).
-        """
-        arrow_shots = []
-
-        # Iterate through all possible shot directions.
-        for direction in DIRECTIONS:
-            dx, dy = direction
-            nx, ny = x + dx, y + dy
-
-            # Find all legal arrow shots in the current direction.
-            while 0 <= nx < N and 0 <= ny < N and (self.board[nx][ny] == 0 or (nx == ox and ny == oy)):
-                arrow_shots.append((nx, ny))
-                nx += dx
-                ny += dy
-
-        return arrow_shots
 
     def has_legal_moves(self):
         """
@@ -111,11 +195,21 @@ class AmazonsGameState(GameState):
 
         :return: True if the current player has legal moves, False otherwise.
         """
-        for x in range(N):
-            for y in range(N):
-                if self.board[x][y] == self.player:
-                    if self.get_legal_moves_for_amazon(x, y):
-                        return True
+        queens = self.white_queens if self.player == 1 else self.black_queens
+
+        for queen in queens:
+            x, y = queen
+            # Iterate through all possible move directions.
+            for direction in DIRECTIONS:
+                dx, dy = direction
+                nx, ny = x + dx, y + dy
+
+                # Check if there is a legal move in the current direction.
+                if 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[nx][ny] == 0:
+                    return True
+                nx += dx
+                ny += dy
+
         return False
 
     def is_terminal(self):
@@ -156,7 +250,7 @@ class AmazonsGameState(GameState):
         # Extract the start and end positions of the amazon and the arrow shot from the move
         _, _, end_x, end_y, arrow_x, arrow_y = move
         # Calculate score based on the distance of the Amazon's move from the center
-        score = abs(5 - end_x) + abs(5 - end_y)
+        score = abs(self.mid - end_x) + abs(self.mid - end_y)
         # Add value to the score based on the distance of the arrow shot from the Amazon
         arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
         score += arrow_distance
@@ -164,10 +258,23 @@ class AmazonsGameState(GameState):
 
     def visualize(self):
         output = ""
-        cell_representation = {1: "W", 2: "B", -1: "-", 0: "."}
-        for i in range(10):
+        cell_representation = {
+            10: "W",
+            11: "W",
+            12: "W",
+            13: "W",
+            20: "B",
+            21: "B",
+            22: "B",
+            23: "B",
+            -1: "-",
+            0: ".",
+        }
+        for i in range(self.board_size):
             row = [cell_representation[piece] for piece in self.board[i]]
             output += " ".join(row) + "\n"
+
+        output += "hash: " + str(self.board_hash)
 
         return output
 
@@ -177,7 +284,7 @@ class AmazonsGameState(GameState):
 # It then calculates the difference between the players for each metric and combines them with equal weights (0.5) to produce an evaluation score.
 
 
-def evaluate_amazons(state, player, m=(0.5, 0.5), a=1, norm=True):
+def evaluate_amazons(state: AmazonsGameState, player: int, m=(0.5, 0.5), a=1, norm=True):
     """
     Evaluate the given game state from the perspective of the specified player.
 
@@ -185,26 +292,23 @@ def evaluate_amazons(state, player, m=(0.5, 0.5), a=1, norm=True):
     :param player: The player for whom the evaluation is being done.
     :return: A score representing the player's advantage in the game state.
     """
-    opponent = 3 - player
+    # Variables for the heuristics
     player_moves = 0
     opponent_moves = 0
     player_controlled_squares = 0
     opponent_controlled_squares = 0
+    # The queens to iterate over
+    player_queens = state.white_queens if player == 1 else state.black_queens
+    opp_queens = state.white_queens if player == 2 else state.black_queens
 
-    # Iterate through the board and collect information about player's and opponent's moves and controlled squares.
-    for x in range(N):
-        for y in range(N):
-            piece = state.board[x][y]
+    # Iterate through the queens and collect information about player's and opponent's moves and controlled squares.
+    for queen in player_queens:
+        player_moves += count_legal_moves_for_amazon(state.board, *queen)
+        player_controlled_squares += count_reachable_squares(state.board, *queen)
 
-            if piece == player:
-                moves = state.get_legal_moves_for_amazon(x, y)
-                player_moves += len(moves)
-                player_controlled_squares += count_reachable_squares(state.board, x, y)
-
-            elif piece == opponent:
-                moves = state.get_legal_moves_for_amazon(x, y)
-                opponent_moves += len(moves)
-                opponent_controlled_squares += count_reachable_squares(state.board, x, y)
+    for queen in opp_queens:
+        opponent_moves += count_legal_moves_for_amazon(state.board, *queen)
+        opponent_controlled_squares += count_reachable_squares(state.board, *queen)
 
     # Calculate the differences between player's and opponent's moves and controlled squares.
     move_difference = (player_moves - opponent_moves) / (player_moves + opponent_moves)
@@ -219,30 +323,30 @@ def evaluate_amazons(state, player, m=(0.5, 0.5), a=1, norm=True):
         return m[0] * move_difference + m[1] * controlled_squares_difference
 
 
-def evaluate_amazons_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5), a=50, norm=True):
-    is_white_player = player == 1
-    board = state.board
+def evaluate_amazons_lieberum(
+    state: AmazonsGameState, player: int, m=(0.2, 0.4, 0.3, 0.5), a=50, norm=True, n_move_cutoff=15
+):
     max_depth = math.inf
 
-    my_queen_positions = queens_from_board(board, is_white_player)
-    their_queen_positions = queens_from_board(board, not is_white_player)
+    if state.n_moves < n_move_cutoff:
+        return evaluate_amazons(state, player, norm=norm)
+
+    # The queens to iterate over
+    player_queens = state.white_queens if player == 1 else state.black_queens
+    opp_queens = state.white_queens if player == 2 else state.black_queens
 
     if m[0] > 0:
-        terr = territory_heuristic(
-            their_queen_positions, my_queen_positions, state.board, max_depth=max_depth
-        )
+        terr = territory_heuristic(opp_queens, player_queens, state.board, max_depth=max_depth)
     else:
         terr = 0
 
     if m[1] > 0 or m[2] > 0:
-        kill_save, imm_mob = kill_save_queens_immediate_moves(
-            their_queen_positions, my_queen_positions, state.board
-        )
+        kill_save, imm_mob = kill_save_queens_immediate_moves(opp_queens, player_queens, state.board)
     else:
         kill_save = imm_mob = 0
 
     if m[3] > 0:
-        mob_heur = mobility_heuristic(their_queen_positions, my_queen_positions, state.board)
+        mob_heur = mobility_heuristic(opp_queens, player_queens, state.board)
     else:
         mob_heur = 0
 
@@ -253,31 +357,6 @@ def evaluate_amazons_lieberum(state, player, m=(0.2, 0.4, 0.3, 0.5), a=50, norm=
         return normalize(utility, a)
     else:
         return utility
-
-
-def count_reachable_squares(board, x, y):
-    """
-    Count the number of squares reachable by the piece at the given position (x, y) in the game state.
-
-    :param state: The game state to evaluate.
-    :param x: The x-coordinate of the piece.
-    :param y: The y-coordinate of the piece.
-    :return: The number of reachable squares.
-    """
-    reachable = 0
-
-    # Iterate through all possible move directions.
-    for direction in DIRECTIONS:
-        dx, dy = direction
-        nx, ny = x + dx, y + dy
-
-        # Count the number of empty squares along the direction.
-        while 0 <= nx < N and 0 <= ny < N and board[nx][ny] == 0:
-            reachable += 1
-            nx += dx
-            ny += dy
-
-    return reachable
 
 
 def kill_save_queens_immediate_moves(their_queen_positions, my_queen_positions, board):
@@ -344,8 +423,9 @@ def territory_heuristic(their_queen_positions, my_queen_positions, board, max_de
 
     Note that this is an expensive method
     """
-    my_territory = [[math.inf] * N for _ in range(N)]
-    their_territory = [[math.inf] * N for _ in range(N)]
+    size = len(board)
+    my_territory = [[math.inf] * size for _ in range(size)]
+    their_territory = [[math.inf] * size for _ in range(size)]
 
     for queen in my_queen_positions:
         territory_helper(queen, board, my_territory, max_depth)
@@ -353,7 +433,7 @@ def territory_heuristic(their_queen_positions, my_queen_positions, board, max_de
     for queen in their_queen_positions:
         territory_helper(queen, board, their_territory, max_depth)
 
-    return territory_compare(my_territory, their_territory)
+    return territory_compare(my_territory, their_territory, size)
 
 
 def territory_helper(queen_position, board, out, max_depth):
@@ -391,26 +471,19 @@ def territory_helper(queen_position, board, out, max_depth):
                 queue.append((next_direction, move_count + 1, new_pos))
 
 
-def territory_compare(ours, theirs):
+def territory_compare(ours, theirs, size):
     """
     Compare the two given territory matrices and return the difference between the number of squares
     controlled by the player and the opponent.
     """
     return sum(
         1 if ours[row][col] < theirs[row][col] else -1 if ours[row][col] > theirs[row][col] else 0
-        for row in range(N)
-        for col in range(N)
+        for row in range(size)
+        for col in range(size)
     )
 
 
 # Several helper functions for the game and evaluation functions
-
-
-def in_bounds(row, col):
-    """
-    Check if the given row and col are within the bounds of the board of size N.
-    """
-    return 0 <= row < N and 0 <= col < N
 
 
 def generate_new_position(position, direction):
@@ -426,21 +499,63 @@ def can_move_to(board, position):
     by an arrow (-1) or another piece.
     """
     row, col = position
-    return in_bounds(row, col) and board[row][col] == 0
+    return (0 <= row < len(board) and 0 <= col < len(board)) and board[row][col] == 0
 
 
-def queens_from_board(board, is_white_player):
+def count_legal_moves_for_amazon(board, x, y):
     """
-    Extract the positions of the queens belonging to the current player (white or black) from the board.
+    Count the number of legal moves for the given Amazon piece at position (x, y) including the corresponding arrow shots.
     """
-    return [
-        (row, col) for row in range(N) for col in range(N) if board[row][col] == (1 if is_white_player else 2)
-    ]
+    count = 0
+    board_size = len(board)
+    # Iterate through all possible move directions.
+    for direction in DIRECTIONS:
+        dx, dy = direction
+        nx, ny = x + dx, y + dy
+
+        # Find all legal moves in the current direction.
+        while 0 <= nx < board_size and 0 <= ny < board_size and board[nx][ny] == 0:
+            # Iterate through all possible arrow shot directions.
+            for arrow_direction in DIRECTIONS:
+                adx, ady = arrow_direction
+                a_nx, a_ny = nx + adx, ny + ady
+
+                # Find all legal arrow shots in the current direction.
+                while (
+                    0 <= a_nx < board_size
+                    and 0 <= a_ny < board_size
+                    and (board[a_nx][a_ny] == 0 or (a_nx == x and a_ny == y))
+                ):
+                    count += 1
+                    a_nx += adx
+                    a_ny += ady
+
+            nx += dx
+            ny += dy
+
+    return count
 
 
-def initialize_matrix(matrix, value):
+def count_reachable_squares(board, x, y):
     """
-    Fill the given matrix with the specified value (in-place).
+    Count the number of squares reachable by the piece at the given position (x, y) in the game state.
+
+    :param state: The game state to evaluate.
+    :param x: The x-coordinate of the piece.
+    :param y: The y-coordinate of the piece.
+    :return: The number of reachable squares.
     """
-    for row in range(len(matrix)):
-        matrix[row] = [value] * len(matrix[row])
+    reachable = 0
+    size = len(board)
+    # Iterate through all possible move directions.
+    for direction in DIRECTIONS:
+        dx, dy = direction
+        nx, ny = x + dx, y + dy
+
+        # Count the number of empty squares along the direction.
+        while 0 <= nx < size and 0 <= ny < size and board[nx][ny] == 0:
+            reachable += 1
+            nx += dx
+            ny += dy
+
+    return reachable

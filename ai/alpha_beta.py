@@ -36,14 +36,28 @@ class AlphaBetaPlayer(AIPlayer):
 
     def best_action(self, state):
         # Reset debug statistics
-        self.quiescence_searches = nodes_visited = cutoffs = 0
+        self.quiescence_searches = nodes_visited = cutoffs = evaluated = transpos = 0
         max_depth_reached = null_moves_cutoff = total_moves_generated = 0
         search_times = []
+        # Store evaluation functions here!
+        self.transposition_table = {}
 
         def value(state, alpha, beta, depth, null=True):
-            nonlocal nodes_visited, cutoffs, max_depth_reached, null_moves_cutoff, search_times, total_moves_generated
+            nonlocal evaluated, nodes_visited, cutoffs, max_depth_reached, transpos
+            nonlocal total_moves_generated, null_moves_cutoff, search_times
 
-            nodes_visited += 1
+            # null is true if a null-move is possible. If a null move cannot be made then, we are in a part of
+            # the tree where a null move was previously made. Hence we cannot use transpositions.
+            # i.e. do not consider illegal moves in the hash-table
+            if null and state.board_hash in self.transposition_table:
+                stored_value, stored_depth, stored_player = self.transposition_table[state.board_hash]
+                # Only consider deeper values and flip the value in case the position was stored in view of the other player
+                if stored_depth >= depth:
+                    if stored_player != self.player:
+                        stored_value = -stored_value
+                        transpos += 1
+                    return stored_value, None
+
             if (depth <= self.interrupt_depth_limit) and (time.time() - start_time > (self.max_time + 10)):
                 raise SearchTimeout()
 
@@ -55,6 +69,7 @@ class AlphaBetaPlayer(AIPlayer):
 
             # If maximum depth is reached, return the evaluation
             if depth == 0:
+                evaluated += 1
                 if self.use_quiescence:
                     return self.quiescence(state, alpha, beta), None
                 else:
@@ -82,7 +97,7 @@ class AlphaBetaPlayer(AIPlayer):
                     if self.player == state.player
                     else state.evaluate_move(move)
                 )
-
+                nodes_visited += 1
                 for move in actions:
                     new_state = state.apply_action(move)
                     min_v, _ = value(new_state, alpha, beta, depth - 1)
@@ -95,7 +110,10 @@ class AlphaBetaPlayer(AIPlayer):
                     alpha = max(alpha, v)
 
                 if best_move is None:
+                    print("All none!")
                     return v, random.sample(actions, 1)[0]
+
+                self.transposition_table[state.board_hash] = (v, depth, state.player)
 
                 return v, best_move
 
@@ -109,6 +127,7 @@ class AlphaBetaPlayer(AIPlayer):
                     if self.player == state.player
                     else -state.evaluate_move(move)
                 )
+                nodes_visited += 1
                 for move in actions:
                     new_state = state.apply_action(move)
                     max_v, _ = value(new_state, alpha, beta, depth - 1)
@@ -118,6 +137,9 @@ class AlphaBetaPlayer(AIPlayer):
                     if v <= alpha:
                         return v, None
                     beta = min(beta, v)
+
+                self.transposition_table[state.board_hash] = (v, depth, state.player)
+
                 return v, None
 
         start_time = time.time()
@@ -137,14 +159,16 @@ class AlphaBetaPlayer(AIPlayer):
             stat_dict = {
                 "max_player": self.player,
                 "nodes_visited": nodes_visited,
+                "nodes_evaluated": evaluated,
                 "cutoffs": cutoffs,
                 "null_moves_cutoff": null_moves_cutoff,
                 "max_depth_reached": max_depth_reached,
                 "quiescence_searches": self.quiescence_searches,
                 "total_search_time": time.time() - start_time,
                 "search_times_per_level": search_times,
-                "average_branching_factor": total_moves_generated / nodes_visited,
+                "average_branching_factor": evaluated / nodes_visited,
                 "moves_generated": total_moves_generated,
+                "transposition_hits": transpos,
             }
             self.statistics.append(stat_dict)
             pprint(stat_dict, compact=True)

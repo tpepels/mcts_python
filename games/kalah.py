@@ -1,8 +1,17 @@
 from games.gamestate import GameState, normalize, win, loss, draw
+import random
+
+
+MAX_SEEDS = 72  # maximum number of seeds in one position, it's 72 as it's the total seeds in the game
 
 
 class KalahGameState(GameState):
-    def __init__(self, board=None, player=1):
+    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
+    zobrist_table = [
+        [random.randint(1, 2**64 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)
+    ]  # 14 slots
+
+    def __init__(self, board=None, player=1, board_hash=None):
         """
         Initialize the Kalah game state.
 
@@ -11,13 +20,23 @@ class KalahGameState(GameState):
         :param board: Optional board state, represented as a list of integers (default: None).
         :param player: The player whose turn it is, 1 for player 1 and 2 for player 2 (default: 1).
         """
-        if board is None:
-            board = [4] * 14  # 12 houses plus two pits
-            board[6] = 0  # player 1's pit
-            board[-1] = 0  # player 2's pit
-        self.board = board
         self.player = player
         self.num_houses = 6
+        if board is None:
+            self.board = [4] * 14  # 12 houses plus two pits
+            self.board[6] = 0  # player 1's pit
+            self.board[-1] = 0  # player 2's pit
+
+            self.board_hash = 0
+            for position in range(14):
+                seeds = self.board[position]
+                self.board_hash ^= self.zobrist_table[position][seeds]
+            self.board_hash ^= self.players_bitstrings[
+                self.player
+            ]  # XOR with the bitstring of the current player
+        else:
+            self.board = board
+            self.board_hash = board_hash
 
     def apply_action(self, action):
         """
@@ -61,7 +80,19 @@ class KalahGameState(GameState):
                 for i in range(0, 6):
                     new_board[i] = 0
 
-        new_state = KalahGameState(new_board, next_player)
+        board_hash = (  # <--- Sometimes board_has is None here!!!
+            self.board_hash
+            ^ self.zobrist_table[action][self.board[action]]  # remove old seed count from old position
+            ^ self.zobrist_table[last_index][
+                self.board[last_index]
+            ]  # remove old seed count from last position
+            ^ self.zobrist_table[action][0]  # add new seed count in old position
+            ^ self.zobrist_table[last_index][new_board[last_index]]  # add new seed count in last position
+            ^ self.players_bitstrings[self.player]  # XOR with old player
+            ^ self.players_bitstrings[next_player]  # XOR with new player
+        )
+        new_state = KalahGameState(new_board, next_player, board_hash=board_hash)
+        return new_state
 
         # Uncomment this for debugging the game
         # if new_state.is_terminal():
@@ -84,7 +115,7 @@ class KalahGameState(GameState):
         #     print("Resulting in gamestate:")
         #     print(visualize_kalah(new_state))
         #     print("-==-" * 6)
-        return new_state
+        # return new_state
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search
@@ -93,7 +124,7 @@ class KalahGameState(GameState):
             BreakthroughGameState: A new gamestate in which the players are switched but no move performed
         """
         new_board = self.board.copy()
-        return KalahGameState(new_board, 3 - self.player)
+        return KalahGameState(new_board, 3 - self.player, board_hash=self.board_hash)
 
     def get_legal_actions(self):
         """
@@ -256,7 +287,8 @@ class KalahGameState(GameState):
             f"Player 1's store: {player1_store}\n"
             f"{top_row}\n"
             f"{bottom_row}\n"
-            f"Player 2's store: {player2_store}"
+            f"Player 2's store: {player2_store}\n"
+            f"hash: {self.board_hash}"
         )
 
 

@@ -1,13 +1,33 @@
+import random
 from games.gamestate import GameState, win, loss, draw, normalize
 
 MARKS = {0: " ", 1: "X", 2: "O"}
 
 
 class TicTacToeGameState(GameState):
-    def __init__(self, size=3, board=None, player=1):
-        self.size = size
-        self.board = board if board else [[0] * self.size for _ in range(self.size)]
+    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
+    zobrist_tables = {
+        size: [[[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
+        for size in range(3, 7)
+    }
+
+    def __init__(self, board_size=3, board=None, player=1, board_hash=None):
+        self.size = board_size
+        self.board = board
+        self.board_hash = board_hash
         self.player = player
+
+        self.zobrist_table = self.zobrist_tables[self.size]
+        if self.board is None:
+            self.board = [[0] * self.size for _ in range(self.size)]
+            self.board_hash = 0
+            for i in range(self.size):
+                for j in range(self.size):
+                    piece = self.board[i][j]
+                    self.board_hash ^= self.zobrist_table[i][j][piece]
+            self.board_hash ^= self.players_bitstrings[
+                self.player
+            ]  # XOR with the bitstring of the current player
 
     def apply_action(self, action):
         x, y = action
@@ -16,16 +36,21 @@ class TicTacToeGameState(GameState):
 
         new_board = [row.copy() for row in self.board]
         new_board[x][y] = self.player
-        return TicTacToeGameState(self.size, new_board, 3 - self.player)
+        board_hash = (
+            self.board_hash
+            ^ self.zobrist_table[x][y][0]
+            ^ self.zobrist_table[x][y][3 - self.player]
+            ^ self.players_bitstrings[self.player]
+            ^ self.players_bitstrings[3 - self.player]
+        )
+        new_state = TicTacToeGameState(self.size, new_board, 3 - self.player, board_hash=board_hash)
+        return new_state
 
     def skip_turn(self):
-        """Used for the null-move heuristic in alpha-beta search
-
-        Returns:
-            AmazonsGameState: A new gamestate in which the players are switched but no move performed
-        """
+        """Used for the null-move heuristic in alpha-beta search"""
         new_board = [row[:] for row in self.board]
-        return TicTacToeGameState(self.size, new_board, 3 - self.player)
+        # Pass the same hash since this is only used for null-moves
+        return TicTacToeGameState(self.size, new_board, 3 - self.player, board_hash=self.board_hash)
 
     def get_legal_actions(self):
         return [(i, j) for i in range(self.size) for j in range(self.size) if self.board[i][j] == 0]
@@ -97,6 +122,7 @@ class TicTacToeGameState(GameState):
             if i != self.size - 1:
                 visual += "-" * (self.size * 4 - 1)
             visual += "\n"
+        visual += "hash: " + str(self.board_hash)
         return visual
 
 

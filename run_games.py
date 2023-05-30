@@ -42,7 +42,8 @@ def run_game(
     ai_key,
     eval_keys,
     game_params,
-    ai_params,
+    ai1_params,
+    ai2_params,
     eval_params_p1: dict = None,
     eval_params_p2: dict = None,
 ):
@@ -97,8 +98,8 @@ def run_game(
     game = game_class(**game_params)
 
     # Initialize two AI players
-    p1 = ai_class(player=1, evaluate=eval_function_p1, **ai_params)
-    p2 = ai_class(player=2, evaluate=eval_function_p2, **ai_params)
+    p1 = ai_class(player=1, evaluate=eval_function_p1, **ai1_params)
+    p2 = ai_class(player=2, evaluate=eval_function_p2, **ai2_params)
 
     while not game.is_terminal():
         start_time = time.time()

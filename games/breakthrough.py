@@ -1,8 +1,14 @@
 from pprint import pprint
 from games.gamestate import GameState, normalize, win, loss, draw
+import random
 
 
 class BreakthroughGameState(GameState):
+    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
+    zobrist_table = [
+        [[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(64)] for _ in range(64)
+    ]
+
     """
     This class represents the game state for the Breakthrough board game.
     Breakthrough is a two-player game played on an 8x8 board.
@@ -10,7 +16,7 @@ class BreakthroughGameState(GameState):
     The goal is to move one of your pieces to the opponent's home row.
     """
 
-    def __init__(self, board=None, player=1):
+    def __init__(self, board=None, player=1, board_hash=None):
         """
         Initialize the game state with the given board configuration.
         If no board is provided, the game starts with the default setup.
@@ -18,15 +24,23 @@ class BreakthroughGameState(GameState):
         :param board: An optional board configuration.
         :param player: The player whose turn it is (1 or 2).
         """
+        self.player = player
+
         if board is None:
             self.board = [0] * 64
             for i in range(16):
-                self.board[i] = 200 + i  # Initialize player 2 pieces
-                self.board[48 + i] = 100 + i  # Initialize player 1 pieces
+                self.board[i] = 2  # Initialize player 2 pieces
+                self.board[48 + i] = 1  # Initialize player 1 pieces
+
+            # Calculate the initial hash for the board
+            self.board_hash = 0
+            for position in range(64):
+                player = self.board[position]
+                self.board_hash ^= self.zobrist_table[position][position][player]
+            self.board_hash ^= self.players_bitstrings[self.player]
         else:
             self.board = board
-
-        self.player = player
+            self.board_hash = board_hash
 
     def apply_action(self, action):
         """
@@ -39,16 +53,22 @@ class BreakthroughGameState(GameState):
         from_position, to_position = action
         new_board = self.board.copy()
 
-        piece = new_board[from_position]
+        player = new_board[from_position]
         new_board[from_position] = 0  # Remove the piece from its current position
-        new_board[to_position] = piece  # Place the piece at its new position
+        new_board[to_position] = player  # Place the piece at its new position
 
-        if not self._is_terminal(new_board):
-            return BreakthroughGameState(
-                new_board, 3 - self.player
-            )  # Return new state with the other player's turn
-        else:
-            return BreakthroughGameState(new_board, self.player)  # Don't change the turn, board is terminal
+        board_hash = (
+            self.board_hash
+            ^ self.zobrist_table[from_position][from_position][player]
+            ^ self.zobrist_table[to_position][to_position][0]
+            ^ self.zobrist_table[to_position][to_position][player]
+            ^ self.players_bitstrings[self.player]
+            ^ self.players_bitstrings[3 - self.player]
+        )
+
+        new_state = BreakthroughGameState(new_board, 3, board_hash=board_hash)
+
+        return new_state
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search
@@ -57,7 +77,8 @@ class BreakthroughGameState(GameState):
             BreakthroughGameState: A new gamestate in which the players are switched but no move performed
         """
         new_board = self.board.copy()
-        return BreakthroughGameState(new_board, 3 - self.player)
+        # Pass the same board hash since this is only used for null moves
+        return BreakthroughGameState(new_board, 3 - self.player, board_hash=self.board_hash)
 
     def get_legal_actions(self):
         """
@@ -72,7 +93,7 @@ class BreakthroughGameState(GameState):
         legal_actions = []
 
         for position, piece in enumerate(self.board):
-            if piece == 0 or piece // 100 != self.player:
+            if piece == 0 or piece != self.player:
                 continue
 
             row, col = divmod(position, 8)
@@ -88,7 +109,7 @@ class BreakthroughGameState(GameState):
 
                 new_position = new_row * 8 + new_col
                 if (dc == 0 and self.board[new_position] == 0) or (  # Move forward to an empty cell
-                    dc != 0 and self.board[new_position] // 100 != self.player  # Capture
+                    dc != 0 and self.board[new_position] != self.player  # Capture
                 ):
                     legal_actions.append((position, new_position))
 
@@ -110,12 +131,12 @@ class BreakthroughGameState(GameState):
         """
         # Check for player 2 winning
         for piece in board[0:8]:
-            if piece // 100 == 1:  # Player 2 pieces have values 200 and above
+            if piece == 1:  # Player 2 pieces have values 200 and above
                 return True
 
         # Check for player 1 winning
         for piece in board[56:64]:
-            if piece // 100 == 2:  # Player 1 pieces have values 100 and above
+            if piece == 2:  # Player 1 pieces have values 100 and above
                 return True
 
         return False
@@ -129,12 +150,12 @@ class BreakthroughGameState(GameState):
         """
         # Check for player 1 winning
         for piece in self.board[0:8]:
-            if piece // 100 == 1:  # Player 1 pieces have values 100 and above
+            if piece == 1:  # Player 1 pieces have values 100 and above
                 return win if player == 1 else loss
 
         # Check for player 2 winning
         for piece in self.board[56:64]:
-            if piece // 100 == 2:  # Player 2 pieces have values 100 and above
+            if piece == 2:  # Player 2 pieces have values 100 and above
                 return win if player == 2 else loss
 
         return draw
@@ -149,7 +170,7 @@ class BreakthroughGameState(GameState):
         from_position, to_position = move
 
         # Check if the destination cell contains an opponent's piece
-        if self.board[to_position] // 100 == 3 - self.player:
+        if self.board[to_position] == 3 - self.player:
             from_row, from_col = divmod(from_position, 8)
             to_row, to_col = divmod(to_position, 8)
 
@@ -168,8 +189,8 @@ class BreakthroughGameState(GameState):
         :return: The heuristic value of the move.
         """
         from_position, to_position = move
-        from_row, _ = divmod(from_position, 8)
-        to_row, _ = divmod(to_position, 8)
+        from_row = from_position // 8
+        to_row = to_position // 8
 
         # Player 1 views the lorenz_values in reverse
         if self.player == 1:
@@ -200,13 +221,13 @@ class BreakthroughGameState(GameState):
         cell_representation = {0: ".", 1: "W", 2: "B"}
 
         for i in range(8):
-            row = [cell_representation.get(piece // 100, ".") for piece in self.board[i * 8 : i * 8 + 8]]
+            row = [cell_representation.get(piece, ".") for piece in self.board[i * 8 : i * 8 + 8]]
             formatted_row = " ".join(row)
             result += f"{i} {formatted_row}\n"
 
         column_numbers = "  " + " ".join(map(str, range(0, 8))) + "\n"
 
-        return column_numbers + result
+        return column_numbers + result + "\n hash: " + str(self.board_hash)
 
 
 # The evaluate function takes a Breakthrough game state and the player number (1 or 2) as input.
@@ -226,17 +247,18 @@ def evaluate_breakthrough(state, player, m=(0.4, 0.4, 0.2, 0.1), a=100, norm=Fal
 
     for position in range(64):
         piece = state.board[position]
-        x, y = divmod(position, 8)
-        piece_player = piece // 100
+        x = position // 8
 
-        if piece_player in [player, opponent]:
-            metrics[piece_player]["pieces"] += 1
-            dist = 7 - x if piece_player == 2 else x
-            metrics[piece_player]["distance"] += dist
-            if (piece_player == 2 and x >= 5) or (piece_player == 1 and x <= 2):
-                metrics[piece_player]["near_opponent_side"] += 7 - dist  # the close the better
+        if piece in [player, opponent]:
+            metrics[piece]["pieces"] += 1
+            dist = 7 - x if piece == 2 else x
+            metrics[piece]["distance"] += dist
+
+            if (piece == 2 and x >= 5) or (piece == 1 and x <= 2):
+                metrics[piece]["near_opponent_side"] += 7 - dist  # the close the better
+
             if is_piece_blocked(position, state.board):
-                metrics[piece_player]["blocked"] += 1
+                metrics[piece]["blocked"] += 1
 
     if metrics[player]["pieces"] == 0 or metrics[opponent]["pieces"] == 0:
         return 0
@@ -254,8 +276,6 @@ def evaluate_breakthrough(state, player, m=(0.4, 0.4, 0.2, 0.1), a=100, norm=Fal
     blocked_difference = (metrics[opponent]["blocked"] - metrics[player]["blocked"]) / (
         metrics[player]["pieces"] + metrics[opponent]["pieces"]
     )
-
-    pprint(metrics)
 
     eval_value = (
         m[0] * piece_difference
@@ -357,14 +377,14 @@ def lorenz_evaluation(state, player, m=(0.5,), a=200, norm=True):
     for position in range(64):
         piece = state.board[position]
 
-        if piece // 100 == 2:
+        if piece == 2:
             base_value = lorentz_values[position]
             p2eval += base_value
 
             if is_safe(position, 1, state.board):
                 p2eval += m[0] * base_value
 
-        elif piece // 100 == 1:
+        elif piece == 1:
             base_value = lorentz_values[63 - position]  # Mirror the position for the opponent
             p1eval += base_value
 
@@ -403,24 +423,23 @@ def lorenz_enhanced_evaluation(state, player, m=(0.5, 10, 0.5, 0.5), a=200, norm
         if piece == 0:
             continue
 
-        piece_player = piece // 100
-        piece_value = lorentz_values[position] if piece_player == 2 else lorentz_values[63 - position]
+        piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
 
-        if piece_player == player:
+        if piece == player:
             board_values += piece_value
-            mobility_values += piece_mobility(position, piece_player, state.board)
+            mobility_values += piece_mobility(position, piece, state.board)
         else:
             board_values -= piece_value
-            mobility_values -= piece_mobility(position, piece_player, state.board)
+            mobility_values -= piece_mobility(position, piece, state.board)
 
-        if is_safe(position, piece_player, state.board):
+        if is_safe(position, piece, state.board):
             safety_bonus = m[0] * piece_value
-            safety_values += safety_bonus if piece_player == player else -safety_bonus
+            safety_values += safety_bonus if piece == player else -safety_bonus
 
     if is_endgame(state.board):
         endgame_values = m[1] * (
-            sum(1 for piece in state.board if piece != 0 and piece // 100 == player)
-            - sum(1 for piece in state.board if piece != 0 and piece // 100 == opponent)
+            sum(1 for piece in state.board if piece != 0 and piece == player)
+            - sum(1 for piece in state.board if piece != 0 and piece == opponent)
         )
 
     eval_value = endgame_values + m[2] * board_values + m[3] * mobility_values + safety_values
@@ -454,11 +473,9 @@ def piece_mobility(position, player, board):
         new_row, new_col = row + dr, col + dc
         if in_bounds(new_row, new_col):
             new_position = new_row * 8 + new_col
-            if board[new_position] // 100 != player:
-                if (
-                    board[new_position] == 0 or abs(dc) == 1
-                ):  # Move forward to an empty cell or capture diagonally
-                    mobility += 1
+            if board[new_position] != player and board[new_position] == 0 or abs(dc) == 1:
+                # Move forward to an empty cell or capture diagonally
+                mobility += 1
 
     return mobility
 
@@ -489,7 +506,7 @@ def is_safe(position, player, board):
     attackers = 0
     defenders = 0
 
-    opponent = 100 if player == 2 else 200
+    opponent = 1 if player == 2 else 2
 
     for i in range(2):
         new_x = x + row_offsets[0]
@@ -497,9 +514,9 @@ def is_safe(position, player, board):
 
         if in_bounds(new_x, new_y):
             new_position = new_x * 8 + new_y
-            piece = board[new_position] // 100
+            piece = board[new_position]
 
-            if piece == (opponent // 100):
+            if piece == opponent:
                 attackers += 1
 
         new_x = x + row_offsets[1]
@@ -507,7 +524,7 @@ def is_safe(position, player, board):
 
         if in_bounds(new_x, new_y):
             new_position = new_x * 8 + new_y
-            piece = board[new_position] // 100
+            piece = board[new_position]
 
             if piece == player:
                 defenders += 1
@@ -536,7 +553,7 @@ def get_player_pieces(board, player):
     """
     piece_positions = []
     for pos in range(64):
-        if board[pos] // 100 == player:
+        if board[pos] == player:
             piece_positions.append(pos)
     return piece_positions
 
@@ -552,15 +569,14 @@ def is_piece_blocked(position, board):
     if piece == 0:
         raise ValueError("Invalid piece")
 
-    player = piece // 100
     row, col = divmod(position, 8)
-    dr = -1 if player == 1 else 1  # Determine the direction of movement based on the current player
+    dr = -1 if piece == 1 else 1  # Determine the direction of movement based on the current player
 
     for dc in [-1, 0, 1]:
         new_row, new_col = row + dr, col + dc
         if in_bounds(new_row, new_col):
             new_position = new_row * 8 + new_col
-            if board[new_position] == 0 or (dc != 0 and board[new_position] // 100 != player):
+            if board[new_position] == 0 or (dc != 0 and board[new_position] != piece):
                 return False
 
     return True  # The piece is blocked
