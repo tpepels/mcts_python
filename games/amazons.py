@@ -212,6 +212,11 @@ class AmazonsGameState(GameState):
 
         return False
 
+    @property
+    def transposition_table_size(self):
+        # return an appropriate size based on the game characteristics
+        return 2**21
+
     def is_terminal(self):
         """
         Check if the current game state is terminal (i.e., one player has no legal moves left).

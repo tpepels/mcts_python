@@ -125,6 +125,11 @@ class TicTacToeGameState(GameState):
         visual += "hash: " + str(self.board_hash)
         return visual
 
+    @property
+    def transposition_table_size(self):
+        # return an appropriate size based on the game characteristics
+        return 2**16
+
 
 def evaluate_tictactoe(state, player):
     def calculate_score(marks):

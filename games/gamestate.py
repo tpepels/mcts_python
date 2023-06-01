@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-win = float("inf")
-loss = -float("inf")
+win = 1e6
+loss = -1e6
 draw = 0
 
 
@@ -82,6 +82,11 @@ class GameState(ABC):
 
         :returns: String representation of the game
         """
+        pass
+
+    @property
+    def transposition_table_size(self):
+        # return an appropriate size based on the game characteristics
         pass
 
 

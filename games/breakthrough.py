@@ -5,9 +5,7 @@ import random
 
 class BreakthroughGameState(GameState):
     players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
-    zobrist_table = [
-        [[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(64)] for _ in range(64)
-    ]
+    zobrist_table = [[[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
 
     """
     This class represents the game state for the Breakthrough board game.
@@ -31,12 +29,12 @@ class BreakthroughGameState(GameState):
             for i in range(16):
                 self.board[i] = 2  # Initialize player 2 pieces
                 self.board[48 + i] = 1  # Initialize player 1 pieces
-
             # Calculate the initial hash for the board
             self.board_hash = 0
             for position in range(64):
                 player = self.board[position]
-                self.board_hash ^= self.zobrist_table[position][position][player]
+                row, col = divmod(position, 8)
+                self.board_hash ^= self.zobrist_table[row][col][player]
             self.board_hash ^= self.players_bitstrings[self.player]
         else:
             self.board = board
@@ -55,19 +53,22 @@ class BreakthroughGameState(GameState):
 
         player = new_board[from_position]
         new_board[from_position] = 0  # Remove the piece from its current position
+        captured_player = new_board[to_position]
         new_board[to_position] = player  # Place the piece at its new position
+
+        from_row, from_col = divmod(from_position, 8)
+        to_row, to_col = divmod(to_position, 8)
 
         board_hash = (
             self.board_hash
-            ^ self.zobrist_table[from_position][from_position][player]
-            ^ self.zobrist_table[to_position][to_position][0]
-            ^ self.zobrist_table[to_position][to_position][player]
+            ^ self.zobrist_table[from_row][from_col][player]
+            ^ self.zobrist_table[to_row][to_col][captured_player]
+            ^ self.zobrist_table[to_row][to_col][player]
             ^ self.players_bitstrings[self.player]
             ^ self.players_bitstrings[3 - self.player]
         )
 
-        new_state = BreakthroughGameState(new_board, 3, board_hash=board_hash)
-
+        new_state = BreakthroughGameState(new_board, 3 - self.player, board_hash=board_hash)
         return new_state
 
     def skip_turn(self):
@@ -228,6 +229,11 @@ class BreakthroughGameState(GameState):
         column_numbers = "  " + " ".join(map(str, range(0, 8))) + "\n"
 
         return column_numbers + result + "\n hash: " + str(self.board_hash)
+
+    @property
+    def transposition_table_size(self):
+        # return an appropriate size based on the game characteristics
+        return 2**20
 
 
 # The evaluate function takes a Breakthrough game state and the player number (1 or 2) as input.

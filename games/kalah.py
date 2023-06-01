@@ -291,6 +291,11 @@ class KalahGameState(GameState):
             f"hash: {self.board_hash}"
         )
 
+    @property
+    def transposition_table_size(self):
+        # return an appropriate size based on the game characteristics
+        return 2**18
+
 
 def calc_last_index_total_steps(seeds, move, k, size=13):
     passes = count_passes(

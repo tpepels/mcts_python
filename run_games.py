@@ -1,8 +1,10 @@
 from functools import partial
 import time
+from ai.ai_player import AIPlayer
 
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
+from games.gamestate import GameState
 from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
 from games.breakthrough import (
     BreakthroughGameState,
@@ -12,6 +14,9 @@ from games.breakthrough import (
 )
 from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
 from games.kalah import KalahGameState, evaluate_kalah, evaluate_kalah_enhanced
+
+from typing import Tuple
+import time
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {
@@ -95,11 +100,21 @@ def run_game(
         eval_function_p2 = partial(eval_function_p2, **eval_params_p2)
 
     # Initialize game state
-    game = game_class(**game_params)
+    game: GameState = game_class(**game_params)
 
     # Initialize two AI players
-    p1 = ai_class(player=1, evaluate=eval_function_p1, **ai1_params)
-    p2 = ai_class(player=2, evaluate=eval_function_p2, **ai2_params)
+    p1: AIPlayer = ai_class(
+        player=1,
+        evaluate=eval_function_p1,
+        transposition_table_size=game.transposition_table_size,
+        **ai1_params,
+    )
+    p2: AIPlayer = ai_class(
+        player=2,
+        evaluate=eval_function_p2,
+        transposition_table_size=game.transposition_table_size,
+        **ai2_params,
+    )
 
     while not game.is_terminal():
         start_time = time.time()
@@ -122,10 +137,6 @@ def run_game(
 
     result = game.get_reward(1)
     print(f"Game Over. Result for p1: {result}")
-
-
-from typing import List, Tuple
-import time
 
 
 def run_game_experiment(
