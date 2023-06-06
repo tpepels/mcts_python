@@ -5,6 +5,10 @@ import time
 from ai.ai_player import AIPlayer
 from ai.transpos_table import TranspositionTable
 
+total_search_time = {1: 0, 2: 0}
+n_moves = {1: 0, 2: 0}
+depth_reached = {1: 0, 2: 0}
+
 
 class AlphaBetaPlayer(AIPlayer):
     def __init__(
@@ -16,6 +20,7 @@ class AlphaBetaPlayer(AIPlayer):
         transposition_table_size=2**16,
         use_null_moves=False,
         use_quiescence=False,
+        use_transpositions=True,
         debug=False,
     ):
         # Identify the player
@@ -38,7 +43,15 @@ class AlphaBetaPlayer(AIPlayer):
         self.debug = debug
         self.statistics = []
         # Store evaluation resuls
-        self.trans_table = TranspositionTable(transposition_table_size)
+        if use_transpositions:
+            self.trans_table = TranspositionTable(transposition_table_size)
+        else:
+            self.trans_table = None
+
+        global total_search_time, n_moves, depth_reached
+        total_search_time[player] = 0
+        n_moves[player] = 0
+        depth_reached[player] = 0
 
     def best_action(self, state):
         # Reset debug statistics
@@ -55,11 +68,11 @@ class AlphaBetaPlayer(AIPlayer):
             # null is true if a null-move is possible. If a null move cannot be made then, we are in a part of
             # the tree where a null move was previously made. Hence we cannot use transpositions.
             # i.e. do not consider illegal moves in the hash-table
-            if allow_null_move and not root:
-                if not self.debug:
-                    v = self.trans_table.get(state.board_hash, depth, state.player)
-                else:
-                    v = self.trans_table.get(state.board_hash, depth, state.player, board=state.board)
+            if allow_null_move and not root and self.trans_table is not None:
+                # if not self.debug:
+                v = self.trans_table.get(state.board_hash, depth, state.player)
+                # else:
+                #     v = self.trans_table.get(state.board_hash, depth, state.player, board=state.board)
 
                 if v is not None:
                     return v, None
@@ -115,6 +128,8 @@ class AlphaBetaPlayer(AIPlayer):
                         alpha = max(alpha, v)
 
                     if best_move is None:
+                        if len(actions) == 0:
+                            print(state.visualize())
                         return v, random.choice(actions)
 
                     return v, best_move
@@ -143,31 +158,49 @@ class AlphaBetaPlayer(AIPlayer):
                     return v, None
 
             finally:
-                if not null_move_result:  # If not a null-move result
+                if not null_move_result and self.trans_table is not None:  # If not a null-move result
                     self.trans_table.put(
                         state.board_hash,
                         v,
                         depth,
                         state.player,
-                        board=state.board if self.debug else None,
+                        # board=state.board if self.debug else None,
                     )
 
         start_time = time.time()
         v, best_move = None, None
-        last_time = 0
 
-        for depth in range(1, self.max_depth + 1):
-            if (time.time() - start_time) + last_time >= self.max_time:
-                break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
+        empirical_factor = 1
+        search_times = [0]  # Initialize with 0 for depth 0
+        for depth in range(1, self.max_depth + 1):  # Start depth from 1
+            if depth > 2:
+                if search_times[-2] == 0:
+                    empirical_factor = 1
+                else:
+                    # Compute the empirical factor as the ratio of the last two search times
+                    empirical_factor = search_times[-1] / search_times[-2]
+                if (time.time() - start_time) + (empirical_factor * search_times[-1]) >= self.max_time:
+                    break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
 
+            if self.debug:
+                print(
+                    f"Searching depth: {depth} with {self.max_time - (time.time() - start_time)} seconds left. {empirical_factor=}"
+                )
+
+            start_depth_time = time.time()  # Time when this depth search starts
             v, best_move = value(state, -float("inf"), float("inf"), depth, True, root=True)
             max_depth_reached = depth
-
             # keep track of the time spent
-            last_time = time.time() - start_time
-            search_times.append(last_time)
+            depth_time = time.time() - start_depth_time  # Time spent on this depth
+            search_times.append(depth_time)
 
         if self.debug:
+            global total_search_time, n_moves
+
+            total_search_time[self.player] += time.time() - start_time
+            n_moves[self.player] += 1
+            depth_reached[self.player] += max_depth_reached
+
             stat_dict = {
                 "max_player": self.player,
                 "nodes_visited": nodes_visited,
@@ -177,6 +210,8 @@ class AlphaBetaPlayer(AIPlayer):
                 "search_times_per_level": search_times,
                 "average_branching_factor": int(round(evaluated / nodes_visited, 0)),
                 "moves_generated": total_moves_generated,
+                "average_search_time": int(total_search_time[self.player] / n_moves[self.player]),
+                "average_depth_reached": int(depth_reached[self.player] / n_moves[self.player]),
             }
 
             if self.use_quiescence:
@@ -185,9 +220,11 @@ class AlphaBetaPlayer(AIPlayer):
                 stat_dict["null_moves_cutoff"] = null_moves_cutoff
 
             self.statistics.append(stat_dict)
-            pprint(stat_dict, compact=True)
-            pprint(self.trans_table.get_metrics(), compact=True)
-            self.trans_table.reset_metrics()
+            if self.trans_table is not None:
+                pprint({**stat_dict, **self.trans_table.get_metrics()}, compact=True)
+                self.trans_table.reset_metrics()
+            else:
+                pprint(stat_dict, compact=True)
 
         return best_move, v
 

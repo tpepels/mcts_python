@@ -11,7 +11,7 @@ class KalahGameState(GameState):
         [random.randint(1, 2**64 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)
     ]  # 14 slots
 
-    def __init__(self, board=None, player=1, board_hash=None):
+    def __init__(self, board=None, player=1):
         """
         Initialize the Kalah game state.
 
@@ -26,17 +26,16 @@ class KalahGameState(GameState):
             self.board = [4] * 14  # 12 houses plus two pits
             self.board[6] = 0  # player 1's pit
             self.board[-1] = 0  # player 2's pit
-
-            self.board_hash = 0
-            for position in range(14):
-                seeds = self.board[position]
-                self.board_hash ^= self.zobrist_table[position][seeds]
-            self.board_hash ^= self.players_bitstrings[
-                self.player
-            ]  # XOR with the bitstring of the current player
         else:
             self.board = board
-            self.board_hash = board_hash
+
+        self.board_hash = 0
+        for position in range(14):
+            seeds = self.board[position]
+            self.board_hash ^= self.zobrist_table[position][seeds]
+        self.board_hash ^= self.players_bitstrings[
+            self.player
+        ]  # XOR with the bitstring of the current player
 
     def apply_action(self, action):
         """
@@ -60,6 +59,7 @@ class KalahGameState(GameState):
                     captured_seeds = new_board[opposite_house] + 1
                     new_board[opposite_house] = 0
                     new_board[last_index] = 0
+
                     # Add captured seeds to the player's store
                     if self.player == 1:
                         new_board[6] += captured_seeds
@@ -72,26 +72,15 @@ class KalahGameState(GameState):
 
         if p1_houses_empty or p2_houses_empty:
             if p1_houses_empty:
-                new_board[13] += sum(new_board[i] for i in range(7, 13))
                 for i in range(7, 13):
+                    new_board[13] += new_board[i]
                     new_board[i] = 0
             else:
-                new_board[6] += sum(new_board[i] for i in range(0, 6))
                 for i in range(0, 6):
+                    new_board[6] += new_board[i]
                     new_board[i] = 0
 
-        board_hash = (  # <--- Sometimes board_has is None here!!!
-            self.board_hash
-            ^ self.zobrist_table[action][self.board[action]]  # remove old seed count from old position
-            ^ self.zobrist_table[last_index][
-                self.board[last_index]
-            ]  # remove old seed count from last position
-            ^ self.zobrist_table[action][0]  # add new seed count in old position
-            ^ self.zobrist_table[last_index][new_board[last_index]]  # add new seed count in last position
-            ^ self.players_bitstrings[self.player]  # XOR with old player
-            ^ self.players_bitstrings[next_player]  # XOR with new player
-        )
-        new_state = KalahGameState(new_board, next_player, board_hash=board_hash)
+        new_state = KalahGameState(new_board, next_player)
         return new_state
 
         # Uncomment this for debugging the game
@@ -117,6 +106,37 @@ class KalahGameState(GameState):
         #     print("-==-" * 6)
         # return new_state
 
+    def _sow_seeds(self, index):
+        """
+        Sow the seeds from the specified house in a counter-clockwise direction.
+
+        :param index: The index of the house to pick up seeds from.
+        :return: The updated board after sowing seeds and the player whose turn it is next.
+        """
+        board_copy = self.board.copy()
+        seeds = board_copy[index]
+        board_copy[index] = 0
+
+        next_player = self.player
+
+        while seeds > 0:
+            index = (index + 1) % len(board_copy)
+
+            # Skip the opponent's store
+            if (self.player == 1 and index == 13) or (self.player == 2 and index == 6):
+                continue
+
+            board_copy[index] += 1
+            seeds -= 1
+
+            # If the last seed is sown in the player's store, it's their turn again
+            if seeds == 0 and ((self.player == 1 and index == 6) or (self.player == 2 and index == 13)):
+                next_player = self.player
+            else:
+                next_player = 3 - self.player
+
+        return board_copy, next_player, index
+
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search
 
@@ -124,7 +144,7 @@ class KalahGameState(GameState):
             BreakthroughGameState: A new gamestate in which the players are switched but no move performed
         """
         new_board = self.board.copy()
-        return KalahGameState(new_board, 3 - self.player, board_hash=self.board_hash)
+        return KalahGameState(new_board, 3 - self.player)
 
     def get_legal_actions(self):
         """
@@ -166,37 +186,6 @@ class KalahGameState(GameState):
             return loss if player == 1 else win
         else:
             return draw
-
-    def _sow_seeds(self, index):
-        """
-        Sow the seeds from the specified house in a counter-clockwise direction.
-
-        :param index: The index of the house to pick up seeds from.
-        :return: The updated board after sowing seeds and the player whose turn it is next.
-        """
-        board_copy = self.board.copy()
-        seeds = board_copy[index]
-        board_copy[index] = 0
-
-        next_player = self.player
-
-        while seeds > 0:
-            index = (index + 1) % len(board_copy)
-
-            # Skip the opponent's store
-            if (self.player == 1 and index == 13) or (self.player == 2 and index == 6):
-                continue
-
-            board_copy[index] += 1
-            seeds -= 1
-
-            # If the last seed is sown in the player's store, it's their turn again
-            if seeds == 0 and ((self.player == 1 and index == 6) or (self.player == 2 and index == 13)):
-                next_player = self.player
-            else:
-                next_player = 3 - self.player
-
-        return board_copy, next_player, index
 
     def _is_valid_move(self, index):
         """

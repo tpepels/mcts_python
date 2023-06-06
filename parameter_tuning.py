@@ -3,7 +3,7 @@ import multiprocessing
 from functools import partial
 from itertools import product
 
-from games.amazons import AmazonsGameState, evaluate as evaluate_amazons
+from games.amazons_no_lists import AmazonsGameState, evaluate as evaluate_amazons
 from games.breakthrough import BreakthroughGameState, evaluate as evaluate_breakthrough
 from run_games import mcts_play
 

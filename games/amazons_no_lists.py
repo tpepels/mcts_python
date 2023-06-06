@@ -21,8 +21,6 @@ class AmazonsGameState(GameState):
         player=1,
         board_size=10,
         n_moves=0,
-        white_queens=None,
-        black_queens=None,
         board_hash=None,
     ):
         """
@@ -31,7 +29,7 @@ class AmazonsGameState(GameState):
         """
 
         assert 6 <= board_size <= 10
-        self.player_has_legal_moves = True
+
         self.board_size = board_size
         self.player = player
         self.mid = math.ceil(self.board_size / 2)
@@ -40,20 +38,11 @@ class AmazonsGameState(GameState):
         self.board_hash = board_hash
         self.zobrist_table = self.zobrist_tables[self.board_size]
 
-        # Keep track of the queen positions so we can avoid having to scan the board for them
-        if black_queens is None:
-            self.black_queens = []
-        else:
-            self.black_queens = black_queens
-            assert len(black_queens) == 4
-
-        if white_queens is None:
-            self.white_queens = []
-        else:
-            self.white_queens = white_queens
-            assert len(white_queens) == 4
-
         self.board = board if board is not None else self.initialize_board()
+
+        self.player_has_legal_moves = True
+        if n_moves > 10:
+            self.player_has_legal_moves = self.has_legal_moves()
 
         if self.board_hash is None:
             self.board_hash = 0
@@ -69,34 +58,19 @@ class AmazonsGameState(GameState):
         The board is a grid with player 1's pieces represented by 1 and player 2's pieces represented by 2.
         Empty spaces are represented by 0, and blocked spaces are represented by -1.
         """
-
-        self.white_queens = []
-        self.black_queens = []
-
         # Use numpy arrays for the board
         board = np.zeros((self.board_size, self.board_size), dtype=int)
         mid = self.board_size // 2
-
         # Place the black queens
         board[0][mid - 2] = 2
-        self.black_queens.append((0, mid - 2))
         board[0][mid + 1] = 2
-        self.black_queens.append((0, mid + 1))
         board[mid - 2][0] = 2
-        self.black_queens.append((mid - 2, 0))
         board[mid - 2][self.board_size - 1] = 2
-        self.black_queens.append((mid - 2, self.board_size - 1))
-
         # Now the white queens
         board[self.board_size - 1][mid - 2] = 1
-        self.white_queens.append((self.board_size - 1, mid - 2))
         board[self.board_size - 1][mid + 1] = 1
-        self.white_queens.append((self.board_size - 1, mid + 1))
         board[mid + 1][0] = 1
-        self.white_queens.append((mid + 1, 0))
         board[mid + 1][self.board_size - 1] = 1
-        self.white_queens.append((mid + 1, self.board_size - 1))
-
         return board
 
     def apply_action(self, action):
@@ -111,7 +85,6 @@ class AmazonsGameState(GameState):
         new_board[x2][y2] = new_board[x1][y1]  # Move the piece to the new position
         new_board[x1][y1] = 0  # Remove the piece from its old position
         new_board[x3][y3] = -1  # Block the position where the arrow was shot
-
         # Update board hash for the movement
         board_hash = (
             self.board_hash
@@ -121,34 +94,13 @@ class AmazonsGameState(GameState):
             ^ self.players_bitstrings[self.player]
             ^ self.players_bitstrings[3 - self.player]
         )
-        # Copy the lists of queen positions, and update the position of the moving queen
-
-        new_white_queens = self.white_queens.copy()
-        new_black_queens = self.black_queens.copy()
-
-        if self.player == 1:
-            # Get the index of the moving queen in the list
-            queen_index = new_white_queens.index((x1, y1))
-            # Update the position of the queen in the list
-            new_white_queens[queen_index] = (x2, y2)
-        elif self.player == 2:
-            # Get the index of the moving queen in the list
-            queen_index = new_black_queens.index((x1, y1))
-            # Update the position of the queen in the list
-            new_black_queens[queen_index] = (x2, y2)
-
-        new_state = AmazonsGameState(
+        return AmazonsGameState(
             new_board,
             3 - self.player,
             self.board_size,
             self.n_moves + 1,
-            white_queens=new_white_queens,
-            black_queens=new_black_queens,
             board_hash=board_hash,
         )
-        # Update player_has_legal_moves for the new state
-        new_state.player_has_legal_moves = new_state.has_legal_moves()
-        return new_state
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search
@@ -156,15 +108,11 @@ class AmazonsGameState(GameState):
         Returns:
             AmazonsGameState: A new gamestate in which the players are switched but no move performed
         """
-        assert self.player_has_legal_moves, "Null move should not be possible"
-
         # Pass the same board hash since this is only used for null moves
         return AmazonsGameState(
             np.copy(self.board),
             3 - self.player,
             board_hash=self.board_hash,
-            white_queens=self.white_queens.copy(),
-            black_queens=self.black_queens.copy(),
             n_moves=self.n_moves + 1,
         )
 
@@ -172,9 +120,65 @@ class AmazonsGameState(GameState):
         """
         Get a list of legal actions for the current player.
         """
-        queens = self.white_queens if self.player == 1 else self.black_queens
-
+        queen_pos = np.where(self.board == self.player)
+        queens = np.column_stack(queen_pos)
         return [move for queen in queens for move in self.get_legal_moves_for_amazon(*queen)]
+
+    # def get_legal_moves_for_amazon(self, x, y):
+    #     """
+    #     Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
+    #     """
+    #     moves = []
+    #     assert self.board[x, y] > 0
+    #     size = self.board.shape[0]
+
+    #     for direction in DIRECTIONS:
+    #         dx, dy = direction
+    #         nx, ny = x + dx, y + dy
+
+    #         if dx > 0:
+    #             x_limit = size
+    #         elif dx < 0:
+    #             x_limit = -1
+    #         else:
+    #             x_limit = nx + 1  # unchanged
+
+    #         if dy > 0:
+    #             y_limit = size
+    #         elif dy < 0:
+    #             y_limit = -1
+    #         else:
+    #             y_limit = ny + 1  # unchanged
+
+    #         while nx != x_limit and ny != y_limit and self.board[nx, ny] == 0:
+    #             for arrow_direction in DIRECTIONS:
+    #                 adx, ady = arrow_direction
+    #                 a_nx, a_ny = nx + adx, ny + ady
+
+    #                 if adx > 0:
+    #                     ax_limit = size
+    #                 elif adx < 0:
+    #                     ax_limit = -1
+    #                 else:
+    #                     ax_limit = a_nx + 1  # unchanged
+
+    #                 if ady > 0:
+    #                     ay_limit = size
+    #                 elif ady < 0:
+    #                     ay_limit = -1
+    #                 else:
+    #                     ay_limit = a_ny + 1  # unchanged
+
+    #                 while (a_nx != ax_limit and a_ny != ay_limit) and (
+    #                     self.board[a_nx, a_ny] == 0 or (a_nx == x and a_ny == y)
+    #                 ):
+    #                     moves.append((x, y, nx, ny, a_nx, a_ny))
+    #                     a_nx += adx
+    #                     a_ny += ady
+    #             nx += dx
+    #             ny += dy
+
+    #     return moves
 
     def get_legal_moves_for_amazon(self, x, y):
         """
@@ -253,7 +257,9 @@ class AmazonsGameState(GameState):
         if not self.player_has_legal_moves:
             return False
 
-        queens = self.white_queens if self.player == 1 else self.black_queens
+        queen_pos = np.where(self.board == self.player)
+        queens = np.column_stack(queen_pos)
+
         size = self.board.shape[0]
 
         for queen in queens:
@@ -277,7 +283,7 @@ class AmazonsGameState(GameState):
                 else:
                     y_limit = ny + 1  # unchanged
 
-                if nx != x_limit and ny != y_limit and self.board[nx, ny] == 0:
+                while nx != x_limit and ny != y_limit and self.board[nx, ny] == 0:
                     return True
                 nx += dx
                 ny += dy
@@ -334,7 +340,7 @@ class AmazonsGameState(GameState):
         return score
 
     def visualize(self):
-        output = "Player: " + str(self.player) + "\n"
+        output = ""
         cell_representation = {
             1: "W",
             2: "B",
@@ -345,10 +351,7 @@ class AmazonsGameState(GameState):
             row = [cell_representation[piece] for piece in self.board[i]]
             output += " ".join(row) + "\n"
 
-        output += "hash: " + str(self.board_hash) + "\n"
-        output += "w:" + str(self.white_queens) + "\n"
-        output += "b:" + str(self.black_queens) + "\n"
-        output += "n_moves: " + str(self.n_moves) + " legal moves left? " + str(self.player_has_legal_moves)
+        output += "hash: " + str(self.board_hash)
 
         return output
 
@@ -369,12 +372,11 @@ def evaluate_amazons(state: AmazonsGameState, player: int, m=(1.0,), a=1, norm=T
     # Variables for the heuristics
     player_controlled_squares = 0
     opponent_controlled_squares = 0
-    # The queens to iterate over
-    player_queens = state.white_queens if player == 1 else state.black_queens
-    opp_queens = state.white_queens if player == 2 else state.black_queens
+
+    player_queens = np.column_stack(np.where(state.board == player))
+    opp_queens = np.column_stack(np.where(state.board == 3 - player))
 
     assert len(player_queens) == 4 and len(opp_queens) == 4
-
     # Iterate through the queens and collect information about player's and opponent's moves and controlled squares.
     for queen in player_queens:
         player_controlled_squares += count_reachable_squares(state.board, *queen)
@@ -403,8 +405,8 @@ def evaluate_amazons_lieberum(
         return evaluate_amazons(state, player, norm=norm)
 
     # The queens to iterate over
-    player_queens = state.white_queens if player == 1 else state.black_queens
-    opp_queens = state.white_queens if player == 2 else state.black_queens
+    player_queens = np.column_stack(np.where(state.board == player))
+    opp_queens = np.column_stack(np.where(state.board == 3 - player))
 
     if m[0] > 0:
         terr = territory_heuristic(opp_queens, player_queens, state.board, max_depth=max_depth)

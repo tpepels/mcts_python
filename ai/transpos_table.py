@@ -44,11 +44,14 @@ class TranspositionTable:
                 raise IncorrectBoardException(
                     f"Stored: {stored_board} is not the same as {board} stored at {key}"
                 )
+
             if stored_depth >= depth:
                 if stored_player != player:
                     value = -value
+
                 self.table[key] = (value, stored_depth, stored_player, stored_board)
                 self.cache_hits += 1  # Increase the cache hits
+
                 return value
         except KeyError:
             self.cache_misses += 1  # Increase the cache misses

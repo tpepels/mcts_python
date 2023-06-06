@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from functools import partial
 import time
 from ai.ai_player import AIPlayer
@@ -15,7 +16,7 @@ from games.breakthrough import (
 from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
 from games.kalah import KalahGameState, evaluate_kalah, evaluate_kalah_enhanced
 
-from typing import Tuple
+from typing import Any, Dict, Optional, Tuple, Type
 import time
 
 # Contains all possible evaluation functions for use in factory
@@ -42,79 +43,74 @@ game_dict = {
 player_dict = {"alphabeta": AlphaBetaPlayer, "mcts": MCTSPlayer}
 
 
-def run_game(
-    game_key,
-    ai_key,
-    eval_keys,
-    game_params,
-    ai1_params,
-    ai2_params,
-    eval_params_p1: dict = None,
-    eval_params_p2: dict = None,
-):
+@dataclass
+class AIParams:
+    """Class for holding AI parameters.
+
+    Attributes:
+        ai_key (str): The key for the AI algorithm.
+        eval_key (str): The key for the evaluation function.
+        ai_params (Dict[str, Any]): The parameters for the AI algorithm.
+        eval_params (Dict[str, Any]): The parameters for the evaluation function.
     """
-    Run a game simulation between two AI players using provided parameters.
 
-    This function initializes a game state and two AI players, then conducts a turn-based game until
-    a terminal state is reached. After each action, it prints the player, chosen action, evaluation
-    value, and the time taken for the AI to decide on the action.
+    ai_key: str
+    eval_key: str
+    ai_params: Dict[str, Any]
+    eval_params: Optional[Dict[str, Any]] = None
 
-    At the end of the game, it prints the final game state and the game's result for player 1.
+    def __str__(self):
+        """Generate string representation of AI parameters."""
+        string_repr = (
+            f"AI: {self.ai_key} with parameters {self.ai_params} and evaluation function {self.eval_key}"
+        )
+        if self.eval_params is not None:
+            string_repr += f" with parameters {self.eval_params}"
+        return string_repr
 
-    Parameters
-    ----------
-    game_key : str
-        The key to select the game from the `game_dict`. Should correspond to one of the supported game types:
-        "tictactoe", "breakthrough", "amazons", or "kalah".
 
-    ai_key : str
-        The key to select the AI player class from the `player_dict`. Should be either "alphabeta" or "mcts".
+def init_game_and_players(
+    game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams
+) -> Tuple[Type[GameState], AIPlayer, AIPlayer]:
+    """Initialize game and players based on given parameters.
 
-    eval_keys : dict
-        A dictionary containing two keys "p1" and "p2", with values corresponding to the keys of the `eval_dict`.
-        These are used to select the evaluation function for each player.
+    Args:
+        game_key (str): The key for the game.
+        game_params (Dict[str, Any]): The parameters for the game.
+        p1_params (AIParams): The parameters for player 1's AI.
+        p2_params (AIParams): The parameters for player 2's AI.
 
-    game_params : dict
-        A dictionary of parameters to pass to the game state initializer. The required parameters depend on the
-        specific game.
-
-    ai_params : dict
-        A dictionary of parameters to pass to the AI player initializers. The required parameters depend on the
-        specific AI class. Common parameters might include "depth" for the search depth in an Alpha-Beta player,
-        or "num_simulations" for the number of simulations to run in an MCTS player.
-
-    eval_params_p1, eval_params_p2: dict
-        Two dictionaries that can be used to pass parameters to the respective evaluation functions (m and a).
+    Returns:
+        Tuple[Type[GameState], AIPlayer, AIPlayer]: The initialized game and players.
     """
-    # Fetch the corresponding classes from the dictionaries
     game_class = game_dict[game_key]
-    ai_class = player_dict[ai_key]
-
-    # Fetch the corresponding evaluation functions
-    eval_function_p1 = eval_dict[eval_keys["p1"]]
-    eval_function_p2 = eval_dict[eval_keys["p2"]]
-
-    if eval_params_p1 is not None:
-        eval_function_p1 = partial(eval_function_p1, **eval_params_p1)
-    if eval_params_p2 is not None:
-        eval_function_p2 = partial(eval_function_p2, **eval_params_p2)
-
-    # Initialize game state
     game: GameState = game_class(**game_params)
 
-    # Initialize two AI players
-    p1: AIPlayer = ai_class(
-        player=1,
-        evaluate=eval_function_p1,
-        transposition_table_size=game.transposition_table_size,
-        **ai1_params,
-    )
-    p2: AIPlayer = ai_class(
-        player=2,
-        evaluate=eval_function_p2,
-        transposition_table_size=game.transposition_table_size,
-        **ai2_params,
-    )
+    ai_class = player_dict[p1_params.ai_key]
+    eval_function_p1 = eval_dict[p1_params.eval_key]
+    if p1_params.eval_params is not None:
+        eval_function_p1 = partial(eval_function_p1, **p1_params.eval_params)
+    p1: AIPlayer = ai_class(player=1, evaluate=eval_function_p1, **p1_params.ai_params)
+
+    ai_class = player_dict[p2_params.ai_key]
+    eval_function_p2 = eval_dict[p2_params.eval_key]
+    if p2_params.eval_params is not None:
+        eval_function_p2 = partial(eval_function_p2, **p2_params.eval_params)
+    p2: AIPlayer = ai_class(player=2, evaluate=eval_function_p2, **p2_params.ai_params)
+
+    return game, p1, p2
+
+
+def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams) -> None:
+    """Run the game with two AI players.
+
+    Args:
+        game_key (str): The key for the game.
+        game_params (Dict[str, Any]): The parameters for the game.
+        p1_params (AIParams): The parameters for player 1's AI.
+        p2_params (AIParams): The parameters for player 2's AI.
+    """
+    game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
 
     while not game.is_terminal():
         start_time = time.time()
@@ -139,41 +135,19 @@ def run_game(
     print(f"Game Over. Result for p1: {result}")
 
 
-def run_game_experiment(
-    game_key: str,
-    ai_key: str,
-    eval_keys: dict,
-    game_params: dict,
-    ai_params: dict,
-    eval_params_p1: dict = None,
-    eval_params_p2: dict = None,
-) -> Tuple[str, str, float, Tuple[float, float], int]:
-    # Fetch the corresponding classes from the dictionaries
-    game_class = game_dict[game_key]
-    ai_class = player_dict[ai_key]
+def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams):
+    """Run a game experiment with two AI players.
 
-    # Fetch the corresponding evaluation functions
-    eval_function_p1 = eval_dict[eval_keys["p1"]]
-    eval_function_p2 = eval_dict[eval_keys["p2"]]
-
-    if eval_params_p1 is not None:
-        eval_function_p1 = partial(eval_function_p1, **eval_params_p1)
-    if eval_params_p2 is not None:
-        eval_function_p2 = partial(eval_function_p2, **eval_params_p2)
-
-    # Initialize game state
-    game = game_class(**game_params)
-
-    # Initialize two AI players
-    p1 = ai_class(player=1, evaluate=eval_function_p1, **ai_params)
-    p2 = ai_class(player=2, evaluate=eval_function_p2, **ai_params)
+    Args:
+        game_key (str): The key for the game.
+        game_params (Dict[str, Any]): The parameters for the game.
+        p1_params (AIParams): The parameters for player 1's AI.
+        p2_params (AIParams): The parameters for player 2's AI.
+    """
+    game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
 
     # Initialize stats
-    setup = f"Game: {game_key} with parameters {game_params}. AI: {ai_key} with parameters {ai_params} and evaluation functions {eval_keys}"
-    if eval_params_p1 is not None:
-        setup += f" with p1 parameters {eval_params_p1}"
-    if eval_params_p2 is not None:
-        setup += f" with p2 parameters {eval_params_p2}"
+    setup = f"Game: {game_key} with parameters {game_params}. Player 1: {p1_params}. Player 2: {p2_params}"
 
     game_output = []
     times = {1: [], 2: []}
@@ -193,7 +167,6 @@ def run_game_experiment(
             f"Player {game.player}, action: {action}, v: {v:.3f}, time: {elapsed_time_move:.3f}"
         )
         game = game.apply_action(action)
-        game_output.append(f"State: {eval_function_p1(game, 1)=} {eval_function_p2(game, 2)=}")
         game_output.append(game.visualize())
 
     total_time = time.time() - start_time_total
@@ -209,15 +182,28 @@ from google.oauth2.service_account import Credentials
 
 
 def run_multiple_game_experiments(
-    n_games: int, game_key: str, ai_key: str, eval_keys: dict, game_params: dict, ai_params: dict
-):
+    n_games: int,
+    game_key: str,
+    p1_params: AIParams,
+    p2_params: AIParams,
+    game_params: Dict[str, Any],
+) -> None:
+    """Run multiple game experiments and log the results in a Google Sheets document.
+
+    Args:
+        n_games (int): The number of games to run.
+        game_key (str): The key for the game.
+        p1_params (AIParams): The parameters for player 1's AI.
+        p2_params (AIParams): The parameters for player 2's AI.
+        game_params (Dict[str, Any]): The parameters for the game.
+    """
     # Use credentials to create a client to interact with the Google Drive API
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_file("client_secret.json", scopes=scopes)
     client = gspread.authorize(creds)
 
     # Create a new Google Sheets document
-    title = f"Game Results for {n_games} games with {game_key} and {ai_key}"
+    title = f"Game Results for {n_games} games with {game_key}"
     sheet = client.create(title)
     sheet.share("tpepels@gmail.com", perm_type="user", role="writer")  # Share the sheet with your account
 
@@ -227,9 +213,24 @@ def run_multiple_game_experiments(
         ["Experiment", "Setup", "Game Output", "Total Time", "Avg Time p1", "Avg Time p2", "Result"], 1
     )
 
-    def run_single_game(i, game_key, ai_key, eval_keys, game_params, ai_params):
+    def run_single_game(
+        i: int,
+        game_key: str,
+        game_params: Dict[str, Any],
+        p1_params: AIParams,
+        p2_params: AIParams,
+    ) -> None:
+        """Run a single game experiment and log the results in the worksheet.
+
+        Args:
+            i (int): The game number.
+            game_key (str): The key for the game.
+            game_params (Dict[str, Any]): The parameters for the game.
+            p1_params (AIParams): The parameters for player 1's AI.
+            p2_params (AIParams): The parameters for player 2's AI.
+        """
         setup, game_output, total_time, avg_time_per_move, result = run_game_experiment(
-            game_key, ai_key, eval_keys, game_params, ai_params
+            game_key, game_params, p1_params, p2_params
         )
         avg_time_p1, avg_time_p2 = avg_time_per_move
         # Append the result to the sheet
@@ -239,5 +240,5 @@ def run_multiple_game_experiments(
     with multiprocessing.Pool() as pool:
         pool.starmap(
             run_single_game,
-            [(i, game_key, ai_key, eval_keys, game_params, ai_params) for i in range(n_games)],
+            [(i, game_key, game_params, p1_params, p2_params) for i in range(n_games)],
         )
