@@ -182,64 +182,38 @@ class AmazonsGameState(GameState):
         """
         moves = []
         assert self.board[x][y] > 0
-        size = self.board_size
 
-        for direction in DIRECTIONS:
-            dx, dy = direction
-            nx, ny = x + dx, y + dy
+        for dx, dy in DIRECTIONS:
+            nx, ny = x + dx, y + dy  # the next cell in the direction
 
-            if dx > 0:
-                x_limit = size
-            elif dx < 0:
-                x_limit = -1
-            else:
-                x_limit = nx + 1
+            while 0 <= nx < self.board_size and 0 <= ny < self.board_size:
+                if self.board[nx][ny] == 0:  # free cell
+                    # Find all legal arrow shots in the current direction.
+                    moves.extend(
+                        (x, y, nx, ny, a_nx, a_ny) for a_nx, a_ny in self.generate_arrow_shots(nx, ny, x, y)
+                    )
+                    nx += dx
+                    ny += dy  # keep exploring in the direction
 
-            if dy > 0:
-                y_limit = size
-            elif dy < 0:
-                y_limit = -1
-            else:
-                y_limit = ny + 1
-
-            while nx != x_limit and ny != y_limit and self.board[nx][ny] == 0:
-                # Find all legal arrow shots in the current direction.
-                moves.extend(
-                    (x, y, nx, ny, a_nx, a_ny) for a_nx, a_ny in self.generate_arrow_shots(nx, ny, x, y, size)
-                )
-                nx += dx
-                ny += dy
+                else:  # blocked cell
+                    break
 
         return moves
 
-    def generate_arrow_shots(self, nx, ny, x, y, size):
+    def generate_arrow_shots(self, nx, ny, x, y):
         """
         Generate all legal arrow shots from the position (nx, ny).
         """
-        for arrow_direction in DIRECTIONS:
-            adx, ady = arrow_direction
-            a_nx, a_ny = nx + adx, ny + ady
+        for adx, ady in DIRECTIONS:
+            a_nx, a_ny = nx + adx, ny + ady  # the next cell in the direction
 
-            if adx > 0:
-                ax_limit = size
-            elif adx < 0:
-                ax_limit = -1
-            else:
-                ax_limit = a_nx + 1
+            while 0 <= a_nx < self.board_size and 0 <= a_ny < self.board_size:
+                if self.board[a_nx][a_ny] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
+                    yield a_nx, a_ny
 
-            if ady > 0:
-                ay_limit = size
-            elif ady < 0:
-                ay_limit = -1
-            else:
-                ay_limit = a_nx + 1
+                elif self.board[a_nx][a_ny] != 0:  # blocked cell
+                    break
 
-            while (
-                a_nx != ax_limit
-                and a_ny != ay_limit
-                and (self.board[a_nx][a_ny] == 0 or (a_nx == x and a_ny == y))
-            ):
-                yield a_nx, a_ny
                 a_nx += adx
                 a_ny += ady
 
@@ -249,39 +223,23 @@ class AmazonsGameState(GameState):
 
         :return: True if the current player has legal moves, False otherwise.
         """
-        # If we already know the player has no legal moves, we can return False immediately
-        if not self.player_has_legal_moves:
-            return False
-
         queens = self.white_queens if self.player == 1 else self.black_queens
-        size = self.board.shape[0]
-
         for queen in queens:
             x, y = queen
+            for dx, dy in DIRECTIONS:
+                nx, ny = x + dx, y + dy  # the next cell in the direction
 
-            for direction in DIRECTIONS:
-                dx, dy = direction
-                nx, ny = x + dx, y + dy
+                while 0 <= nx < self.board_size and 0 <= ny < self.board_size:
+                    if self.board[nx][ny] == 0:  # free cell
+                        return True
 
-                if dx > 0:
-                    x_limit = size
-                elif dx < 0:
-                    x_limit = -1
-                else:
-                    x_limit = nx + 1  # unchanged
+                    elif self.board[nx][ny] != 0:  # blocked cell
+                        break
 
-                if dy > 0:
-                    y_limit = size
-                elif dy < 0:
-                    y_limit = -1
-                else:
-                    y_limit = ny + 1  # unchanged
+                    nx += dx
+                    ny += dy
 
-                if nx != x_limit and ny != y_limit and self.board[nx, ny] == 0:
-                    return True
-                nx += dx
-                ny += dy
-
+        # If no valid move is found for any queen, return False
         return False
 
     @property
@@ -349,6 +307,7 @@ class AmazonsGameState(GameState):
         output += "w:" + str(self.white_queens) + "\n"
         output += "b:" + str(self.black_queens) + "\n"
         output += "n_moves: " + str(self.n_moves) + " legal moves left? " + str(self.player_has_legal_moves)
+        output += "\n has_legal_moves: " + str(self.has_legal_moves())
 
         return output
 
