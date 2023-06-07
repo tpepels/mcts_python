@@ -4,6 +4,7 @@ import random
 import time
 from ai.ai_player import AIPlayer
 from ai.transpos_table import TranspositionTable
+from games.gamestate import GameState
 
 total_search_time = {1: 0, 2: 0}
 n_moves = {1: 0, 2: 0}
@@ -53,7 +54,7 @@ class AlphaBetaPlayer(AIPlayer):
         n_moves[player] = 0
         depth_reached[player] = 0
 
-    def best_action(self, state):
+    def best_action(self, state: GameState):
         # Reset debug statistics
         self.quiescence_searches = nodes_visited = cutoffs = evaluated = transpos = 0
         max_depth_reached = null_moves_cutoff = total_moves_generated = 0
@@ -228,7 +229,7 @@ class AlphaBetaPlayer(AIPlayer):
 
         return best_move, v
 
-    def quiescence(self, state, alpha, beta):
+    def quiescence(self, state: GameState, alpha, beta):
         # Increment the number of quiescence searches
         self.quiescence_searches += 1
         # Quiescence search to avoid the horizon effect

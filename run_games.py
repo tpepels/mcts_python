@@ -1,23 +1,21 @@
+import time
 from dataclasses import dataclass
 from functools import partial
-import time
-from ai.ai_player import AIPlayer
+from typing import Any, Dict, Optional, Tuple, Type
 
+from ai.ai_player import AIPlayer
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
-from games.gamestate import GameState
-from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
+from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
 from games.breakthrough import (
     BreakthroughGameState,
     evaluate_breakthrough,
-    lorenz_evaluation,
     lorenz_enhanced_evaluation,
+    lorenz_evaluation,
 )
-from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
+from games.gamestate import GameState
 from games.kalah import KalahGameState, evaluate_kalah, evaluate_kalah_enhanced
-
-from typing import Any, Dict, Optional, Tuple, Type
-import time
+from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {
@@ -176,8 +174,9 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     return setup, "\n".join(game_output), total_time, avg_time_per_move, result
 
 
-import gspread
 import multiprocessing
+
+import gspread
 from google.oauth2.service_account import Credentials
 
 
