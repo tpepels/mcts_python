@@ -54,21 +54,24 @@ class AIParams:
 
     ai_key: str
     eval_key: str
-    ai_params: Dict[str, Any]
+    ai_params: Optional[Dict[str, Any]] = None
     eval_params: Optional[Dict[str, Any]] = None
 
     def __str__(self):
         """Generate string representation of AI parameters."""
-        string_repr = (
-            f"AI: {self.ai_key} with parameters {self.ai_params} and evaluation function {self.eval_key}"
-        )
+        string_repr = f"AI: {self.ai_key}"
+        if self.ai_params is not None:
+            string_repr += f" with parameters {self.ai_params}"
+
+        string_repr += f" and evaluation function {self.eval_key}"
+
         if self.eval_params is not None:
-            string_repr += f" with parameters {self.eval_params}"
+            string_repr += f" with parameters {self.eval_params}."
         return string_repr
 
 
 def init_game_and_players(
-    game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams
+    game_key: str, game_params: Optional[Dict[str, Any]], p1_params: AIParams, p2_params: AIParams
 ) -> Tuple[Type[GameState], AIPlayer, AIPlayer]:
     """Initialize game and players based on given parameters.
 

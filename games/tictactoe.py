@@ -131,12 +131,29 @@ class TicTacToeGameState(GameState):
         return 2**16
 
 
-def evaluate_tictactoe(state, player):
-    def calculate_score(marks):
+def evaluate_tictactoe(state, player, score_discount: float = 1.0, score_factor: float = 1.0):
+    """
+    Evaluate the current state of a TicTacToe game.
+
+    This function calculates a score for the current game state,
+    favoring states where the specified player has more chances to win.
+
+    Args:
+        state: The current game state.
+        player: The player for whom to evaluate the game state.
+        score_discount (float): The discount to apply to the score if it is the opponent's turn.
+        win_bonus (int): The bonus to add to the score if the game is potentially winnable on the next move.
+        opp_disc: The ID of the opponent player.
+
+    Returns:
+        int: The score of the current game state for the specified player.
+    """
+
+    def calculate_score(marks, score_factor):
         if opponent not in marks and player in marks:
-            return (size - marks.count(0)) * marks.count(player)
+            return score_factor * ((size - marks.count(0)) * marks.count(player)) ** 2
         elif player not in marks and opponent in marks:
-            return -(size - marks.count(0)) * marks.count(opponent)
+            return -score_factor * ((size - marks.count(0)) * marks.count(opponent)) ** 2
         return 0
 
     def potential_win(marks):
@@ -159,11 +176,11 @@ def evaluate_tictactoe(state, player):
     lines.append([board[i][size - i - 1] for i in range(size)])  # anti-diagonal
 
     for marks in lines:
-        score += calculate_score(marks)
+        score += calculate_score(marks, score_factor)
         if potential_win(marks):
-            return 1000 if state.player == player else -1000
+            return 10000 if state.player == player else -10000
 
     # Discount score if it is the opponent's turn
-    score += size if state.player == player else -size
+    score *= score_discount if state.player == opponent else 1.0
 
     return score

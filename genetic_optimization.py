@@ -1,5 +1,6 @@
 import csv
 import datetime
+from functools import partial
 import multiprocessing
 from operator import itemgetter
 import random
@@ -9,7 +10,7 @@ import gspread
 import numpy as np
 from oauth2client.service_account import ServiceAccountCredentials
 
-from ai.ai_player import AIParams, AIPlayer
+from ai.ai_player import AIPlayer
 from games.gamestate import GameState
 from run_games import AIParams, init_game_and_players
 
@@ -18,10 +19,7 @@ population_size = 50
 num_generations = 100
 mutation_rate = 0.05
 
-# Use credentials to create a client to interact with the Google Drive API
-scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
-client = gspread.authorize(creds)
+
 sheet = None
 
 
@@ -30,6 +28,11 @@ def setup_reporting(
     ai_param_ranges: Dict[str, Tuple[float, float]],
     eval_param_ranges: Dict[str, Tuple[float, float]],
 ) -> Tuple[Any, Any]:
+    # Use credentials to create a client to interact with the Google Drive API
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
+    client = gspread.authorize(creds)
+
     sheet = client.create(sheet_name).sheet1
     f = open(f"{sheet_name}.csv", "w", newline="")
     writer = csv.writer(f)
@@ -73,6 +76,7 @@ def genetic_algorithm(
     num_generations: int,
     mutation_rate: float,
     game_name: str,
+    game_params: Dict[str, Any],
     player_name: str,
     eval_name: str,
     ai_param_ranges: Dict[str, Tuple[float, float]],
@@ -90,6 +94,7 @@ def genetic_algorithm(
         num_generations (int): The number of generations to run the algorithm for.
         mutation_rate (float): The probability of each parameter being mutated.
         game_name (str): The name of the game to simulate.
+        game_params (Dict[str, Any]): The parameters for the game.
         player_name (str): The name of the player AI.
         eval_name (str): The name of the evaluation function.
         ai_param_ranges (Dict[str, Tuple[float, float]]): A dictionary mapping parameter names to tuples defining the allowed range of that parameter.
@@ -113,10 +118,7 @@ def genetic_algorithm(
                 for param_name, r in ai_param_ranges.items()
             },
             "eval": {
-                param_name: tuple(
-                    round(random.uniform(r["range"][i][0], r["range"][i][1]), r["precision"][i])
-                    for i in range(len(r["range"]))
-                )
+                param_name: round(random.uniform(r["range"][0], r["range"][1]), r["precision"])
                 for param_name, r in eval_param_ranges.items()
             },
         }
@@ -124,26 +126,38 @@ def genetic_algorithm(
     ]
 
     # Create a new sheet for this experiment
-    sheet_name = f"{game_name}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    if game_params and "board_size" in game_params:
+        game_name_str = game_name + str(game_params["board_size"])
+    else:
+        game_name_str = game_name
+    sheet_name = (
+        f"{game_name_str}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
     sheet, writer = setup_reporting(sheet_name, ai_param_ranges, eval_param_ranges)
 
     best_overall_individual = None
     best_fitnesses = []
 
+    # Pre-fill the evaluate_fitness function with the game parameters
+    partial_evaluate_fitness = partial(evaluate_fitness, game_name, game_params, player_name, eval_name)
+
     for generation in range(num_generations):
         print(f"Generation {generation}")
 
-        # Evaluate the fitness of each individual in the population
-        with multiprocessing.Pool(n_procs) as pool:
-            winners = pool.starmap(
-                lambda individual: evaluate_fitness(
-                    game_name, player_name, eval_name, individual["ai"], individual["eval"]
-                ),
-                population,
-            )
+        # Randomly pair up individuals in the population
+        random.shuffle(population)
+        pairs = [(population[i], population[i + 1]) for i in range(0, len(population), 2)]
 
-        # Calculate the number of wins for each player as fitness values
-        fitnesses = [winners.count(i + 1) for i in range(len(population))]
+        # Evaluate the fitness of each pair of individuals in the population
+        with multiprocessing.Pool(n_procs) as pool:
+            results = pool.map(partial_evaluate_fitness, pairs)
+
+        # Calculate the number of wins for each individual as fitness values
+        fitnesses = [0] * len(population)
+        for individual1, fitness1, individual2, fitness2 in results:
+            fitnesses[population.index(individual1)] += fitness1
+            fitnesses[population.index(individual2)] += fitness2
+
         scaled_fitnesses = scale_fitnesses(fitnesses)
 
         # Get the best individual and its fitness
@@ -182,88 +196,67 @@ def genetic_algorithm(
 
 def evaluate_fitness(
     game_name: str,
+    game_params: Dict[str, Any],
     player_name: str,
     eval_name: str,
-    ai_params: Dict[str, float],
-    eval_params: Dict[str, float],
-) -> int:
+    pair: Tuple[Dict[str, Any], Dict[str, Any]],
+) -> Tuple[Dict[str, Any], float, Dict[str, Any], float]:
     """
-    Evaluate the fitness of an individual.
+    Evaluate the fitness of two individuals by simulating a game.
 
-    This function simulates a game between two AIs with the same parameters and returns the winner.
+    This function simulates a game with the given AIs and evaluation functions,
+    using the parameters specified in the individuals' dictionaries.
+    The fitness is the score of the game (1 for a win, 0 for a loss, 0.5 for a draw).
 
     Args:
         game_name (str): The name of the game to simulate.
+        game_params (Dict[str, Any]): The parameters for the game.
         player_name (str): The name of the player AI.
         eval_name (str): The name of the evaluation function.
-        ai_params (Dict[str, float]): A dictionary mapping parameter names to their values for the AI.
-        eval_params (Dict[str, float]): A dictionary mapping parameter names to their values for the eval function.
+        pair (tuple): The pair of individuals to evaluate. Each individual is a dictionary with
+                      "ai" and "eval" keys, each of which is a dictionary of parameter names to values.
 
     Returns:
-        int: The winner of the game (1 if the first player wins, 2 if the second player wins).
-
-    Example:
-        >>> ai_params = {'a': 1.23, 'b': 4.56}
-        >>> eval_params = {'c': 7.89, 'd': 0.12}
-        >>> evaluate_fitness('TicTacToe', 'MiniMax', 'eval_func', ai_params, eval_params)
-        1
+        tuple: A pair consisting of the individuals and their fitness scores.
     """
+    individual1, individual2 = pair
+
+    # AI parameters for individuals
+    ai_params1 = individual1["ai"]
+    eval_params1 = individual1["eval"]
+    ai_params2 = individual2["ai"]
+    eval_params2 = individual2["eval"]
+
     # Create AI players with given parameters
-    p1_params = AIParams(player_name, eval_name, ai_params, eval_params)
-    p2_params = AIParams(player_name, eval_name, ai_params, eval_params)
+    p1_params = AIParams(player_name, eval_name, ai_params1, eval_params1)
+    p2_params = AIParams(player_name, eval_name, ai_params2, eval_params2)
 
-    game, player1, player2 = init_game_and_players(game_name, {}, p1_params, p2_params)
-    # Have the AI players play a game against each other
-    winner = play_game(player1, player2, game)
-    # Return the winner of the game
-    return winner
+    game, player1, player2 = init_game_and_players(game_name, game_params, p1_params, p2_params)
 
+    # Play a game!
+    current_player = player1
+    while not game.is_terminal():
+        # Get the best action for the current player
+        action = current_player.best_action(game)
 
-def create_next_generation(
-    parents: List[dict],
-    mutation_rate: float,
-    ai_param_ranges: Dict[str, Tuple[float, float]],
-    eval_param_ranges: Dict[str, Tuple[float, float]],
-) -> List[dict]:
-    """
-    Create the next generation of individuals.
+        # Apply the action to get the new game state
+        game = game.apply_action(action)
 
-    This function creates the next generation by performing crossover and mutation on selected parents.
+        # Switch the current player
+        current_player = player2 if current_player == player1 else player1
 
-    Args:
-        parents (List[dict]): The selected parents for the next generation.
-        mutation_rate (float): The probability of each parameter being mutated.
-        ai_param_ranges (dict): A dictionary mapping parameter names to tuples defining the allowed range of that parameter.
-        eval_param_ranges (dict): Similar to ai_param_ranges, but for the eval parameters.
+    # Return the winner (in view of p1)
+    reward = game.get_reward(1)
 
-    Returns:
-        List[dict]: The next generation of individuals.
-
-    Example:
-        >>> parents = [{'ai': {'a': 1, 'b': 2}, 'eval': {'c': 3, 'd': 4}},
-        ...            {'ai': {'a': 2, 'b': 3}, 'eval': {'c': 4, 'd': 5}}]
-        >>> ai_param_ranges = {'a': (0, 10), 'b': (0, 10)}
-        >>> eval_param_ranges = {'c': (0, 10), 'd': (0, 10)}
-        >>> create_next_generation(parents, 0.5, ai_param_ranges, eval_param_ranges)
-        [{'ai': {'a': 1.567, 'b': 2.1}, 'eval': {'c': 2.998, 'd': 4.432}},
-         {'ai': {'a': 2.203, 'b': 2.913}, 'eval': {'c': 3.829, 'd': 5.129}}]
-    """
-    next_generation = []
-    for _ in range(len(parents) // 2):
-        # Select two parents
-        parent1, parent2 = random.sample(parents, 2)
-
-        # Perform crossover
-        child1, child2 = crossover(parent1, parent2)
-
-        # Perform mutation
-        child1 = mutate(child1, mutation_rate, ai_param_ranges, eval_param_ranges)
-        child2 = mutate(child2, mutation_rate, ai_param_ranges, eval_param_ranges)
-
-        next_generation.append(child1)
-        next_generation.append(child2)
-
-    return next_generation
+    if reward == 0:
+        # Draw
+        return individual1, 0.5, individual2, 0.5
+    elif reward == 1:
+        # Individual1 wins
+        return individual1, 1, individual2, 0
+    else:
+        # Individual2 wins
+        return individual1, 0, individual2, 1
 
 
 def scale_fitnesses(fitnesses):
@@ -347,6 +340,53 @@ def select_parents_roulette(population: List[dict], fitnesses: List[float]) -> n
     total_fitness = sum(fitnesses)
     selection_probs = [fitness / total_fitness for fitness in fitnesses]
     return np.random.choice(population, size=len(population), replace=True, p=selection_probs)
+
+
+def create_next_generation(
+    parents: List[dict],
+    mutation_rate: float,
+    ai_param_ranges: Dict[str, Tuple[float, float]],
+    eval_param_ranges: Dict[str, Tuple[float, float]],
+) -> List[dict]:
+    """
+    Create the next generation of individuals.
+
+    This function creates the next generation by performing crossover and mutation on selected parents.
+
+    Args:
+        parents (List[dict]): The selected parents for the next generation.
+        mutation_rate (float): The probability of each parameter being mutated.
+        ai_param_ranges (dict): A dictionary mapping parameter names to tuples defining the allowed range of that parameter.
+        eval_param_ranges (dict): Similar to ai_param_ranges, but for the eval parameters.
+
+    Returns:
+        List[dict]: The next generation of individuals.
+
+    Example:
+        >>> parents = [{'ai': {'a': 1, 'b': 2}, 'eval': {'c': 3, 'd': 4}},
+        ...            {'ai': {'a': 2, 'b': 3}, 'eval': {'c': 4, 'd': 5}}]
+        >>> ai_param_ranges = {'a': (0, 10), 'b': (0, 10)}
+        >>> eval_param_ranges = {'c': (0, 10), 'd': (0, 10)}
+        >>> create_next_generation(parents, 0.5, ai_param_ranges, eval_param_ranges)
+        [{'ai': {'a': 1.567, 'b': 2.1}, 'eval': {'c': 2.998, 'd': 4.432}},
+         {'ai': {'a': 2.203, 'b': 2.913}, 'eval': {'c': 3.829, 'd': 5.129}}]
+    """
+    next_generation = []
+    for _ in range(len(parents) // 2):
+        # Select two parents
+        parent1, parent2 = random.sample(parents, 2)
+
+        # Perform crossover
+        child1, child2 = crossover(parent1, parent2)
+
+        # Perform mutation
+        child1 = mutate(child1, mutation_rate, ai_param_ranges, eval_param_ranges)
+        child2 = mutate(child2, mutation_rate, ai_param_ranges, eval_param_ranges)
+
+        next_generation.append(child1)
+        next_generation.append(child2)
+
+    return next_generation
 
 
 def crossover(parent1: dict, parent2: dict) -> Tuple[dict, dict]:
@@ -486,19 +526,13 @@ def _mutate_param(
     Mutates a parameter of an individual.
 
     Args:
-        param (float or tuple of float): The parameter to mutate.
+        param (float): The parameter to mutate.
         param_info (dict): A dictionary defining the allowed range and precision of the parameter.
 
     Returns:
         float or tuple of float: The mutated parameter.
     """
-    if isinstance(param, tuple):
-        return tuple(
-            _mutate_value(p, r, prec)
-            for p, r, prec in zip(param, param_info["range"], param_info["precision"])
-        )
-    else:
-        return _mutate_value(param, param_info["range"], param_info["precision"])
+    return _mutate_value(param, param_info["range"], param_info["precision"])
 
 
 def _mutate_value(value: float, value_range: Tuple[float, float], precision: int) -> float:
@@ -517,24 +551,3 @@ def _mutate_value(value: float, value_range: Tuple[float, float], precision: int
     mutated_value = np.clip(value + mutation, value_range[0], value_range[1])
 
     return round(mutated_value, precision)
-
-
-def play_game(player1: AIPlayer, player2: AIPlayer, game: GameState):
-    current_player = player1
-    while not game.is_terminal():
-        # Get the best action for the current player
-        action = current_player.best_action(game)
-
-        # Apply the action to get the new game state
-        game = game.apply_action(action)
-
-        # Switch the current player
-        current_player = player2 if current_player == player1 else player1
-
-    # Return the winner (in view of p1)
-    reward = game.get_reward(1)
-
-    if reward == 0:
-        return reward
-    else:
-        return 1 if reward == 1 else 2
