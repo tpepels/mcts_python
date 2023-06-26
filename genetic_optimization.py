@@ -10,8 +10,6 @@ import gspread
 import numpy as np
 from oauth2client.service_account import ServiceAccountCredentials
 
-from ai.ai_player import AIPlayer
-from games.gamestate import GameState
 from run_games import AIParams, init_game_and_players
 
 # Example Parameters for the genetic algorithm
