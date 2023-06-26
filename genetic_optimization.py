@@ -1,28 +1,32 @@
 import csv
 import datetime
 from functools import partial
+from io import TextIOWrapper
+import json
 import multiprocessing
 from operator import itemgetter
+import os
 import random
+import time
+import util
 
-from typing import Dict, List, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any, Union
 import gspread
 import numpy as np
 from oauth2client.service_account import ServiceAccountCredentials
+from ai.ai_player import AIPlayer
 
 from run_games import AIParams, init_game_and_players
+from util import log_exception_handler
 
-# Example Parameters for the genetic algorithm
-population_size = 50
-num_generations = 100
-mutation_rate = 0.05
-
-
-sheet = None
+sheet: gspread.Worksheet = None
+csv_f: TextIOWrapper = None
+csv_writer = None
 
 
 def setup_reporting(
     sheet_name: str,
+    game_name: str,
     ai_param_ranges: Dict[str, Tuple[float, float]],
     eval_param_ranges: Dict[str, Tuple[float, float]],
 ) -> Tuple[Any, Any]:
@@ -31,17 +35,27 @@ def setup_reporting(
     creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
     client = gspread.authorize(creds)
 
+    global sheet, csv_f, csv_writer
+
     sheet = client.create(sheet_name).sheet1
-    f = open(f"{sheet_name}.csv", "w", newline="")
-    writer = csv.writer(f)
+    config = util.read_config()
+    sheet.spreadsheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+
+    path = f"results/genetic/{game_name}/"
+    os.makedirs(path, exist_ok=True)
+    csv_f = open(path + f"{sheet_name}.csv", "w", newline="")
+
+    csv_writer = csv.writer(csv_f)
     csv_header = ["Generation"] + list(ai_param_ranges.keys()) + list(eval_param_ranges.keys()) + ["Fitness"]
-    writer.writerow(csv_header)
-    return sheet, writer
+    csv_writer.writerow(csv_header)
+
+    # Append the header row to the Google Sheets file
+    sheet.append_row(csv_header)
+
+    csv_f.flush()
 
 
 def report_results(
-    sheet: Any,
-    writer: Any,
     generation: int,
     best_individual: Dict[str, Dict[str, float]],
     best_individual_fitness: int,
@@ -53,12 +67,11 @@ def report_results(
         + [best_individual_fitness]
     )
     sheet.append_row(row)
-    writer.writerow(row)
+    csv_writer.writerow(row)
+    csv_f.flush()
 
 
-def report_final_results(
-    sheet: Any, writer: Any, best_overall_individual: Tuple[Dict[str, Dict[str, float]], int]
-) -> None:
+def report_final_results(best_overall_individual: Tuple[Dict[str, Dict[str, float]], int]) -> None:
     row = (
         ["Final"]
         + list(best_overall_individual[0]["ai"].values())
@@ -66,9 +79,30 @@ def report_final_results(
         + [best_overall_individual[1]]
     )
     sheet.append_row(row)
-    writer.writerow(row)
+
+    csv_writer.writerow(row)
+    csv_f.flush()
 
 
+def generate_individual(param_ranges: Dict[str, Tuple[float, float]]) -> Dict[str, Union[int, float]]:
+    """
+    Generate an individual with random parameters within the given ranges.
+
+    Args:
+        param_ranges (Dict[str, Tuple[float, float]]): A dictionary mapping parameter names to tuples defining the allowed range of that parameter.
+
+    Returns:
+        Dict[str, Union[int, float]]: The individual with randomly assigned parameters.
+    """
+    return {
+        param_name: random.randint(r["range"][0], r["range"][1])
+        if r["precision"] == 0
+        else round(random.uniform(r["range"][0], r["range"][1]), r["precision"])
+        for param_name, r in param_ranges.items()
+    }
+
+
+@log_exception_handler
 def genetic_algorithm(
     population_size: int,
     num_generations: int,
@@ -79,13 +113,20 @@ def genetic_algorithm(
     eval_name: str,
     ai_param_ranges: Dict[str, Tuple[float, float]],
     eval_param_ranges: Dict[str, Tuple[float, float]],
-    n_procs: int = 22,
-    convergence_generations=5,
-    tournament_size=5,
-    elite_count=2,
+    ai_static_params: Optional[Dict[str, Any]] = {},
+    eval_static_params: Optional[Dict[str, Any]] = {},
+    n_procs: int = 8,
+    convergence_generations: int = 5,
+    tournament_size: int = 5,
+    elite_count: int = 2,
+    draw_score: float = 0.25,
+    debug: bool = False,
 ):
     """
     Run the genetic algorithm to optimize the parameters of the AI and evaluation function.
+
+    This function uses a genetic algorithm to evolve a population of individuals over several generations,
+    optimizing the parameters of the AI and evaluation function to maximize performance in the given game.
 
     Args:
         population_size (int): The size of the population in each generation.
@@ -97,28 +138,29 @@ def genetic_algorithm(
         eval_name (str): The name of the evaluation function.
         ai_param_ranges (Dict[str, Tuple[float, float]]): A dictionary mapping parameter names to tuples defining the allowed range of that parameter.
         eval_param_ranges (Dict[str, Tuple[float, float]]): Similar to ai_param_ranges, but for the eval parameters.
-        n_procs (int, optional): The number of processes to use for parallel computation. Defaults to 22.
+        ai_static_params (Dict[str, Any], optional): The static AI parameters (i.e. the parameters that are the same for all indivuduals). Defaults to {}.
+        eval_static_params (Dict[str, Any], optional): The static evaluation parameters (i.e. the parameters that are the same for all individuals). Defaults to {}.
+        n_procs (int, optional): The number of processes to use for parallel computation. Defaults to 8.
         convergence_generations (int, optional): The number of generations over which to check for convergence. Defaults to 5.
         tournament_size (int, optional): The size of the tournaments used for selection. Defaults to 5.
         elite_count (int, optional): The number of elites to preserve between generations. Defaults to 2.
+        draw_score (float, optional): The score assigned for a draw. Defaults to 0.25.
+        debug (bool, optional): Flag to enable debug outputs. Defaults to False.
 
     Example:
+        Any parameters with 0 precision will be converted to integers.
         >>> ai_param_ranges = {'a': {'range': (0, 10), 'precision': 2}, 'b': {'range': (0, 1), 'precision': 3},}
         >>> eval_param_ranges = {'m': {'range': ((0, 10), (1, 10), (1, 2), (1, 4)), 'precision': (1, 2, 2, 3)},}
-        >>> genetic_algorithm(50, 100, 0.05, 'TicTacToe', 'MiniMax', 'eval_func', ai_param_ranges, eval_param_ranges, tournament_size=3, elite_count=5, convergence_generations=10)
     """
+    # The rest of your code...
+    if debug:
+        start_time = time.time()
 
     # Initialize population with random parameters for AI and eval function
     population = [
         {
-            "ai": {
-                param_name: round(random.uniform(r["range"][0], r["range"][1]), r["precision"])
-                for param_name, r in ai_param_ranges.items()
-            },
-            "eval": {
-                param_name: round(random.uniform(r["range"][0], r["range"][1]), r["precision"])
-                for param_name, r in eval_param_ranges.items()
-            },
+            "ai": generate_individual(ai_param_ranges),
+            "eval": generate_individual(eval_param_ranges),
         }
         for _ in range(population_size)
     ]
@@ -131,20 +173,39 @@ def genetic_algorithm(
     sheet_name = (
         f"{game_name_str}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
-    sheet, writer = setup_reporting(sheet_name, ai_param_ranges, eval_param_ranges)
+
+    # This prepares the csv file and google sheet
+    setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
 
     best_overall_individual = None
-    best_fitnesses = []
+    best_individuals = []
 
     # Pre-fill the evaluate_fitness function with the game parameters
-    partial_evaluate_fitness = partial(evaluate_fitness, game_name, game_params, player_name, eval_name)
+    partial_evaluate_fitness = partial(
+        evaluate_fitness,
+        game_name,
+        game_params,
+        player_name,
+        eval_name,
+        ai_static_params,
+        eval_static_params,
+        draw_score,
+    )
+
+    gen_times = []
 
     for generation in range(num_generations):
-        print(f"Generation {generation}")
+        if debug:
+            print("." * 60)
+            print(f"Starting generation {generation}")
+            gen_start_time = time.time()
 
         # Randomly pair up individuals in the population
         random.shuffle(population)
         pairs = [(population[i], population[i + 1]) for i in range(0, len(population), 2)]
+
+        if debug:
+            print(f"Self-play between {len(pairs)} pairs")
 
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
@@ -156,40 +217,69 @@ def genetic_algorithm(
             fitnesses[population.index(individual1)] += fitness1
             fitnesses[population.index(individual2)] += fitness2
 
+        if debug:
+            print(f"Finished fitness calculation, took {int(time.time() - gen_start_time)} seconds")
+
         scaled_fitnesses = scale_fitnesses(fitnesses)
 
         # Get the best individual and its fitness
         best_individual_index = fitnesses.index(max(fitnesses))
         best_individual = population[best_individual_index]
+        # Append the best individual of each generation to the best_individuals list
+        best_individuals.append(json.dumps(best_individual))
+
+        if debug:
+            print(f"Best individual: {best_individual}")
+            print(f"Best fitness: {fitnesses[best_individual_index]}")
 
         if best_overall_individual is None or fitnesses[best_individual_index] > best_overall_individual[1]:
             best_overall_individual = (best_individual, fitnesses[best_individual_index])
 
-        report_results(sheet, writer, generation, best_individual, fitnesses[best_individual_index])
+        report_results(generation, best_individual, fitnesses[best_individual_index])
 
         # Select individuals to reproduce based on their fitness
         # parents = select_parents(population, fitnesses)
         parents = select_parents_tournament(population, scaled_fitnesses, tournament_size)
-
         # Create the next generation through crossover and mutation
         population = create_next_generation(parents, mutation_rate, ai_param_ranges, eval_param_ranges)
+
+        if debug:
+            print(f"Finished creating next generation, took {int(time.time() - gen_start_time)} seconds")
 
         # Preserve the elites
         elites = sorted(zip(population, fitnesses), key=itemgetter(1), reverse=True)[:elite_count]
         for i in range(elite_count):
             population[i] = elites[i][0]
-
         # Convergence criterion
-        best_fitnesses.append(max(fitnesses))
         if (
-            len(best_fitnesses) > convergence_generations
-            and len(set(best_fitnesses[-convergence_generations:])) == 1
+            len(best_individuals) > convergence_generations
+            and len(set(best_individuals[-convergence_generations:])) == 1
         ):
-            print("Converged.")
+            print(f"Converged at generation {generation}.")
             break
+        elif debug:
+            unique_individuals = len(set(best_individuals[-convergence_generations:]))
+            print(
+                f"# of unique individuals values in the last {convergence_generations} generations: {unique_individuals}"
+            )
+
+        if debug:
+            gen_end_time = time.time()
+            gen_time = gen_end_time - gen_start_time
+            gen_times.append(gen_time)
+            average_gen_time = sum(gen_times) / len(gen_times)
+            remaining_generations = num_generations - (generation + 1)
+            estimated_remaining_time = average_gen_time * remaining_generations
+
+            print(f"    Finished generation {generation}, took {int(gen_time)} seconds")
+            print(f"    Estimated remaining time: {int(estimated_remaining_time)} seconds")
+
+    if debug:
+        print("--" * 40)
+        print(f"Finished all generations, took {int(time.time() - start_time)} seconds")
 
     # At the end of all generations, write the best overall individual and its fitness
-    report_final_results(sheet, writer, best_overall_individual)
+    report_final_results(best_overall_individual)
 
 
 def evaluate_fitness(
@@ -197,6 +287,9 @@ def evaluate_fitness(
     game_params: Dict[str, Any],
     player_name: str,
     eval_name: str,
+    ai_static_params: Dict[str, Any],
+    eval_static_params: Dict[str, Any],
+    draw_score: float,
     pair: Tuple[Dict[str, Any], Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], float, Dict[str, Any], float]:
     """
@@ -204,26 +297,29 @@ def evaluate_fitness(
 
     This function simulates a game with the given AIs and evaluation functions,
     using the parameters specified in the individuals' dictionaries.
-    The fitness is the score of the game (1 for a win, 0 for a loss, 0.5 for a draw).
+    The fitness is the score of the game (1 for a win, 0 for a loss, and a draw_score for a draw).
 
     Args:
         game_name (str): The name of the game to simulate.
         game_params (Dict[str, Any]): The parameters for the game.
         player_name (str): The name of the player AI.
         eval_name (str): The name of the evaluation function.
+        ai_static_params (Dict[str, Any]): The static parameters (i.e. the parameters that are the same for all indivuduals).
+        eval_static_params (Dict[str, Any]): The static parameters (i.e. the parameters that are the same for all indivuduals).
+        draw_score (float): The score assigned for a draw.
         pair (tuple): The pair of individuals to evaluate. Each individual is a dictionary with
-                      "ai" and "eval" keys, each of which is a dictionary of parameter names to values.
+                    "ai" and "eval" keys, each of which is a dictionary of parameter names to values.
 
     Returns:
         tuple: A pair consisting of the individuals and their fitness scores.
     """
     individual1, individual2 = pair
 
-    # AI parameters for individuals
-    ai_params1 = individual1["ai"]
-    eval_params1 = individual1["eval"]
-    ai_params2 = individual2["ai"]
-    eval_params2 = individual2["eval"]
+    # Merge the static parameters and the individual's parameters
+    ai_params1 = {**ai_static_params, **individual1["ai"]}
+    eval_params1 = {**eval_static_params, **individual1["eval"]}
+    ai_params2 = {**ai_static_params, **individual2["ai"]}
+    eval_params2 = {**eval_static_params, **individual2["eval"]}
 
     # Create AI players with given parameters
     p1_params = AIParams(player_name, eval_name, ai_params1, eval_params1)
@@ -232,10 +328,10 @@ def evaluate_fitness(
     game, player1, player2 = init_game_and_players(game_name, game_params, p1_params, p2_params)
 
     # Play a game!
-    current_player = player1
+    current_player: AIPlayer = player1
     while not game.is_terminal():
         # Get the best action for the current player
-        action = current_player.best_action(game)
+        action, _ = current_player.best_action(game)
 
         # Apply the action to get the new game state
         game = game.apply_action(action)
@@ -248,7 +344,7 @@ def evaluate_fitness(
 
     if reward == 0:
         # Draw
-        return individual1, 0.5, individual2, 0.5
+        return individual1, draw_score, individual2, draw_score
     elif reward == 1:
         # Individual1 wins
         return individual1, 1, individual2, 0
@@ -301,9 +397,10 @@ def select_parents_tournament(population, fitnesses, tournament_size):
     """
     # Tournament selection
     parents = []
+    pop_fitness = list(zip(population, fitnesses))
     for _ in range(len(population)):
         # Randomly select individuals for the tournament
-        tournament_individuals = random.sample(list(zip(population, fitnesses)), tournament_size)
+        tournament_individuals = random.sample(pop_fitness, tournament_size)
         # Select the best individual from the tournament
         winner = max(tournament_individuals, key=itemgetter(1))
         parents.append(winner[0])
@@ -533,7 +630,7 @@ def _mutate_param(
     return _mutate_value(param, param_info["range"], param_info["precision"])
 
 
-def _mutate_value(value: float, value_range: Tuple[float, float], precision: int) -> float:
+def _mutate_value(value: float, value_range: Tuple[float, float], precision: int) -> Union[float, int]:
     """
     Mutates a value within a given range and precision.
 
@@ -543,9 +640,9 @@ def _mutate_value(value: float, value_range: Tuple[float, float], precision: int
         precision (int): The number of decimal places to which to round the mutated value.
 
     Returns:
-        float: The mutated value.
+        Union[float, int]: The mutated value.
     """
     mutation = np.random.normal(0, (value_range[1] - value_range[0]) / 10)
     mutated_value = np.clip(value + mutation, value_range[0], value_range[1])
 
-    return round(mutated_value, precision)
+    return round(mutated_value, None if precision == 0 else precision)

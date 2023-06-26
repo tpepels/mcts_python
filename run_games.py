@@ -1,3 +1,4 @@
+import random
 import time
 from dataclasses import dataclass
 from functools import partial
@@ -16,6 +17,7 @@ from games.breakthrough import (
 from games.gamestate import GameState
 from games.kalah import KalahGameState, evaluate_kalah, evaluate_kalah_enhanced
 from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
+from util import log_exception_handler
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {
@@ -136,6 +138,7 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
     print(f"Game Over. Result for p1: {result}")
 
 
+@log_exception_handler
 def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams):
     """Run a game experiment with two AI players.
 
@@ -165,7 +168,7 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
         times[game.player].append(elapsed_time_move)
 
         game_output.append(
-            f"Player {game.player}, action: {action}, v: {v:.3f}, time: {elapsed_time_move:.3f}"
+            f"Player {game.player}, action: {action}, v: {v:.1f}, time: {elapsed_time_move:.1f}"
         )
         game = game.apply_action(action)
         game_output.append(game.visualize())
@@ -181,6 +184,13 @@ import multiprocessing
 
 import gspread
 from google.oauth2.service_account import Credentials
+
+
+def get_authenticated_sheets_client() -> gspread.client.Client:
+    """Authorize a client to interact with the Google Drive API."""
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_file("client_secret.json", scopes=scopes)
+    return gspread.authorize(creds)
 
 
 def run_multiple_game_experiments(
@@ -199,20 +209,31 @@ def run_multiple_game_experiments(
         p2_params (AIParams): The parameters for player 2's AI.
         game_params (Dict[str, Any]): The parameters for the game.
     """
-    # Use credentials to create a client to interact with the Google Drive API
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file("client_secret.json", scopes=scopes)
-    client = gspread.authorize(creds)
-
+    client = get_authenticated_sheets_client()
     # Create a new Google Sheets document
     title = f"Game Results for {n_games} games with {game_key}"
     sheet = client.create(title)
     sheet.share("tpepels@gmail.com", perm_type="user", role="writer")  # Share the sheet with your account
 
+    # TODO Hier was je gebleven. Er moeten nog cellen in de sheets die stats bijhouden.
+    # TODO Maar omdat de seats geswitched worden moet je kijken hoe je dit kan oplossen
+    # TODO Misschien met een functie, of de resultaten altijd in view van 1 van de twee spelers houden of zoiets
+
     # Write headers
     worksheet = sheet.get_worksheet(0)
     worksheet.insert_row(
-        ["Experiment", "Setup", "Game Output", "Total Time", "Avg Time p1", "Avg Time p2", "Result"], 1
+        [
+            "Experiment",
+            "Setup",
+            "Game Output",
+            "Total Time",
+            "Avg Time p1",
+            "Avg Time p2",
+            "Result",
+            "Player 1",
+            "Player 2",
+        ],
+        1,
     )
 
     def run_single_game(
@@ -221,6 +242,7 @@ def run_multiple_game_experiments(
         game_params: Dict[str, Any],
         p1_params: AIParams,
         p2_params: AIParams,
+        work_sheet_name: str,
     ) -> None:
         """Run a single game experiment and log the results in the worksheet.
 
@@ -235,12 +257,36 @@ def run_multiple_game_experiments(
             game_key, game_params, p1_params, p2_params
         )
         avg_time_p1, avg_time_p2 = avg_time_per_move
-        # Append the result to the sheet
-        worksheet.append_row([i, setup, game_output, total_time, avg_time_p1, avg_time_p2, result])
 
+        client = get_authenticated_sheets_client()
+        # Retrieve the pre-created Google Sheets document
+        sheet = client.open(work_sheet_name)
+        # Write the game result to the sheet
+        worksheet = sheet.get_worksheet(0)
+        # Append the result to the sheet
+        worksheet.append_row(
+            [
+                i,
+                setup,
+                game_output,
+                total_time,
+                avg_time_p1,
+                avg_time_p2,
+                result,
+                str(p1_params),
+                str(p2_params),
+            ]
+        )
+
+    games_params = [
+        (game_key, game_params, p1_params, p2_params, title)
+        if i < n_games / 2
+        else (game_key, game_params, p2_params, p1_params, title)
+        for i in range(n_games)
+    ]
+    # Shuffle the game parameters to randomize the order
+    random.shuffle(games_params)
+    games_params = [(i, *params) for i, params in enumerate(games_params)]
     # Run n_games instances of the game in parallel, distributing across the available CPU cores
     with multiprocessing.Pool() as pool:
-        pool.starmap(
-            run_single_game,
-            [(i, game_key, game_params, p1_params, p2_params) for i in range(n_games)],
-        )
+        pool.starmap(run_single_game, games_params)

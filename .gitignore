@@ -3,3 +3,5 @@ client_secret.json
 *.pyc
 __pycache__/
 *.py[cod]
+*.csv
+.DS_Store
