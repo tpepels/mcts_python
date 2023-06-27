@@ -1,22 +1,23 @@
 import csv
 import datetime
-from functools import partial
-from io import TextIOWrapper
 import json
 import multiprocessing
-from operator import itemgetter
 import os
 import random
 import time
-import util
+from functools import partial
+from io import TextIOWrapper
+from operator import itemgetter
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from typing import Dict, List, Optional, Tuple, Any, Union
 import gspread
 import numpy as np
 from oauth2client.service_account import ServiceAccountCredentials
-from ai.ai_player import AIPlayer
 
-from run_games import AIParams, init_game_and_players
+import util
+from ai.ai_player import AIPlayer
+from games.gamestate import win, draw, loss
+from run_games import AIParams, init_game_and_players, play_game_until_terminal
 from util import log_exception_handler
 
 sheet: gspread.Worksheet = None
@@ -326,29 +327,16 @@ def evaluate_fitness(
     p2_params = AIParams(player_name, eval_name, ai_params2, eval_params2)
 
     game, player1, player2 = init_game_and_players(game_name, game_params, p1_params, p2_params)
+    game_result = play_game_until_terminal(game, player1, player2)
 
-    # Play a game!
-    current_player: AIPlayer = player1
-    while not game.is_terminal():
-        # Get the best action for the current player
-        action, _ = current_player.best_action(game)
-
-        # Apply the action to get the new game state
-        game = game.apply_action(action)
-
-        # Switch the current player
-        current_player = player2 if current_player == player1 else player1
-
-    # Return the winner (in view of p1)
-    reward = game.get_reward(1)
-
-    if reward == 0:
+    # Use game state constants for comparison
+    if game_result == draw:
         # Draw
         return individual1, draw_score, individual2, draw_score
-    elif reward == 1:
+    elif game_result == win:
         # Individual1 wins
         return individual1, 1, individual2, 0
-    else:
+    elif game_result == loss:
         # Individual2 wins
         return individual1, 0, individual2, 1
 
