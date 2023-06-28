@@ -287,7 +287,6 @@ def run_multiple_game_experiments(
         game_params: dict[str, Any],
         p1_params: AIParams,
         p2_params: AIParams,
-        work_sheet_name: str,
         players_switched: bool,
     ) -> None:
         """Run a single game experiment and log the results in the worksheet.
@@ -344,6 +343,7 @@ def run_multiple_game_experiments(
         except Exception as e:
             print(f"An error occurred while writing to the sheet: {e}")
 
+    # The boolean parameter keeps track of whether the seats were switched
     games_params = [
         (i, game_key, game_params, p1_params, p2_params, False)
         if i < n_games / 2
@@ -351,7 +351,7 @@ def run_multiple_game_experiments(
         for i in range(n_games)
     ]
 
-    # Shuffle the game parameters to randomize the order
+    # Shuffle the game parameters to randomize the order (so intermediate results can be interpreted better)
     random.shuffle(games_params)
     games_params = [(i, *params) for i, params in enumerate(games_params)]
 
