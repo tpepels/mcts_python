@@ -55,7 +55,8 @@ def mark_experiment_as_status(
         # We add 2 because Google Sheets has 1-based indexing and the first row is the header
         sheet.update_cell(index + 2, STATUS_COLUMN, status)
         if status == RUNNING:
-            sheet.update_cell(index + 2, N_GAMES_COLUMN, n_games)  # Total number of games
+            if n_games:
+                sheet.update_cell(index + 2, N_GAMES_COLUMN, n_games)  # Total number of games
             if start_time is None:
                 start_time = datetime.datetime.now()
             sheet.update_cell(index + 2, START_COLUMN, start_time.strftime("%Y-%m-%d %H:%M:%S"))  # Start time
@@ -127,10 +128,20 @@ def get_experiments_from_sheet(sheet):
 
     # Only process experiments that are 'Pending'
     df = df[df["status"] == "Pending"]
+    df["original_index"] = df.index
 
     # Parse the parameters
     df["game_params"] = df["game_params"].apply(parse_parameters)
     df["ai_params"] = df["ai_params"].apply(parse_parameters)
+
+    # Calculate total number of games for each experiment
+    df["total_n_games"] = df.apply(
+        lambda row: row["n_games"]
+        * np.product([len(v) for v in row["game_params"].values()])
+        * np.product([len(v) for v in row["p1_ai_params"].values()])
+        * np.product([len(v) for v in row["p2_ai_params"].values()]),
+        axis=1,
+    )
 
     # Expand rows for parameter combinations
     df = expand_rows(df)
@@ -161,7 +172,8 @@ def monitor_sheet_and_run_experiments():
     sheet_id = config.get("Sheets", "ExperimentListID")
 
     # Open the Google Sheets document
-    # The ID of a Google Sheets document is contained in the URL. For example, for a URL like this: https://docs.google.com/spreadsheets/d/1qPY_your_unique_id/edit#gid=0, the ID is 1qPY_your_unique_id.
+    # The ID of a Google Sheets document is contained in the URL.
+    # For example, for a URL like this: https://docs.google.com/spreadsheets/d/1qPY_your_unique_id/edit#gid=0, the ID is 1qPY_your_unique_id.
     sheet = client.open_by_key(sheet_id).sheet1
 
     # Running experiment process
@@ -169,10 +181,11 @@ def monitor_sheet_and_run_experiments():
     try:
         while True:
             df = get_experiments_from_sheet(sheet)
-            for index, row in df.iterrows():
+            for _, row in df.iterrows():
+                original_index = row["original_index"]
                 # If experiment status is 'Pending', then run it, but if there is a running experiment, do not start a new one
                 if (
-                    row["Status"] == PENDING
+                    row["status"] == PENDING
                     and current_experiment_process
                     and not current_experiment_process.is_alive()
                 ):
@@ -189,7 +202,6 @@ def monitor_sheet_and_run_experiments():
                     else:
                         game_name_str = game_name
 
-                    # TODO Write the sheet name to the status so we can use it later
                     sheet_name = f"{game_name_str}_{p1_params}_{p2_params}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
                     # Run the experiment in a separate process
@@ -200,7 +212,13 @@ def monitor_sheet_and_run_experiments():
                     current_experiment_process.start()
                     # Mark the new experiment as running
                     mark_experiment_as_status(
-                        sheet, index, RUNNING, row["n_games"], datetime.datetime.now().isoformat(), 0, 0
+                        sheet,
+                        original_index,
+                        RUNNING,
+                        row["total_n_games"],
+                        datetime.datetime.now().isoformat(),
+                        0,
+                        0,
                     )
 
                 elif row["Status"] == RUNNING:
@@ -215,14 +233,21 @@ def monitor_sheet_and_run_experiments():
                                 completed_games += 1
                             elif "Experiment error" in log_contents:
                                 error_games += 1
+
                     if current_experiment_process and not current_experiment_process.is_alive():
                         # If the experiment has completed, mark it as completed
                         mark_experiment_as_status(
-                            sheet, index, COMPLETED, row["n_games"], None, completed_games, error_games
+                            sheet,
+                            original_index,
+                            COMPLETED,
+                            None,
+                            None,
+                            completed_games,
+                            error_games,
                         )
                     else:
                         mark_experiment_as_status(
-                            sheet, index, RUNNING, row["n_games"], None, completed_games, error_games
+                            sheet, original_index, RUNNING, None, None, completed_games, error_games
                         )
 
                 # Sleep for a while before checking for new experiments
