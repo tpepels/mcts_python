@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Tuple, Union, Optional
 
 
 class IncorrectBoardException(Exception):
@@ -26,7 +27,9 @@ class TranspositionTable:
         self.table = OrderedDict()
         self.reset_metrics()
 
-    def get(self, key, depth, player, board=None):
+    def get(
+        self, key: int, depth: int, player: str, board: Optional[str] = None
+    ) -> Union[Tuple[int, Tuple[int, int]], None]:
         """
         Retrieve a value from the transposition table for the given key, depth, and player.
         If a board is provided, it is also compared with the stored board for the same key.
@@ -35,29 +38,41 @@ class TranspositionTable:
         :param depth: The depth of the search when the value was stored.
         :param player: The player for whom the value was computed.
         :param board: The board state, used for collision detection (default: None).
-        :return: The stored value, or None if there is no value for the given key or the stored depth is less than the provided depth.
+        :return: The stored value and best_move, or None if there is no value for the given key or the stored depth is less than the provided depth.
         :raise IncorrectBoardException: If a board is provided and does not match the stored board for the same key.
+
+        Example:
+            key = 'some_key'
+            depth = 3
+            player = 'P1'
+            board = 'board_state'
+            transposition_table.get(key, depth, player, board)
         """
         try:
-            value, stored_depth, stored_player, stored_board = self.table.pop(key)
+            value, stored_depth, stored_player, best_move, stored_board = self.table.pop(key)
             if stored_board is not None and stored_board != board:
                 raise IncorrectBoardException(
                     f"Stored: {stored_board} is not the same as {board} stored at {key}"
                 )
 
-            if stored_depth >= depth:
-                if stored_player != player:
-                    value = -value
-
-                self.table[key] = (value, stored_depth, stored_player, stored_board)
+            if stored_depth >= depth and stored_player == player:
+                self.table[key] = (value, stored_depth, stored_player, best_move, stored_board)
                 self.cache_hits += 1  # Increase the cache hits
+                return value, best_move
 
-                return value
         except KeyError:
             self.cache_misses += 1  # Increase the cache misses
-            return None
+        return None, None
 
-    def put(self, key, value, depth, player, board=None):
+    def put(
+        self,
+        key: int,
+        value: int,
+        depth: int,
+        player: str,
+        best_move: Tuple[int, int],
+        board: Optional[str] = None,
+    ):
         """
         Insert a value into the transposition table for the given key, depth, and player.
         If the table is full, the oldest entry is removed.
@@ -67,7 +82,17 @@ class TranspositionTable:
         :param value: The value to be stored.
         :param depth: The depth of the search when the value was computed.
         :param player: The player for whom the value was computed.
+        :param best_move: The best move for the player in this state.
         :param board: The board state, used for collision detection (default: None).
+
+        Example:
+            key = 'some_key'
+            value = 10
+            depth = 3
+            player = 'P1'
+            best_move = (2, 3)
+            board = 'board_state'
+            transposition_table.put(key, value, depth, player, best_move, board)
         """
         if key in self.table:
             v = self.table[key]
@@ -80,7 +105,7 @@ class TranspositionTable:
             self.table.popitem(last=False)
             self.cleanups += 1
 
-        self.table[key] = (value, depth, player, board)
+        self.table[key] = (value, depth, player, best_move, board)
 
     def reset_metrics(self):
         # Metrics for debugging and experimental purposes

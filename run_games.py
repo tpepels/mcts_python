@@ -91,22 +91,43 @@ def init_game_and_players(
     Returns:
         Tuple[Type[GameState], AIPlayer, AIPlayer]: The initialized game and players.
     """
+    game = init_game(game_key, game_params)
+    p1 = init_ai_player(p1_params, 1)
+    p2 = init_ai_player(p2_params, 2)
+    return game, p1, p2
+
+
+def init_game(game_key: str, game_params: Optional[Dict[str, Any]]) -> Type[GameState]:
+    """Initialize the game based on given parameters.
+
+    Args:
+        game_key (str): The key for the game.
+        game_params (Dict[str, Any]): The parameters for the game.
+
+    Returns:
+        Type[GameState]: The initialized game.
+    """
     game_class = game_dict[game_key]
     game: GameState = game_class(**game_params)
+    return game
 
-    ai_class = player_dict[p1_params.ai_key]
-    eval_function_p1 = eval_dict[p1_params.eval_key]
-    if p1_params.eval_params is not None:
-        eval_function_p1 = partial(eval_function_p1, **p1_params.eval_params)
-    p1: AIPlayer = ai_class(player=1, evaluate=eval_function_p1, **p1_params.ai_params)
 
-    ai_class = player_dict[p2_params.ai_key]
-    eval_function_p2 = eval_dict[p2_params.eval_key]
-    if p2_params.eval_params is not None:
-        eval_function_p2 = partial(eval_function_p2, **p2_params.eval_params)
-    p2: AIPlayer = ai_class(player=2, evaluate=eval_function_p2, **p2_params.ai_params)
+def init_ai_player(params: AIParams, player: int) -> AIPlayer:
+    """Initialize an AI player based on given parameters.
 
-    return game, p1, p2
+    Args:
+        params (AIParams): The parameters for the AI player.
+        player (int): The player number (1 or 2 for a 2-player game)
+
+    Returns:
+        AIPlayer: The initialized AI player.
+    """
+    ai_class = player_dict[params.ai_key]
+    eval_function = eval_dict[params.eval_key]
+    if params.eval_params is not None:
+        eval_function = partial(eval_function, **params.eval_params)
+    player: AIPlayer = ai_class(player=player, evaluate=eval_function, **params.ai_params)
+    return player
 
 
 def play_game_until_terminal(game, player1, player2, callback=None):
@@ -149,14 +170,15 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
         p2_params (AIParams): The parameters for player 2's AI.
     """
 
-    def callback(player, action, game):
+    def callback(player, action, game: GameState):
         print(f"Player {player} chosen action: {action}. Current game state: \n {game.visualize()}")
-        if game.get_reward(1) == win:
-            print("Game Over. Winner: P1")
-        elif game.get_reward(1) == loss:
-            print("Game Over. Winner: P2")
-        else:
-            print("Game Over. Draw")
+        if game.is_terminal():
+            if game.get_reward(1) == win:
+                print("Game Over. Winner: P1")
+            elif game.get_reward(1) == loss:
+                print("Game Over. Winner: P2")
+            else:
+                print("Game Over. Draw")
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
     return play_game_until_terminal(game, p1, p2, callback=callback)
@@ -211,13 +233,13 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
 
     if result == win:
         result = 1
-        print("Game Over. Winner: P1")
+        print(f"Game Over. Winner: P1 [{p1_params}]")
     elif result == loss:
         result = 2
-        print("Game Over. Winner: P2")
+        print(f"Game Over. Winner: P2 [{p2_params}]")
     else:
         result = 0
-        print("Game Over. Draw")
+        print("Game Over. Draw []")
 
     return setup, total_time, avg_time_per_move, n_moves, result
 
@@ -231,21 +253,31 @@ def get_authenticated_sheets_client() -> gspread.client.Client:
 
 def run_multiple_game_experiments(
     n_games: int,
+    start_game: int,
     worksheet_name: str,
     game_key: str,
     p1_params: AIParams,
     p2_params: AIParams,
     game_params: dict[str, Any],
 ) -> None:
-    """Run multiple game experiments and log the results in a Google Sheets document.
+    """
+    Run multiple game experiments and log the results in a Google Sheets document.
+
+    This function will shuffle the games to be played and use multiprocessing to run them in parallel.
+    Each game's result will be logged in a row in the Google Sheets document, along with statistics and
+    parameters. If the process is interrupted and restarted, the function will resume from the
+    last completed game (determined by the start_game parameter).
 
     Args:
         n_games (int): The number of games to run.
+        start_game (int): The game number from which to start (to resume interrupted experiments).
+        worksheet_name (str): The name of the Google Sheets document to write the results to.
         game_key (str): The key for the game.
         p1_params (AIParams): The parameters for player 1's AI.
         p2_params (AIParams): The parameters for player 2's AI.
         game_params (dict[str, Any]): The parameters for the game.
     """
+
     client = get_authenticated_sheets_client()
 
     # Create a unique Google Sheets document
@@ -255,31 +287,33 @@ def run_multiple_game_experiments(
 
     # Write headers
     worksheet = main_sheet.get_worksheet(0)
-    worksheet.insert_row(
-        [
-            "Experiment",
-            "Setup",
-            "Total Time",
-            "# Moves Made",
-            "Avg Time Per Move p1",
-            "Avg Time Per Move p2",
-            "Player 1",
-            "Player 2",
-            "P1 Result",
-            "P2 Result",
-        ],
-        1,
-    )
+    resumed = start_game == 0  # If we resume an interrupted experiment that means that the start game is > 0
+    if not resumed:
+        worksheet.insert_row(
+            [
+                "Experiment",
+                "Setup",
+                "Total Time",
+                "# Moves Made",
+                "Avg Time Per Move p1",
+                "Avg Time Per Move p2",
+                "Player 1",
+                "Player 2",
+                "P1 Result",
+                "P2 Result",
+            ],
+            1,
+        )
 
-    # Write formulas to keep track of the results per AI (not per seat)
-    worksheet.update_acell("K1", "Winrate (per AI)")
-    worksheet.update_acell("K2", '=AVERAGEIF(I2:I, "1")')
-    worksheet.update_acell("L1", "95% CI")
-    worksheet.update_acell("L2", "=CONFIDENCE.T(0.05, STDEV(I2:I), COUNTA(I2:I))")
-    worksheet.update_acell("M1", "Average Time per Move")
-    worksheet.update_acell("M2", "=AVERAGE(E2:E, F2:F)")
-    worksheet.update_acell("N1", "Average # of moves")
-    worksheet.update_acell("N2", "=AVERAGE(D2:D)")
+        # Write formulas to keep track of the results per AI (not per seat)
+        worksheet.update_acell("K1", "Winrate (per AI)")
+        worksheet.update_acell("K2", '=AVERAGEIF(I2:I, "1")')
+        worksheet.update_acell("L1", "95% CI")
+        worksheet.update_acell("L2", "=CONFIDENCE.T(0.05, STDEV(I2:I), COUNTA(I2:I))")
+        worksheet.update_acell("M1", "Average Time per Move")
+        worksheet.update_acell("M2", "=AVERAGE(E2:E, F2:F)")
+        worksheet.update_acell("N1", "Average # of moves")
+        worksheet.update_acell("N2", "=AVERAGE(D2:D)")
 
     def run_single_game(
         i: int,
@@ -306,10 +340,10 @@ def run_multiple_game_experiments(
                     game_key, game_params, p1_params, p2_params
                 )
                 # Write a status message to the log file
-                log_file.write("Experiment completed\n")
+                log_file.write("Experiment completed")
         except Exception as e:
             with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
-                log_file.write(f"Experiment error: {e}\n")
+                log_file.write(f"Experiment error: {e}")
 
         avg_time_p1, avg_time_p2 = avg_time_per_move
         client = get_authenticated_sheets_client()
@@ -343,7 +377,7 @@ def run_multiple_game_experiments(
         except Exception as e:
             print(f"An error occurred while writing to the sheet: {e}")
 
-    # The boolean parameter keeps track of whether the seats were switched
+    # Prepare the game parameters
     games_params = [
         (i, game_key, game_params, p1_params, p2_params, False)
         if i < n_games / 2
@@ -355,6 +389,9 @@ def run_multiple_game_experiments(
     random.shuffle(games_params)
     games_params = [(i, *params) for i, params in enumerate(games_params)]
 
-    # Run n_games instances of the game in parallel, distributing across the available CPU cores
+    # Filter to include games starting from start_game
+    games_params = [game for game in games_params if game[0] >= start_game]
+
+    # Run the games in parallel, distributing across the available CPU cores
     with multiprocessing.Pool() as pool:
-        pool.starmap(run_single_game, games_params)  # TODO Is pool.starmap a blocking call?
+        pool.starmap(run_single_game, games_params)

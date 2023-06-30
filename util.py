@@ -7,6 +7,51 @@ import configparser
 from contextlib import contextmanager
 
 
+from colorama import Fore, Style
+
+
+def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
+    print()
+    color_map = {float: Fore.BLUE, int: Fore.GREEN, str: Fore.CYAN, list: Fore.MAGENTA, bool: Fore.YELLOW}
+    # Calculate longest key length for proper indentation
+    key_len_max = max(len(key) for key in d.keys()) + 1
+
+    if sort_keys:
+        d = dict(sorted(d.items()))
+
+    for key, value in d.items():
+        key = key.replace("_", " ").title()
+
+        # Apply color based on the value's type
+        color = color_map.get(type(value), Fore.RESET)
+
+        if isinstance(value, float):
+            value = f"{value:.{float_precision}f}"
+        if isinstance(value, list):
+            print(
+                "\t" * indent + f"{str(key).ljust(key_len_max)}: ",
+                end="",
+            )
+            for i, item in enumerate(value):
+                if isinstance(item, float):
+                    item = f"{item:.{float_precision}f}"
+                if i == 0:
+                    print(f"{color}{Style.BRIGHT}{value[0]}{Style.RESET_ALL}")
+                else:
+                    print(
+                        f"{' ' * (indent * 8 + key_len_max + 2)}{color}{Style.BRIGHT}{str(item)}{Style.RESET_ALL}",
+                        end="\n",
+                    )
+        elif isinstance(value, dict):
+            print("\t" * indent + f"{str(key).ljust(key_len_max)}:")
+            pretty_print_dict(value, float_precision, sort_keys, indent + 1)
+        else:
+            print(
+                "\t" * indent
+                + f"{str(key).ljust(key_len_max)}: {color}{Style.BRIGHT}{str(value)}{Style.RESET_ALL}"
+            )
+
+
 def read_config():
     config = configparser.ConfigParser()
     config.read("config.ini")
