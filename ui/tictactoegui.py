@@ -93,6 +93,8 @@ def main():
                 except ValueError:
                     pass  # Illegal move, ignore and let player try again.
 
+        draw_window(game_state)
+
         if ai_to_play:
             # AI player's turn. For now, just pick a random legal action.
             move, _ = ai.best_action(game_state)

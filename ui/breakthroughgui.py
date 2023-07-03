@@ -48,6 +48,7 @@ def draw_board(game_state, from_position=None):
 
             # Highlight legal moves
             if legal_moves and pos in legal_moves:
+                rect = pygame.Rect(j * CELL_SIZE + 1, i * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2)
                 pygame.draw.rect(WINDOW, GREEN, rect)
 
             piece = board[pos]
@@ -57,7 +58,7 @@ def draw_board(game_state, from_position=None):
 
         # Draw chess position notations
         label = FONT.render(str(8 - i), 1, BLACK)
-        WINDOW.blit(label, (0, i * CELL_SIZE + 10))
+        WINDOW.blit(label, (0, i * CELL_SIZE + 20))
         label = FONT.render(chr(i + 65), 1, BLACK)
         WINDOW.blit(label, (i * CELL_SIZE + 10, 0))
 
@@ -68,7 +69,7 @@ def main():
     ai_player = 2
     ai_params = AIParams(
         ai_key="alphabeta",
-        eval_key="evaluate_breakthrough",
+        eval_key="lorenz_evaluation",
         ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
     )
     ai = init_ai_player(ai_params, ai_player)
@@ -93,6 +94,8 @@ def main():
                     if action in game_state.get_legal_actions():
                         game_state = game_state.apply_action(action)
                     from_position = None  # Reset the 'from' position for the next move
+
+        draw_board(game_state, from_position)
 
         if ai_to_play:
             # AI player's turn. For now, just pick a random legal action.

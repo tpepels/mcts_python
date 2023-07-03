@@ -94,6 +94,8 @@ def main():
                 if game_state._is_valid_move(pit_index):
                     game_state = game_state.apply_action(pit_index)
 
+        draw_window(game_state)
+
         if ai_to_play:
             # AI player's turn. For now, just pick a random legal action.
             move, _ = ai.best_action(game_state)
