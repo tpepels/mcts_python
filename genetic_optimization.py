@@ -15,8 +15,8 @@ import numpy as np
 from oauth2client.service_account import ServiceAccountCredentials
 
 import util
-from ai.ai_player import AIPlayer
-from games.gamestate import win, draw, loss
+import jsonschema
+from games.gamestate import draw, loss, win
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
 from util import log_exception_handler
 
@@ -634,3 +634,89 @@ def _mutate_value(value: float, value_range: Tuple[float, float], precision: int
     mutated_value = np.clip(value + mutation, value_range[0], value_range[1])
 
     return round(mutated_value, None if precision == 0 else precision)
+
+
+def run_experiments_from_file(file_path):
+    """
+    Run experiments from a JSON file.
+
+    Args:
+        file_path (str): The path to the JSON file containing the experiments.
+    """
+    with open(file_path, "r") as f:
+        experiments = json.load(f)
+
+    start_time = time.time()
+    total_experiments = len(experiments)
+    times = []
+
+    for i, experiment in enumerate(experiments):
+        exp_start_time = time.time()
+
+        # Creating a name and description for the experiment
+        experiment_name = f"Experiment {i+1} - Game: {experiment.get('game_name', 'Unknown')} Player: {experiment.get('player_name', 'Unknown')}"
+        print(f"Running {experiment_name} ({i+1}/{total_experiments})...")
+
+        try:
+            validate_experiment_config(experiment)
+        except jsonschema.exceptions.ValidationError as e:
+            print(f"Invalid experiment configuration for {experiment_name}: {e.message}")
+            continue
+
+        genetic_algorithm(**experiment)
+
+        # Calculate time taken for the experiment and append it to times list
+        exp_end_time = time.time()
+        exp_time = exp_end_time - exp_start_time
+        times.append(exp_time)
+
+        # Estimate remaining time based on average time per experiment
+        avg_time_per_experiment = sum(times) / len(times)
+        estimated_remaining_time = avg_time_per_experiment * (total_experiments - (i + 1))
+
+        print(f"Finished {experiment_name} in {exp_time:.2f} seconds.")
+        print(f"Estimated remaining time: {estimated_remaining_time:.2f} seconds.\n")
+
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"Finished all experiments in {total_time:.2f} seconds.")
+
+
+def validate_experiment_config(config):
+    """
+    Validate an experiment configuration dictionary against a schema.
+    """
+    # Define the schema for the configuration
+    schema = {
+        "type": "object",
+        "properties": {
+            "population_size": {"type": "integer"},
+            "num_generations": {"type": "integer"},
+            "mutation_rate": {"type": "number"},
+            "game_name": {"type": "string"},
+            "game_params": {"type": "object"},
+            "player_name": {"type": "string"},
+            "eval_name": {"type": "string"},
+            "ai_param_ranges": {"type": "object"},
+            "eval_param_ranges": {"type": "object"},
+            "ai_static_params": {"type": "object"},
+            "eval_static_params": {"type": "object"},
+            "n_procs": {"type": "integer"},
+            "convergence_generations": {"type": "integer"},
+            "tournament_size": {"type": "integer"},
+            "elite_count": {"type": "integer"},
+            "draw_score": {"type": "number"},
+            "debug": {"type": "boolean"},
+        },
+        "required": [
+            "population_size",
+            "num_generations",
+            "mutation_rate",
+            "game_name",
+            "player_name",
+            "eval_name",
+        ],
+    }
+
+    # Validate the configuration
+    jsonschema.validate(config, schema)

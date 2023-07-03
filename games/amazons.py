@@ -307,17 +307,12 @@ class AmazonsGameState(GameState):
         output += "w:" + str(self.white_queens) + "\n"
         output += "b:" + str(self.black_queens) + "\n"
         output += "n_moves: " + str(self.n_moves) + " legal moves left? " + str(self.player_has_legal_moves)
-        output += "\n has_legal_moves: " + str(self.has_legal_moves())
+        output += "\nhas_legal_moves: " + str(self.has_legal_moves())
 
         return output
 
 
-# The evaluate function takes an Amazons game state and the player number (1 or 2) as input.
-# It computes the number of legal moves and the number of controlled squares for each player.
-# It then calculates the difference between the players for each metric and combines them with equal weights (0.5) to produce an evaluation score.
-
-
-def evaluate_amazons(state: AmazonsGameState, player: int, m=(1.0,), a=1, norm=True):
+def evaluate_amazons(state: AmazonsGameState, player: int, m_opp_disc=0.9, a=1, norm=True):
     """
     Evaluate the given game state from the perspective of the specified player.
 
@@ -332,8 +327,6 @@ def evaluate_amazons(state: AmazonsGameState, player: int, m=(1.0,), a=1, norm=T
     player_queens = state.white_queens if player == 1 else state.black_queens
     opp_queens = state.white_queens if player == 2 else state.black_queens
 
-    assert len(player_queens) == 4 and len(opp_queens) == 4
-
     # Iterate through the queens and collect information about player's and opponent's moves and controlled squares.
     for queen in player_queens:
         player_controlled_squares += count_reachable_squares(state.board, *queen)
@@ -342,9 +335,10 @@ def evaluate_amazons(state: AmazonsGameState, player: int, m=(1.0,), a=1, norm=T
         opponent_controlled_squares += count_reachable_squares(state.board, *queen)
 
     # Calculate the differences between player's and opponent's moves and controlled squares.
-    controlled_squares_difference = (player_controlled_squares - opponent_controlled_squares) / (
-        player_controlled_squares + opponent_controlled_squares
-    )
+    controlled_squares_difference = (
+        (player_controlled_squares - opponent_controlled_squares)
+        / (player_controlled_squares + opponent_controlled_squares)
+    ) * (m_opp_disc if state.player == 3 - player else 1)
 
     # Return a weighted combination of the differences as the evaluation score.
     if norm:
@@ -354,34 +348,62 @@ def evaluate_amazons(state: AmazonsGameState, player: int, m=(1.0,), a=1, norm=T
 
 
 def evaluate_amazons_lieberum(
-    state: AmazonsGameState, player: int, m=(0.2, 0.4, 0.3, 0.5), a=50, norm=True, n_move_cutoff=15
+    state: AmazonsGameState,
+    player: int,
+    n_moves_cutoff=15,
+    m_ter=0.25,
+    m_kill_s=0.25,
+    m_imm=0.25,
+    m_mob=0.25,
+    m_opp_disc=0.9,
+    a=50,
+    norm=True,
 ):
+    """
+    Evaluates the current game state for Game of the Amazons using Lieberum's evaluation function,
+    which takes into account territory control, the potential to capture or save queens, mobility of queens,
+    and the phase of the game.
+
+    :param state: The game state to evaluate.
+    :param player: The player to evaluate for (1 or 2).
+    :param n_moves_cutoff: Number of moves cutoff to switch to Lieberum's evaluation.
+    :param m_ter: Weight assigned to the territory control heuristic.
+    :param m_kill_s: Weight assigned to the potential to capture or save queens heuristic.
+    :param m_imm: Weight assigned to the immediate moves heuristic.
+    :param m_mob: Weight assigned to the mobility of the queens heuristic.
+    :param m_opp_disc: Multiplier for the evaluation score if it's the opponent's turn.
+    :param a: Normalization factor for the evaluation score.
+    :param norm: If True, the function will return a normalized evaluation score.
+
+    :return: The evaluation score for the given player.
+    """
     max_depth = math.inf
 
-    if state.n_moves < n_move_cutoff:
-        return evaluate_amazons(state, player, norm=norm)
-
+    if state.n_moves < n_moves_cutoff:
+        return evaluate_amazons(state, player, m_opp_disc=m_opp_disc, norm=norm)
     # The queens to iterate over
     player_queens = state.white_queens if player == 1 else state.black_queens
     opp_queens = state.white_queens if player == 2 else state.black_queens
 
-    if m[0] > 0:
+    if m_ter > 0:
         terr = territory_heuristic(opp_queens, player_queens, state.board, max_depth=max_depth)
     else:
         terr = 0
 
-    if m[1] > 0 or m[2] > 0:
+    if m_kill_s > 0 or m_imm > 0:
         kill_save, imm_mob = kill_save_queens_immediate_moves(opp_queens, player_queens, state.board)
     else:
         kill_save = imm_mob = 0
 
-    if m[3] > 0:
+    if m_mob > 0:
         mob_heur = mobility_heuristic(opp_queens, player_queens, state.board)
     else:
         mob_heur = 0
 
     # Calculate the utility of the current board state using a combination of heuristics.
-    utility = m[0] * terr + m[1] * kill_save + m[2] * imm_mob + m[3] * mob_heur
+    utility = (m_ter * terr + m_kill_s * kill_save + m_imm * imm_mob + m_mob * mob_heur) * (
+        m_opp_disc if state.player == 3 - player else 1
+    )
 
     if norm:
         return normalize(utility, a)
@@ -432,7 +454,7 @@ def mobility_heuristic(their_queen_positions, my_queen_positions, board):
 def flood_fill(board, pos):
     stack = [pos]
     visited = set()
-
+    size = len(board)
     while stack:
         x, y = stack.pop()
         visited.add((x, y))
@@ -441,12 +463,13 @@ def flood_fill(board, pos):
             new_x, new_y = x + direction[0], y + direction[1]
 
             if (
-                0 <= new_x < len(board)
-                and 0 <= new_y < len(board)
+                0 <= new_x < size
+                and 0 <= new_y < size
                 and board[new_x, new_y] == 0
                 and (new_x, new_y) not in visited
             ):
                 stack.append((new_x, new_y))
+
     return len(visited) - 1
 
 
@@ -457,9 +480,12 @@ def territory_heuristic(their_queen_positions, my_queen_positions, board, max_de
 
     Note that this is an expensive method
     """
+    assert isinstance(board, np.ndarray), f"Expected board to be a numpy array, but got {type(board)}"
+
     size = len(board)
-    my_territory = [[math.inf] * size for _ in range(size)]
-    their_territory = [[math.inf] * size for _ in range(size)]
+
+    my_territory = np.full((size, size), np.finfo(np.float64).max)
+    their_territory = np.full((size, size), np.finfo(np.float64).max)
 
     for queen in my_queen_positions:
         territory_helper(queen, board, my_territory, max_depth)
@@ -467,10 +493,12 @@ def territory_heuristic(their_queen_positions, my_queen_positions, board, max_de
     for queen in their_queen_positions:
         territory_helper(queen, board, their_territory, max_depth)
 
-    return territory_compare(my_territory, their_territory, size)
+    return territory_compare(my_territory, their_territory)
 
 
 def territory_helper(queen_position, board, out, max_depth):
+    assert isinstance(board, np.ndarray), f"Expected board to be a numpy array, but got {type(board)}"
+
     out[queen_position[0], queen_position[1]] = 0
     queue = deque()
 
@@ -486,10 +514,10 @@ def territory_helper(queen_position, board, out, max_depth):
     while queue:
         direction, move_count, curr_pos = queue.pop()
 
-        if out[curr_pos[0], curr_pos[1]] < move_count or out[curr_pos[0], curr_pos[1]] == 0:
+        if move_count >= max_depth or out[curr_pos[0], curr_pos[1]] <= move_count:
             continue
-        if move_count >= max_depth:
-            continue
+
+        out[curr_pos[0], curr_pos[1]] = move_count
 
         for next_direction in DIRECTIONS:
             new_pos = np.add(curr_pos, next_direction)
@@ -504,7 +532,7 @@ def territory_helper(queen_position, board, out, max_depth):
                     queue.append((next_direction, move_count + 1, new_pos))
 
 
-def territory_compare(ours, theirs, size):
+def territory_compare(ours, theirs):
     diff_matrix = np.subtract(ours, theirs)
     return np.count_nonzero(diff_matrix < 0) - np.count_nonzero(diff_matrix > 0)
 

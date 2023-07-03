@@ -16,11 +16,10 @@ from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_l
 from games.breakthrough import (
     BreakthroughGameState,
     evaluate_breakthrough,
-    lorenz_enhanced_evaluation,
-    lorenz_evaluation,
+    evaluate_breakthrough_lorenz,
 )
 from games.gamestate import GameState, draw, loss, win
-from games.kalah import KalahGameState, evaluate_kalah, evaluate_kalah_enhanced
+from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_enhanced
 from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
 from util import log_exception_handler, read_config, redirect_print_to_log
 
@@ -28,11 +27,10 @@ from util import log_exception_handler, read_config, redirect_print_to_log
 eval_dict = {
     evaluate_tictactoe.__name__: evaluate_tictactoe,
     evaluate_breakthrough.__name__: evaluate_breakthrough,
-    lorenz_evaluation.__name__: lorenz_evaluation,
-    lorenz_enhanced_evaluation.__name__: lorenz_enhanced_evaluation,
+    evaluate_breakthrough_lorenz.__name__: evaluate_breakthrough_lorenz,
     evaluate_amazons.__name__: evaluate_amazons,
     evaluate_amazons_lieberum.__name__: evaluate_amazons_lieberum,
-    evaluate_kalah.__name__: evaluate_kalah,
+    evaluate_kalah_simple.__name__: evaluate_kalah_simple,
     evaluate_kalah_enhanced.__name__: evaluate_kalah_enhanced,
 }
 

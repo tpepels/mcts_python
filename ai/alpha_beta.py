@@ -77,10 +77,13 @@ class AlphaBetaPlayer(AIPlayer):
                     return v, best_move
 
             # This function checks if we are running out of time
-            iteration_count += 1
-            if iteration_count % 1000 == 0:  # Check every 1000 iterations
+            # TODO This never triggers, or at least search is never interrupted
+            if iteration_count % 10000 == 0:  # Check every 1000 iterations
+                print(time.time() - start_time > time_limit)
                 if time.time() - start_time > time_limit:
                     raise TimeoutError  # If we are running out of time, raise an exception to stop search
+            # Do this after the check or the timeout error will only occur once instead of at each level
+            iteration_count += 1
 
             null_move_result = not allow_null_move
 
@@ -176,9 +179,8 @@ class AlphaBetaPlayer(AIPlayer):
                         actions.remove(best_move)
                         actions.insert(0, best_move)
                     elif best_move is not None:
-                        print(
-                            "best_move is not none but is not in actions??"
-                        )  # TODO This is a kind of sanity check, make sure that, if this happens you know why or investigate why
+                        # TODO This is a kind of sanity check, make sure that, if this happens you know why or investigate why
+                        print("best_move is not none but is not in actions??")
 
                     nodes_visited += 1
                     for move in actions:
@@ -198,6 +200,9 @@ class AlphaBetaPlayer(AIPlayer):
 
                     return v, None
             except TimeoutError:
+                v = best_move_so_far
+                best_move = best_move_so_far
+
                 return (
                     best_v_so_far,
                     best_move_so_far,
@@ -215,35 +220,28 @@ class AlphaBetaPlayer(AIPlayer):
                     )
 
         v, best_move = None, None
-
-        empirical_factor = 1
         search_times = [0]  # Initialize with 0 for depth 0
         time_out = False
-        for depth in range(1, self.max_depth + 1):  # Start depth from 1
-            if depth > 2:
-                if search_times[-2] == 0:
-                    empirical_factor = 1
-                else:
-                    # Compute the empirical factor as the ratio of the last two search times
-                    empirical_factor = search_times[-1] / search_times[-2]
-                if (time.time() - start_time) + (empirical_factor * search_times[-1]) >= self.max_time:
-                    break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
+        for depth in range(2, self.max_depth + 1):  # Start depth from 2
+            start_depth_time = time.time()  # Time when this depth search starts
+            # How much time can be spent searching this depth
+            time_limit = self.max_time - (start_depth_time - start_time)
 
             if self.debug:
                 print(
-                    f"d={depth} t:{(self.max_time - (time.time() - start_time)):.2f} f:{empirical_factor:.2f} ** ",
+                    f"d={depth} t_r={(time_limit):.2f} l_t={search_times[-1]:.2f} ** ",
                     end="",
                 )
 
-            start_depth_time = time.time()  # Time when this depth search starts
-            time_limit = self.max_time - (
-                start_depth_time - start_time
-            )  # How much time can be spent searching this depth
+            if (time.time() - start_time) + (search_times[-1]) >= self.max_time:
+                break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
             try:
                 v, best_move = value(state, -float("inf"), float("inf"), depth, True, root=True)
                 max_depth_reached = depth
             except TimeoutError:
+                # TODO Dit is altijd False, dus de exception wordt niet helemaal naar de root vertaald.
                 time_out = True
+                print("timeout!")
             # keep track of the time spent
             depth_time = time.time() - start_depth_time  # Time spent on this depth
             search_times.append(depth_time)
@@ -269,6 +267,8 @@ class AlphaBetaPlayer(AIPlayer):
                 "timed_out": time_out,
                 "best_value": best_value_labels.get(v, v),
                 "best_move": best_move,
+                "depth_reached": depth,
+                "search_time": (time.time() - start_time),
             }
 
             if v == win:
@@ -294,24 +294,62 @@ class AlphaBetaPlayer(AIPlayer):
         return best_move, v
 
     def quiescence(self, state: GameState, alpha, beta):
-        # Increment the number of quiescence searches
-        self.quiescence_searches += 1
-        # Quiescence search to avoid the horizon effect
+        # This is the quiescence function, which aims to mitigate the horizon effect by
+        # conducting a more exhaustive search on volatile branches of the game tree,
+        # such as those involving captures.
+
         stand_pat = self.evaluate(state, self.player)
+        # Call the evaluation function to get a base score for the current game state.
+        # This score is used as a baseline to compare with the potential outcomes of captures.
+
         if stand_pat >= beta:
             return beta
+        # Beta represents the minimum guaranteed score that the maximizing player has. If our
+        # stand_pat score is greater than or equal to beta, this branch is not going to be selected
+        # by the maximizing player (since it already has a better or equal option), so we cut off
+        # the search here and return beta.
+
         if alpha < stand_pat:
             alpha = stand_pat
+        # Alpha represents the maximum score that the minimizing player is assured of. If our stand_pat
+        # score is higher than alpha, it means that this branch could potentially provide a better
+        # outcome for the minimizing player. Hence, we update alpha to this higher value.
 
-        for move in state.get_legal_actions():
+        actions = state.get_legal_actions()
+        for move in actions:
+            # Iterate over all legal actions in the current game state.
+
             if state.is_capture(move):
-                new_state = state.apply_move(move)
+                self.quiescence_searches += 1
+                # Increment the counter that tracks the number of quiescence searches performed.
+
+                # Check if the current move is a capture. We're specifically interested in captures
+                # in a quiescence search, as they tend to create major swings in the game state.
+
+                new_state = state.apply_action(move)
+                # Apply the capture move to generate the new game state that results from this move.
+
                 score = -self.quiescence(new_state, -beta, -alpha)
+                # Perform a recursive quiescence search on the new game state to evaluate its score.
+                # Note the negation of the score and the swapping of alpha and beta. This is a common
+                # technique in adversarial search algorithms (like Alpha-Beta Pruning and Negamax),
+                # representing the change in perspective between the minimizing and maximizing player.
+
                 if score >= beta:
                     return beta
+                # If the evaluated score is greater than or equal to beta, we return beta. This
+                # represents a "beta-cutoff", indicating that the maximizing player has a better
+                # or equal option elsewhere and wouldn't choose this branch.
+
                 if score > alpha:
                     alpha = score
+                # If the evaluated score is better than the current alpha, we update alpha.
+                # This means that this branch might be a better option for the minimizing player.
+
         return alpha
+        # At the end of the search, return alpha as the score for this position from the perspective
+        # of the minimizing player. This score represents the best the minimizing player can achieve
+        # in the worst case.
 
     def __repr__(self):
         return (

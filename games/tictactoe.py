@@ -131,7 +131,7 @@ class TicTacToeGameState(GameState):
         return 2**16
 
 
-def evaluate_tictactoe(state, player, score_discount: float = 1.0, score_factor: float = 1.0):
+def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 1.0):
     """
     Evaluate the current state of a TicTacToe game.
 
@@ -176,11 +176,11 @@ def evaluate_tictactoe(state, player, score_discount: float = 1.0, score_factor:
     lines.append([board[i][size - i - 1] for i in range(size)])  # anti-diagonal
 
     for marks in lines:
-        score += calculate_score(marks, score_factor)
+        score += calculate_score(marks, m_score)
         if potential_win(marks):
             return 10000 if state.player == player else -10000
 
     # Discount score if it is the opponent's turn
-    score *= score_discount if state.player == opponent else 1.0
+    score *= m_opp_disc if state.player == opponent else 1.0
 
     return score

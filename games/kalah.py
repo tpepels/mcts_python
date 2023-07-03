@@ -322,16 +322,43 @@ def count_passes(seeds, move, k, size=13):
     return rounds
 
 
-def evaluate_kalah(state: KalahGameState, player: int) -> float:
+def evaluate_kalah_simple(
+    state: KalahGameState,
+    player: int,
+    m_opp_disc: float = 0.9,
+) -> float:
     if player == 1:
-        return state.board[6] - state.board[-1]
+        return state.board[6] - state.board[-1] * (m_opp_disc if state.player == 3 - player else 1)
     else:
-        return state.board[-1] - state.board[6]
+        return state.board[-1] - state.board[6] * (m_opp_disc if state.player == 3 - player else 1)
 
 
 def evaluate_kalah_enhanced(
-    state: KalahGameState, player: int, m=(1.0, 0.5, 0.25, 0.5, 0.5), a=5, norm=True
+    state: KalahGameState,
+    player: int,
+    m_score: float = 1.0,
+    m_seed_diff: float = 0.5,
+    m_empty: float = 0.25,
+    m_double: float = 0.5,
+    m_capture: float = 0.5,
+    m_opp_disc: float = 0.9,
+    a: int = 5,
+    norm: bool = True,
 ) -> float:
+    """
+    Evaluate a given state of a Kalah game from the perspective of the specified player.
+
+    :param state: The game state to evaluate.
+    :param player: The player for whom the evaluation is being done.
+    :param m_simple_eval: The weight for the simple evaluation function.
+    :param m_seed_diff: The weight for the difference in seeds between the players.
+    :param m_empty_houses_diff: The weight for the difference in empty houses between the players.
+    :param m_double_moves_diff: The weight for the difference in potential double moves between the players.
+    :param m_capture_moves_diff: The weight for the difference in potential capture moves between the players.
+    :param a: A parameter used in normalization.
+    :param norm: A boolean indicating whether to normalize the evaluation.
+    :return: A score representing the player's advantage in the game state.
+    """
     if player == 1:
         player_store = 6
         opponent_store = 13
@@ -356,27 +383,29 @@ def evaluate_kalah_enhanced(
             player_seeds += seeds
             if seeds == 0:
                 empty_player_houses += 1
-            if seeds > 0 and calc_last_index_total_steps(seeds, i, opponent_store)[0] == player_store:
-                player_double_moves += 1
-            elif seeds > 0 and _is_capture(state.board, i, player):
-                player_capture_moves += 1
+            else:
+                if m_double != 0 and calc_last_index_total_steps(seeds, i, opponent_store)[0] == player_store:
+                    player_double_moves += 1
+                elif m_capture != 0 and is_capture(state.board, i, player):
+                    player_capture_moves += 1
 
         else:  # This is possible because we exclude the stores from the loop
             opponent_seeds += seeds
             if seeds == 0:
                 empty_opponent_houses += 1
-            if seeds > 0 and calc_last_index_total_steps(seeds, i, player_store)[0] == opponent_store:
-                opponent_double_moves += 1
-            elif seeds > 0 and _is_capture(state.board, i, 3 - player):
-                opponent_capture_moves += 1
+            else:
+                if m_double != 0 and calc_last_index_total_steps(seeds, i, player_store)[0] == opponent_store:
+                    opponent_double_moves += 1
+                elif m_capture != 0 and is_capture(state.board, i, 3 - player):
+                    opponent_capture_moves += 1
 
     evaluation = (
-        m[0] * simple_evaluation_function(state, player)
-        + m[1] * (player_seeds - opponent_seeds)
-        + m[2] * (empty_opponent_houses - empty_player_houses)
-        + m[3] * (player_double_moves - opponent_double_moves)
-        + m[4] * (player_capture_moves - opponent_capture_moves)
-    )
+        m_score * evaluate_kalah_simple(state, player, m_opp_disc=1.0)  # Don't apply the discount twice
+        + m_seed_diff * (player_seeds - opponent_seeds)
+        + m_empty * (empty_opponent_houses - empty_player_houses)
+        + m_double * (player_double_moves - opponent_double_moves)
+        + m_capture * (player_capture_moves - opponent_capture_moves)
+    ) * (m_opp_disc if state.player == 3 - player else 1)
 
     if norm:
         return normalize(evaluation, a)
@@ -384,7 +413,7 @@ def evaluate_kalah_enhanced(
         return evaluation
 
 
-def _is_capture(board, move, player):
+def is_capture(board, move, player):
     """
     Check if the given move results in a capture.
 

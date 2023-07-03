@@ -1,3 +1,4 @@
+from typing import Tuple
 import numpy as np
 from games.gamestate import GameState, normalize, win, loss, draw
 import random
@@ -80,33 +81,6 @@ class BreakthroughGameState(GameState):
         # Pass the same board hash since this is only used for null moves
         return BreakthroughGameState(np.copy(self.board), 3 - self.player, board_hash=self.board_hash)
 
-    # def get_legal_actions(self):
-    #     """
-    #     Get all legal actions for the current player.
-
-    #     :return: A list of legal actions as tuples (from_position, to_position). In case of a terminal state, an empty list is returned.
-    #     """
-    #     legal_actions = []
-    #     positions = np.where(self.board == self.player)[0]
-    #     dr = -1 if self.player == 1 else 1  # Determine the direction of movement based on the current player
-
-    #     for position in positions:
-    #         row, col = divmod(position, 8)
-
-    #         for dc in (-1, 0, 1):  # Check all possible moves
-    #             new_row, new_col = row + dr, col + dc
-
-    #             if not 0 <= new_row < 8 or not 0 <= new_col < 8:  # Skip if the move is out of bounds
-    #                 continue
-
-    #             new_position = new_row * 8 + new_col
-    #             if (dc == 0 and self.board[new_position] == 0) or (  # Move forward to an empty cell
-    #                 dc != 0 and self.board[new_position] != self.player  # Capture
-    #             ):
-    #                 legal_actions.append((position, new_position))
-
-    #     return legal_actions
-
     def get_legal_actions(self):
         """
         Get all legal actions for the current player.
@@ -139,12 +113,6 @@ class BreakthroughGameState(GameState):
 
         return legal_actions
 
-    def compare_functions(self):
-        actions_orig = sorted(self.get_legal_actions_orig())
-        actions_new = sorted(self.get_legal_actions())
-
-        return actions_orig == actions_new
-
     def is_terminal(self):
         """
         Check if the current game state is terminal (i.e., a player has won).
@@ -168,18 +136,8 @@ class BreakthroughGameState(GameState):
         :param move: The move to check as a tuple (from_position, to_position).
         :return: True if the move results in a capture, False otherwise.
         """
-        from_position, to_position = move
-
         # Check if the destination cell contains an opponent's piece
-        if self.board[to_position] == 3 - self.player:
-            from_row, from_col = divmod(from_position, 8)
-            to_row, to_col = divmod(to_position, 8)
-
-            # Ensure the move is diagonal
-            if abs(from_row - to_row) == 1 and abs(from_col - to_col) == 1:
-                return True
-
-        return False
+        return self.board[move[1]] == 3 - self.player
 
     def evaluate_move(self, move):
         """
@@ -227,7 +185,7 @@ class BreakthroughGameState(GameState):
             formatted_row = " ".join(row)
             result += f"{i + 1} {formatted_row}\n"
 
-        return column_letters + result + "\n hash: " + str(self.board_hash)
+        return column_letters + result + "hash: " + str(self.board_hash)
 
     def readable_move(self, move):
         """
@@ -236,13 +194,11 @@ class BreakthroughGameState(GameState):
         :param move: A tuple (from_position, to_position) in board-index style.
         """
 
-        def to_chess_notation(index):
-            """Transform a board index into chess notation."""
-            row, col = divmod(index, 8)
-            return f"{chr(col + 65)}{row + 1}"
-
         from_position, to_position = move
         return f"{to_chess_notation(from_position)} -> {to_chess_notation(to_position)}"
+
+    def readable_location(self, position):
+        return to_chess_notation(position)
 
     @property
     def transposition_table_size(self):
@@ -250,14 +206,41 @@ class BreakthroughGameState(GameState):
         return 2**20
 
 
-# The evaluate function takes a Breakthrough game state and the player number (1 or 2) as input.
-# It computes the number of pieces for each player, the average distance of the pieces to the opponent's side,
-# and the number of pieces that are close to the opponent's side.
-# It then calculates the difference between the players for each metric and combines them
-# with weights to produce an evaluation score.
+def to_chess_notation(index):
+    """Transform a board index into chess notation."""
+    row, col = divmod(index, 8)
+    return f"{chr(col + 65)}{row + 1}"
 
 
-def evaluate_breakthrough(state, player, m=(2, 2, 2, 2), a=100, norm=False):
+def evaluate_breakthrough(
+    state: BreakthroughGameState,
+    player: int,
+    m_piece: float = 0.25,
+    m_dist: float = 0.25,
+    m_near: float = 0.25,
+    m_blocked: float = 0.25,
+    m_opp_disc: float = 0.9,
+    a: int = 100,
+    norm: bool = False,
+):
+    """
+    Evaluates the current game state for Breakthrough using a custom evaluation function,
+    which considers number of pieces, average distance of pieces to the opponent's side,
+    number of pieces close to the opponent's side, and number of blocked pieces.
+
+    :param state: The game state to evaluate.
+    :param player: The player to evaluate for (1 or 2).
+    :param m_piece: Weight assigned to the difference in number of pieces.
+    :param m_dist: Weight assigned to the difference in average distance to opponent's side.
+    :param m_near: Weight assigned to the difference in number of pieces close to opponent's side.
+    :param m_blocked: Weight assigned to the difference in number of blocked pieces.
+    :param m_opp_disc: Multiplier for the evaluation score if it's the opponent's turn.
+    :param a: Normalization factor for the evaluation score.
+    :param norm: If True, the function will return a normalized evaluation score.
+
+    :return: The evaluation score for the given player.
+    """
+
     opponent = 3 - player
 
     metrics = {
@@ -305,11 +288,11 @@ def evaluate_breakthrough(state, player, m=(2, 2, 2, 2), a=100, norm=False):
     )
 
     eval_value = (
-        m[0] * piece_difference
-        + m[1] * avg_distance_difference
-        + m[2] * near_opponent_side_difference
-        + m[3] * blocked_difference
-    )
+        m_piece * piece_difference
+        + m_dist * avg_distance_difference
+        + m_near * near_opponent_side_difference
+        + m_blocked * blocked_difference
+    ) * (m_opp_disc if state.player == opponent else 1)
 
     if norm:
         return normalize(eval_value, a)
@@ -317,7 +300,204 @@ def evaluate_breakthrough(state, player, m=(2, 2, 2, 2), a=100, norm=False):
         return eval_value
 
 
-# Lorenz evaluation functions
+def evaluate_breakthrough_lorenz(
+    state: BreakthroughGameState,
+    player: int,
+    m_lorenz: float = 1.0,
+    m_mobility: float = 0.0,
+    m_blocked: float = 1.0,
+    m_safe: float = 0.0,
+    m_endgame: float = 0.0,
+    m_cap: float = 0.0,
+    m_cap_move: float = 0.0,
+    m_opp_disc: float = 0.0,
+    a: int = 200,
+    norm: bool = True,
+):
+    """
+    Evaluates the current game state using an enhanced Lorenz evaluation function,
+    which takes into account the positioning of pieces, their mobility, the safety of their positions,
+    whether the piece is blocked, the phase of the endgame, and the potential to capture opposing pieces.
+
+    :param state: The game state to evaluate.
+    :param player: The player to evaluate for (1 or 2).
+    :param m_lorenz: Weight assigned to the Lorenz value of the board configuration.
+    :param m_mobility: Weight assigned to the mobility of the player's pieces.
+    :param m_blocked: Weight assigned to the blocked pieces of the player.
+    :param m_safe: Weight assigned to the safety of the player's pieces.
+    :param m_endgame: Weight assigned to the endgame phase.
+    :param m_cap: Weight assigned to the capture difference between the player and the opponent.
+    :param m_cap_move: Weight assigned to the difference in potential capture moves between the player and the opponent.
+    :param m_opp_disc: Multiplier for the evaluation score if it's the opponent's turn.
+    :param a: Normalization factor for the evaluation score.
+    :param norm: If True, the function will return a normalized evaluation score.
+
+    :return: The evaluation score for the given player.
+    """
+    board_values = 0
+    mobility_values = 0
+    blocked_values = 0
+    safety_values = 0
+    endgame_values = 0
+
+    opponent = 3 - player
+
+    for position, piece in enumerate(state.board):
+        if piece == 0:
+            continue
+
+        piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
+
+        multiplier = 1 if piece == player else -1
+
+        board_values += multiplier * piece_value
+
+        if m_mobility != 0 or m_blocked != 0:
+            mob_val = piece_mobility(position, piece, state.board)
+            mobility_values += multiplier * mob_val
+            if mob_val == 0:  # Keep track of blocked pieces
+                blocked_values -= multiplier
+
+        if m_safe != 0 and is_safe(position, piece, state.board):
+            safety_bonus = m_safe * piece_value
+            safety_values += safety_bonus if piece == player else -safety_bonus
+
+    if m_endgame != 0 and np.count_nonzero(state.board) < 16:
+        endgame_values = m_endgame * (
+            np.count_nonzero(state.board == player) - np.count_nonzero(state.board == opponent)
+        )
+
+    my_caps, my_cap_moves = count_capture_moves(state, player) if m_cap != 0 or m_cap_move != 0 else (0, 0)
+    opp_caps, opp_cap_moves = (
+        count_capture_moves(state, opponent) if m_cap != 0 or m_cap_move != 0 else (0, 0)
+    )
+
+    cap_diff = m_cap * (my_caps - opp_caps) if m_cap != 0 else 0
+    cap_move_diff = m_cap_move * (my_cap_moves - opp_cap_moves) if m_cap_move != 0 else 0
+
+    eval_value = (
+        endgame_values
+        + m_lorenz * board_values
+        + m_mobility * mobility_values
+        + m_blocked * blocked_values
+        + safety_values
+        + cap_diff
+        + cap_move_diff
+    ) * (m_opp_disc if state.player == opponent else 1)
+
+    if norm:
+        return normalize(eval_value, a)
+    else:
+        return eval_value
+
+
+BL_DIR = ((1, 0), (1, -1), (1, 1))
+WH_DIR = ((-1, 0), (-1, -1), (-1, 1))
+
+
+def piece_mobility(position, player, board):
+    """
+    Calculates the mobility of a piece at the given position.
+
+    :param position: The position of the piece on the board.
+    :param player: The player to which the piece belongs (1 or 2).
+    :param board: The game state.
+    :return: The mobility value of the piece.
+    """
+    row, col = divmod(position, 8)
+    mobility = 0
+
+    # The directions of the moves depend on the player.
+    # White (1) moves up (to lower rows), Black (2) moves down (to higher rows).
+    if player == 1:  # White
+        directions = WH_DIR  # Forward, and diagonally left and right
+    else:  # Black
+        directions = BL_DIR  # Forward, and diagonally left and right
+
+    for dr, dc in directions:
+        new_row, new_col = row + dr, col + dc
+        if 0 <= new_row < 8 and 0 <= new_col < 8:
+            new_position = new_row * 8 + new_col
+            if (dc == 0 and board[new_position] == 0) or (
+                abs(dc) == 1 and (board[new_position] == 0 or board[new_position] != player)
+            ):
+                mobility += 1
+
+    return mobility
+
+
+def is_safe(position, player, board):
+    """
+    Determines if a piece at a given position is safe from being captured.
+
+    :param position: The position of the piece.
+    :param player: The player to which the piece belongs (1 or 2).
+    :param state: The game state.
+    :return: True if the piece is safe, False otherwise.
+    """
+    x, y = divmod(position, 8)
+    row_offsets = [-1, 1] if player == 1 else [1, -1]
+    col_offsets = [-1, 1]
+    attackers = 0
+    defenders = 0
+
+    opponent = 1 if player == 2 else 2
+
+    for i in range(2):
+        new_x = x + row_offsets[0]
+        new_y = y + col_offsets[i]
+
+        if 0 <= new_x < 8 and 0 <= new_y < 8:
+            new_position = new_x * 8 + new_y
+            piece = board[new_position]
+
+            if piece == opponent:
+                attackers += 1
+
+        new_x = x + row_offsets[1]
+        new_y = y + col_offsets[i]
+
+        if 0 <= new_x < 8 and 0 <= new_y < 8:
+            new_position = new_x * 8 + new_y
+            piece = board[new_position]
+
+            if piece == player:
+                defenders += 1
+
+    return attackers <= defenders
+
+
+def count_capture_moves(game_state: BreakthroughGameState, player: int) -> Tuple[int, int]:
+    """Count the number of pieces that can capture and the total number of possible capture moves for a given player.
+
+    :param game_state: The game state instance.
+    :param player: The player (1 or 2) to count capture moves for.
+    :return: The number of pieces that can capture and the total number of possible capture moves for the player.
+    """
+    num_pieces_that_can_capture = 0
+    total_capture_moves = 0
+    positions = np.where(game_state.board == player)[0]
+
+    for position in positions:
+        row, col = divmod(position, 8)
+        dr = -1 if player == 1 else 1
+
+        piece_capture_moves = 0
+        for dc in [-1, 1]:  # Only diagonal movements can result in capture
+            new_row, new_col = row + dr, col + dc
+            if (
+                0 <= new_row < 8 and 0 <= new_col < 8
+            ):  # Check if the new position is within the board boundaries
+                new_position = new_row * 8 + new_col
+                # Check if the new position contains an opponent's piece
+                if game_state.board[new_position] == 3 - player:
+                    piece_capture_moves += 1
+        total_capture_moves += piece_capture_moves
+        if piece_capture_moves > 0:
+            num_pieces_that_can_capture += 1
+
+    return num_pieces_that_can_capture, total_capture_moves
+
 
 # List of values representing the importance of each square on the board. In view of player 2.
 lorentz_values = np.array(
@@ -389,190 +569,3 @@ lorentz_values = np.array(
     ],
     dtype=int,
 )
-
-
-def lorenz_evaluation(state, player, m=(0.5,), a=200, norm=True):
-    """
-    Evaluates the current game state using the Lorenz evaluation function, which
-    takes into account the positioning of pieces on the board.
-
-    :param state: The game state to evaluate.
-    :param player: The player to evaluate for (1 or 2).
-    :return: The evaluation score for the given player.
-    """
-
-    p1eval = 0
-    p2eval = 0
-
-    for position in range(64):
-        piece = state.board[position]
-
-        if piece == 2:
-            base_value = lorentz_values[position]
-            p2eval += base_value
-
-            if is_safe(position, 1, state.board):
-                p2eval += m[0] * base_value
-
-        elif piece == 1:
-            base_value = lorentz_values[63 - position]  # Mirror the position for the opponent
-            p1eval += base_value
-
-            if is_safe(position, 2, state.board):
-                p1eval += m[0] * base_value
-
-    if player == 1:
-        eval_value = p1eval - p2eval
-    else:
-        eval_value = p2eval - p1eval
-
-    if norm:
-        return normalize(eval_value, a)
-    else:
-        return eval_value
-
-
-def lorenz_enhanced_evaluation(state, player, m=(0.5, 10, 0.5, 0.5), a=200, norm=True):
-    """
-    Evaluates the current game state using an enhanced Lorenz evaluation function,
-    which takes into account the positioning of pieces, their mobility, and the
-    endgame phase.
-
-    :param state: The game state to evaluate.
-    :param player: The player to evaluate for (1 or 2).
-    :return: The evaluation score for the given player.
-    """
-    board_values = 0
-    mobility_values = 0
-    safety_values = 0
-    endgame_values = 0
-
-    opponent = 3 - player
-
-    for position, piece in enumerate(state.board):
-        if piece == 0:
-            continue
-
-        piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
-
-        if piece == player:
-            board_values += piece_value
-            mobility_values += piece_mobility(position, piece, state.board)
-        else:
-            board_values -= piece_value
-            mobility_values -= piece_mobility(position, piece, state.board)
-
-        if is_safe(position, piece, state.board):
-            safety_bonus = m[0] * piece_value
-            safety_values += safety_bonus if piece == player else -safety_bonus
-
-    if np.count_nonzero(state.board) < 16:
-        endgame_values = m[1] * (
-            np.count_nonzero(state.board == player) - np.count_nonzero(state.board == opponent)
-        )
-
-    eval_value = endgame_values + m[2] * board_values + m[3] * mobility_values + safety_values
-
-    if norm:
-        return normalize(eval_value, a)
-    else:
-        return eval_value
-
-
-BL_DIR = ((1, 0), (1, -1), (1, 1))
-WH_DIR = ((-1, 0), (-1, -1), (-1, 1))
-
-
-def piece_mobility(position, player, board):
-    """
-    Calculates the mobility of a piece at the given position.
-
-    :param position: The position of the piece on the board.
-    :param player: The player to which the piece belongs (1 or 2).
-    :param board: The game state.
-    :return: The mobility value of the piece.
-    """
-    row, col = divmod(position, 8)
-    mobility = 0
-
-    # The directions of the moves depend on the player.
-    # White (1) moves up (to lower rows), Black (2) moves down (to higher rows).
-    if player == 1:  # White
-        directions = WH_DIR  # Forward, and diagonally left and right
-    else:  # Black
-        directions = BL_DIR  # Forward, and diagonally left and right
-
-    for dr, dc in directions:
-        new_row, new_col = row + dr, col + dc
-        if 0 <= new_row < 8 and 0 <= new_col < 8:
-            new_position = new_row * 8 + new_col
-            if board[new_position] != player and board[new_position] == 0 or abs(dc) == 1:
-                # Move forward to an empty cell or capture diagonally
-                mobility += 1
-
-    return mobility
-
-
-def is_safe(position, player, board):
-    """
-    Determines if a piece at a given position is safe from being captured.
-
-    :param position: The position of the piece.
-    :param player: The player to which the piece belongs (1 or 2).
-    :param state: The game state.
-    :return: True if the piece is safe, False otherwise.
-    """
-    x, y = divmod(position, 8)
-    row_offsets = [-1, 1] if player == 1 else [1, -1]
-    col_offsets = [-1, 1]
-    attackers = 0
-    defenders = 0
-
-    opponent = 1 if player == 2 else 2
-
-    for i in range(2):
-        new_x = x + row_offsets[0]
-        new_y = y + col_offsets[i]
-
-        if 0 <= new_x < 8 and 0 <= new_y < 8:
-            new_position = new_x * 8 + new_y
-            piece = board[new_position]
-
-            if piece == opponent:
-                attackers += 1
-
-        new_x = x + row_offsets[1]
-        new_y = y + col_offsets[i]
-
-        if 0 <= new_x < 8 and 0 <= new_y < 8:
-            new_position = new_x * 8 + new_y
-            piece = board[new_position]
-
-            if piece == player:
-                defenders += 1
-
-    return attackers <= defenders
-
-
-def is_piece_blocked(position, board):
-    """
-    Check if the given piece is blocked and cannot move one position forward.
-
-    :param position: The position of the piece to check.
-    :return: True if the piece is blocked, False otherwise.
-    """
-    piece = board[position]
-    if piece == 0:
-        raise ValueError("Invalid piece")
-
-    row, col = divmod(position, 8)
-    dr = -1 if piece == 1 else 1  # Determine the direction of movement based on the current player
-
-    for dc in [-1, 0, 1]:
-        new_row, new_col = row + dr, col + dc
-        if 0 <= new_row < 8 and 0 <= new_col < 8:
-            new_position = new_row * 8 + new_col
-            if board[new_position] == 0 or (dc != 0 and board[new_position] != piece):
-                return False
-
-    return True  # The piece is blocked
