@@ -61,6 +61,7 @@ class AIParams:
     eval_key: str
     ai_params: Optional[Dict[str, Any]] = None
     eval_params: Optional[Dict[str, Any]] = None
+    transposition_table_size: int = 2**16
 
     def __str__(self):
         """Generate string representation of AI parameters."""
@@ -72,6 +73,7 @@ class AIParams:
 
         if self.eval_params is not None:
             string_repr += f" with parameters {self.eval_params}."
+
         return string_repr
 
 
@@ -90,6 +92,8 @@ def init_game_and_players(
         Tuple[Type[GameState], AIPlayer, AIPlayer]: The initialized game and players.
     """
     game = init_game(game_key, game_params)
+    p1_params.transposition_table_size = game.transposition_table_size
+    p2_params.transposition_table_size = game.transposition_table_size
     p1 = init_ai_player(p1_params, 1)
     p2 = init_ai_player(p2_params, 2)
     return game, p1, p2
@@ -116,6 +120,7 @@ def init_ai_player(params: AIParams, player: int) -> AIPlayer:
     Args:
         params (AIParams): The parameters for the AI player.
         player (int): The player number (1 or 2 for a 2-player game)
+        transposition_table_size (int): The size of the transposition table.
 
     Returns:
         AIPlayer: The initialized AI player.
@@ -124,7 +129,12 @@ def init_ai_player(params: AIParams, player: int) -> AIPlayer:
     eval_function = eval_dict[params.eval_key]
     if params.eval_params is not None:
         eval_function = partial(eval_function, **params.eval_params)
-    player: AIPlayer = ai_class(player=player, evaluate=eval_function, **params.ai_params)
+    player: AIPlayer = ai_class(
+        player=player,
+        evaluate=eval_function,
+        transposition_table_size=params.transposition_table_size,
+        **params.ai_params,
+    )
     return player
 
 
@@ -179,7 +189,12 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
                 print("Game Over. Draw")
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
-    return play_game_until_terminal(game, p1, p2, callback=callback)
+    reward = play_game_until_terminal(game, p1, p2, callback=callback)
+
+    p1.print_cumulative_statistics()
+    p2.print_cumulative_statistics()
+
+    return reward
 
 
 @log_exception_handler
@@ -238,6 +253,9 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     else:
         result = 0
         print("Game Over. Draw []")
+
+    p1.print_cumulative_statistics()
+    p2.print_cumulative_statistics()
 
     return setup, total_time, avg_time_per_move, n_moves, result
 

@@ -8,11 +8,12 @@ class TicTacToeGameState(GameState):
     players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_tables = {
         size: [[[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
-        for size in range(3, 7)
+        for size in range(3, 10)
     }
 
-    def __init__(self, board_size=3, board=None, player=1, board_hash=None):
+    def __init__(self, board_size=3, row_length=None, board=None, player=1, board_hash=None):
         self.size = board_size
+        self.row_length = row_length if row_length else self.size
         self.board = board
         self.board_hash = board_hash
         self.player = player
@@ -25,9 +26,7 @@ class TicTacToeGameState(GameState):
                 for j in range(self.size):
                     piece = self.board[i][j]
                     self.board_hash ^= self.zobrist_table[i][j][piece]
-            self.board_hash ^= self.players_bitstrings[
-                self.player
-            ]  # XOR with the bitstring of the current player
+            self.board_hash ^= self.players_bitstrings[self.player]
 
     def apply_action(self, action):
         x, y = action
@@ -43,14 +42,26 @@ class TicTacToeGameState(GameState):
             ^ self.players_bitstrings[self.player]
             ^ self.players_bitstrings[3 - self.player]
         )
-        new_state = TicTacToeGameState(self.size, new_board, 3 - self.player, board_hash=board_hash)
+        new_state = TicTacToeGameState(
+            board_size=self.size,
+            board=new_board,
+            player=3 - self.player,
+            row_length=self.row_length,
+            board_hash=board_hash,
+        )
         return new_state
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search"""
         new_board = [row[:] for row in self.board]
         # Pass the same hash since this is only used for null-moves
-        return TicTacToeGameState(self.size, new_board, 3 - self.player, board_hash=self.board_hash)
+        return TicTacToeGameState(
+            board_size=self.size,
+            board=new_board,
+            player=3 - self.player,
+            row_length=self.row_length,
+            board_hash=self.board_hash,
+        )
 
     def get_legal_actions(self):
         return [(i, j) for i in range(self.size) for j in range(self.size) if self.board[i][j] == 0]
@@ -59,29 +70,38 @@ class TicTacToeGameState(GameState):
         return self.get_reward(1) != 0 or len(self.get_legal_actions()) == 0
 
     def get_reward(self, player):
-        opponent = 3 - player  # Assuming players are 1 and 2
-
+        opponent = 3 - player
+        # Check rows
         for i in range(self.size):
-            if all(self.board[i][j] == player for j in range(self.size)):
-                return win
-            if all(self.board[i][j] == opponent for j in range(self.size)):
-                return loss
+            for j in range(self.size - self.row_length + 1):
+                if all(self.board[i][j + k] == player for k in range(self.row_length)):
+                    return win
+                if all(self.board[i][j + k] == opponent for k in range(self.row_length)):
+                    return loss
 
+        # Check columns
         for j in range(self.size):
-            if all(self.board[i][j] == player for i in range(self.size)):
-                return win
-            if all(self.board[i][j] == opponent for i in range(self.size)):
-                return loss
+            for i in range(self.size - self.row_length + 1):
+                if all(self.board[i + k][j] == player for k in range(self.row_length)):
+                    return win
+                if all(self.board[i + k][j] == opponent for k in range(self.row_length)):
+                    return loss
 
-        if all(self.board[i][i] == player for i in range(self.size)):
-            return win
-        if all(self.board[i][i] == opponent for i in range(self.size)):
-            return loss
+        # Check diagonal from top-left to bottom-right
+        for i in range(self.size - self.row_length + 1):
+            for j in range(self.size - self.row_length + 1):
+                if all(self.board[i + k][j + k] == player for k in range(self.row_length)):
+                    return win
+                if all(self.board[i + k][j + k] == opponent for k in range(self.row_length)):
+                    return loss
 
-        if all(self.board[i][self.size - i - 1] == player for i in range(self.size)):
-            return win
-        if all(self.board[i][self.size - i - 1] == opponent for i in range(self.size)):
-            return loss
+        # Check diagonal from bottom-left to top-right
+        for i in range(self.row_length - 1, self.size):
+            for j in range(self.size - self.row_length + 1):
+                if all(self.board[i - k][j + k] == player for k in range(self.row_length)):
+                    return win
+                if all(self.board[i - k][j + k] == opponent for k in range(self.row_length)):
+                    return loss
 
         return draw
 
@@ -174,6 +194,51 @@ def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 
     # Diagonals
     lines.append([board[i][i] for i in range(size)])  # main diagonal
     lines.append([board[i][size - i - 1] for i in range(size)])  # anti-diagonal
+
+    for marks in lines:
+        score += calculate_score(marks, m_score)
+        if potential_win(marks):
+            return 10000 if state.player == player else -10000
+
+    # Discount score if it is the opponent's turn
+    score *= m_opp_disc if state.player == opponent else 1.0
+
+    return score
+
+
+def evaluate_nk_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 1.0):
+    def calculate_score(marks, score_factor):
+        if opponent not in marks and player in marks:
+            return score_factor * ((len(marks) - marks.count(0)) * marks.count(player)) ** 2
+        elif player not in marks and opponent in marks:
+            return -score_factor * ((len(marks) - marks.count(0)) * marks.count(opponent)) ** 2
+        return 0
+
+    def potential_win(marks):
+        return (
+            marks.count(player if state.player == player else opponent) == state.row_length - 1
+            and marks.count(0) == 1
+        )
+
+    score = 0
+    board = state.board
+    size = state.size
+    row_length = state.row_length
+    opponent = 3 - player
+
+    lines = []
+
+    # Rows and columns
+    for i in range(size):
+        for j in range(size - row_length + 1):
+            lines.append([board[i][j + k] for k in range(row_length)])  # row i
+            lines.append([board[j + k][i] for k in range(row_length)])  # column i
+
+    # Diagonals
+    for i in range(size - row_length + 1):
+        for j in range(size - row_length + 1):
+            lines.append([board[i + k][j + k] for k in range(row_length)])  # main diagonal
+            lines.append([board[i + k][size - j - k - 1] for k in range(row_length)])  # anti-diagonal
 
     for marks in lines:
         score += calculate_score(marks, m_score)

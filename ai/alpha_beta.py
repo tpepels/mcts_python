@@ -1,6 +1,8 @@
 import random
 import time
 
+import numpy as np
+
 from ai.ai_player import AIPlayer
 from ai.transpos_table import TranspositionTable
 from games.gamestate import GameState, win, loss, draw
@@ -13,16 +15,29 @@ best_value_labels = {win: "WIN", draw: "DRAW", loss: "LOSS"}
 
 
 class AlphaBetaPlayer(AIPlayer):
+    cumulative_keys = [
+        "total_null_cutoffs",
+        "total_q_searches",
+        "total_nodes_visited",
+        "total_nodes_evaluated",
+        "total_nodes_cutoff",
+        "total_nodes_generated",
+        "total_depth_reached",
+        "max_depth_finished",
+        "total_search_time",
+        "count_searches",
+        "count_timed_out",
+    ]
+
     def __init__(
         self,
         player,
-        max_depth,
         max_time,
         evaluate,
+        max_depth=25,
         transposition_table_size=2**16,
         use_null_moves=False,
         use_quiescence=False,
-        use_transpositions=True,
         debug=False,
     ):
         # Identify the player
@@ -43,88 +58,117 @@ class AlphaBetaPlayer(AIPlayer):
         self.interrupt_depth_limit = 2
         # Whether to print debug statistics
         self.debug = debug
-        self.statistics = []
+        # instance-level statistics
+        self.stats = []
+        self.c_stats = {key: 0 for key in AlphaBetaPlayer.cumulative_keys}  # Initialize to 0
         # Store evaluation resuls
-        if use_transpositions:
-            self.trans_table = TranspositionTable(transposition_table_size)
-        else:
-            self.trans_table = None
-
+        self.trans_table = TranspositionTable(transposition_table_size)
         global total_search_time, n_moves, depth_reached
         total_search_time[player] = 0
         n_moves[player] = 0
         depth_reached[player] = 0
 
     def best_action(self, state: GameState):
+        assert state.player == self.player, "Player to move in the game is not my assigned player"
         # Reset debug statistics
         self.quiescence_searches = nodes_visited = cutoffs = evaluated = transpos = 0
-        max_depth_reached = null_moves_cutoff = total_moves_generated = 0
+        max_depth_reached = null_moves_cutoff = total_moves_generated = best_move_order = 0
         # Keep track of search times per level
         search_times = []
         start_time = time.time()
         iteration_count = 0
+        interrupted = False
 
-        def value(state, alpha, beta, depth, allow_null_move=True, root=False):
-            nonlocal evaluated, nodes_visited, cutoffs, max_depth_reached, transpos, start_time
-            nonlocal total_moves_generated, null_moves_cutoff, search_times, iteration_count, time_limit
+        def value(
+            state,
+            alpha,
+            beta,
+            depth,
+            max_d=0,
+            allow_null_move=True,
+            root=False,
+        ):
+            nonlocal evaluated, nodes_visited, cutoffs, max_depth_reached, transpos, start_time, interrupted
+            nonlocal total_moves_generated, null_moves_cutoff, search_times, iteration_count, time_limit, best_move_order
             # null is true if a null-move is possible. If a null move cannot be made then, we are in a part of
             # the tree where a null move was previously made. Hence we cannot use transpositions.
             # i.e. do not consider illegal moves in the hash-table
-            if allow_null_move and not root and self.trans_table is not None:
-                # if not self.debug:
-                v, best_move = self.trans_table.get(state.board_hash, depth, state.player)
+            if not root:
+                v, best_move = self.trans_table.get(
+                    key=state.board_hash, depth=max_d - depth, player=state.player, max_d=max_d
+                )
+
                 if v is not None:
                     return v, best_move
 
             # This function checks if we are running out of time
-            # TODO This never triggers, or at least search is never interrupted
             if iteration_count % 10000 == 0:  # Check every 1000 iterations
-                print(time.time() - start_time > time_limit)
-                if time.time() - start_time > time_limit:
-                    raise TimeoutError  # If we are running out of time, raise an exception to stop search
-            # Do this after the check or the timeout error will only occur once instead of at each level
-            iteration_count += 1
+                if (time.time() - start_time) > time_limit:
+                    interrupted = True
 
-            null_move_result = not allow_null_move
+            if not interrupted:
+                # Do this increment after the check or the timeout error will only occur once instead of at each level
+                iteration_count += 1
+
+            if state.is_terminal():
+                v = state.get_reward(self.player)
+                return v, None
+
+            if depth == 0 and allow_null_move and self.use_quiescence and not interrupted:
+                v = self.quiescence(state, alpha, beta)
+
+            # If we are interrupted, cut off the search and return evaluations straight away
+            if depth == 0 or interrupted:
+                evaluated += 1
+                v = self.evaluate(state, self.player)
+                # If not a null-move result
+                if allow_null_move:
+                    self.trans_table.put(
+                        key=state.board_hash,
+                        value=v,
+                        # Store it one depth lower, that way, if we redo the search we can find the
+                        # best move for the position instead of using this evaluation without a next move.
+                        depth=(max_d - depth) - 1,
+                        player=state.player,
+                        best_move=None,
+                        max_d=max_d,
+                    )
+                return v, None
+
+            is_max_player = state.player == self.player
+
+            # Apply a null move to check if skipping turns results in better results than making a move
+            if self.use_null_moves and is_max_player and not root and allow_null_move and depth >= self.R + 1:
+                null_state = state.skip_turn()
+                # Perform a reduced-depth search
+                null_score, _ = value(
+                    null_state,
+                    alpha,
+                    beta,
+                    (depth - self.R) - 1,
+                    max_d=max_d,
+                    allow_null_move=False,
+                    root=False,
+                )
+
+                if null_score >= beta:
+                    null_moves_cutoff += 1
+                    cutoffs += 1
+                    return null_score, None
 
             try:
-                best_move_so_far = None
-                is_max_player = state.player == self.player
-                # Initialize best_v_so_far as -inf for the max player or inf for the min player
-                best_v_so_far = -float("inf") if is_max_player else float("inf")
-                if state.is_terminal():
-                    v = state.get_reward(self.player)
-                    return v, None
-
-                if depth == 0:
-                    evaluated += 1
-                    if self.use_quiescence:
-                        v = self.quiescence(state, alpha, beta)
-                    else:
-                        v = self.evaluate(state, self.player)
-
-                    return v, None
-
                 best_move = None
                 # Check if a move already exists somewhere in the transposition table (regardless of its depth since we only use it for move-ordering)
+                # This way we can use the move for move ordering, naiisss
                 if self.trans_table is not None:
-                    _, best_move = self.trans_table.get(state.board_hash, 0, state.player)
+                    _, best_move = self.trans_table.get(state.board_hash, 0, state.player, 0)
 
                 if is_max_player:
-                    # Apply a null move to check if skipping turns results in better results than making a move
-                    if self.use_null_moves and allow_null_move and depth >= self.R + 1:
-                        null_state = state.skip_turn()
-                        null_score, _ = value(null_state, alpha, beta, depth - self.R - 1, False)
-                        null_move_result = True  # Set flag to True so result is not stored
-                        if null_score >= beta:
-                            null_moves_cutoff += 1
-                            cutoffs += 1
-                            return null_score, None
-
                     # Max player's turn
                     v = -float("inf")
                     actions = state.get_legal_actions()
                     total_moves_generated += len(actions)
+
                     # Order moves by their heuristic value
                     actions.sort(
                         key=lambda move: -state.evaluate_move(move)
@@ -132,35 +176,32 @@ class AlphaBetaPlayer(AIPlayer):
                         else state.evaluate_move(move)
                     )
 
-                    if best_move is not None and best_move in actions:
+                    if best_move is not None:
+                        assert best_move in actions, "best_move found but not in available actions"
+                        best_move_order += 1
                         # Put the best move from the transposition table at the front of the list
                         actions.remove(best_move)
                         actions.insert(0, best_move)
-                    elif best_move is not None:
-                        print(
-                            "best_move is not none but is not in actions??"
-                        )  # TODO This is a kind of sanity check, make sure that, if this happens you know why or investigate why
 
                     nodes_visited += 1
                     for move in actions:
                         new_state = state.apply_action(move)
-                        min_v, _ = value(new_state, alpha, beta, depth - 1)
-                        # if min_v is not None:
+                        min_v, _ = value(
+                            new_state,
+                            alpha,
+                            beta,
+                            depth - 1,
+                            max_d=max_d,
+                            root=False,
+                            allow_null_move=allow_null_move,
+                        )
                         if min_v > v:
                             v = min_v
                             best_move = move
-                            # Update best move and its value so far every time we find a better move
-                            best_move_so_far = move
-                            best_v_so_far = v
                         if v >= beta:
                             cutoffs += 1
                             return v, move
                         alpha = max(alpha, v)
-
-                    if best_move is None:
-                        if len(actions) == 0:
-                            print(state.visualize())
-                        return v, random.choice(actions)
 
                     return v, best_move
 
@@ -174,79 +215,83 @@ class AlphaBetaPlayer(AIPlayer):
                         if self.player == state.player
                         else -state.evaluate_move(move)
                     )
-                    if best_move is not None and best_move in actions:
+                    if best_move is not None:
+                        assert best_move in actions, "best_move found but not in available actions"
+                        best_move_order += 1
                         # Put the best move from the transposition table at the front of the list
                         actions.remove(best_move)
                         actions.insert(0, best_move)
-                    elif best_move is not None:
-                        # TODO This is a kind of sanity check, make sure that, if this happens you know why or investigate why
-                        print("best_move is not none but is not in actions??")
 
                     nodes_visited += 1
                     for move in actions:
                         new_state = state.apply_action(move)
-                        max_v, _ = value(new_state, alpha, beta, depth - 1)
-                        # if max_v is not None:
+                        max_v, _ = value(
+                            new_state,
+                            alpha,
+                            beta,
+                            depth - 1,
+                            max_d=max_d,
+                            root=False,
+                            allow_null_move=allow_null_move,
+                        )
+
                         if max_v < v:
-                            cutoffs += 1  # Add this line
+                            cutoffs += 1
                             v = max_v
                             best_move = move
-                            # Update best move and its value so far every time we find a better move
-                            best_move_so_far = move
-                            best_v_so_far = v
                         if v <= alpha:
-                            return v, None
+                            return v, move
                         beta = min(beta, v)
 
                     return v, None
-            except TimeoutError:
-                v = best_move_so_far
-                best_move = best_move_so_far
-
-                return (
-                    best_v_so_far,
-                    best_move_so_far,
-                )  # When time runs out, return the best move found so far along with the current best value
 
             finally:
-                if not null_move_result and self.trans_table is not None:  # If not a null-move result
+                # If not a null-move result
+                if allow_null_move:
                     self.trans_table.put(
-                        state.board_hash,
-                        v,
-                        depth,
-                        state.player,
-                        best_move,
-                        # board=state.board if self.debug else None,
+                        key=state.board_hash,
+                        value=v,
+                        depth=max_d - depth,
+                        player=state.player,
+                        best_move=best_move,
+                        max_d=max_d,
                     )
 
         v, best_move = None, None
         search_times = [0]  # Initialize with 0 for depth 0
-        time_out = False
         for depth in range(2, self.max_depth + 1):  # Start depth from 2
             start_depth_time = time.time()  # Time when this depth search starts
             # How much time can be spent searching this depth
             time_limit = self.max_time - (start_depth_time - start_time)
-
             if self.debug:
                 print(
-                    f"d={depth} t_r={(time_limit):.2f} l_t={search_times[-1]:.2f} ** ",
+                    f"d={depth} t_r={(time_limit):.2f} l_t={search_times[-1]:.2f} *** ",
                     end="",
                 )
 
-            if (time.time() - start_time) + (search_times[-1]) >= self.max_time:
+            if interrupted or ((time.time() - start_time) + (search_times[-1]) >= self.max_time):
                 break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
-            try:
-                v, best_move = value(state, -float("inf"), float("inf"), depth, True, root=True)
-                max_depth_reached = depth
-            except TimeoutError:
-                # TODO Dit is altijd False, dus de exception wordt niet helemaal naar de root vertaald.
-                time_out = True
-                print("timeout!")
+
+            v, best_move = value(
+                state,
+                -float("inf"),
+                float("inf"),
+                depth,
+                max_d=depth,
+                allow_null_move=True,
+                root=True,
+            )
+            max_depth_reached = depth
+
             # keep track of the time spent
             depth_time = time.time() - start_depth_time  # Time spent on this depth
             search_times.append(depth_time)
+            # Don't spend any more time on proven wins/losses
+            if v in [win, loss]:
+                break
 
         if self.debug:
+            print()
             global total_search_time, n_moves
 
             total_search_time[self.player] += time.time() - start_time
@@ -254,23 +299,23 @@ class AlphaBetaPlayer(AIPlayer):
             depth_reached[self.player] += max_depth_reached
 
             stat_dict = {
-                "max_player": self.player,
+                f"{self.player}_max_player": self.player,
+                "nodes_best_move_order": best_move_order,
                 "nodes_visited": nodes_visited,
                 "nodes_evaluated": evaluated,
-                "cutoffs": cutoffs,
-                "max_depth_reached": max_depth_reached,
-                "search_times_per_level": search_times,
-                "average_branching_factor": int(round(total_moves_generated / nodes_visited, 0)),
-                "moves_generated": total_moves_generated,
-                "average_search_time": int(total_search_time[self.player] / n_moves[self.player]),
-                "average_depth_reached": int(depth_reached[self.player] / n_moves[self.player]),
-                "timed_out": time_out,
+                "nodes_cutoff": cutoffs,
+                "nodes_avg_br_fact": int(round(total_moves_generated / nodes_visited, 0)),
+                "nodes_generated": total_moves_generated,
+                "depth_average": int(depth_reached[self.player] / n_moves[self.player]),
+                "depth_finished": max_depth_reached,
+                "depth": depth,
+                "search_time": (time.time() - start_time),
+                "search_times_p.d": search_times,
+                "search_time_average": int(total_search_time[self.player] / n_moves[self.player]),
+                "search_timed_out": interrupted,
                 "best_value": best_value_labels.get(v, v),
                 "best_move": best_move,
-                "depth_reached": depth,
-                "search_time": (time.time() - start_time),
             }
-
             if v == win:
                 stat_dict["best_value"] = "WIN"
             elif v == draw:
@@ -280,15 +325,26 @@ class AlphaBetaPlayer(AIPlayer):
 
             if self.use_quiescence:
                 stat_dict["quiescence_searches"] = self.quiescence_searches
+                self.c_stats["total_q_searches"] += self.quiescence_searches
+
             if self.use_null_moves:
                 stat_dict["null_moves_cutoff"] = null_moves_cutoff
+                self.c_stats["total_null_cutoffs"] += null_moves_cutoff
 
-            self.statistics.append(stat_dict)
-            if self.trans_table is not None:
-                # Initialize pretty printer
-                stat_dict = {**stat_dict, **self.trans_table.get_metrics()}
-                self.trans_table.reset_metrics()
+            self.stats.append(stat_dict)
 
+            self.c_stats["total_nodes_visited"] += nodes_visited
+            self.c_stats["total_nodes_evaluated"] += evaluated
+            self.c_stats["total_nodes_cutoff"] += cutoffs
+            self.c_stats["total_nodes_generated"] += total_moves_generated
+            self.c_stats["total_depth_reached"] += max_depth_reached
+            self.c_stats["max_depth_finished"] = max(max_depth_reached, self.c_stats["max_depth_finished"])
+            self.c_stats["total_search_time"] += time.time() - start_time
+            self.c_stats["count_searches"] += 1
+            self.c_stats["count_timed_out"] += int(interrupted)
+
+            stat_dict = {**stat_dict, **self.trans_table.get_metrics()}
+            self.trans_table.reset_metrics()
             pretty_print_dict(stat_dict)
 
         return best_move, v
@@ -350,6 +406,44 @@ class AlphaBetaPlayer(AIPlayer):
         # At the end of the search, return alpha as the score for this position from the perspective
         # of the minimizing player. This score represents the best the minimizing player can achieve
         # in the worst case.
+
+    def print_cumulative_statistics(self):
+        if not self.debug:
+            return
+
+        # Compute the average at the end of the game(s):
+        self.c_stats["average_nodes_visited"] = int(
+            self.c_stats["total_nodes_visited"] / self.c_stats["count_searches"]
+        )
+        self.c_stats["average_nodes_evaluated"] = int(
+            self.c_stats["total_nodes_evaluated"] / self.c_stats["count_searches"]
+        )
+        self.c_stats["average_nodes_cutoff"] = int(
+            self.c_stats["total_nodes_cutoff"] / self.c_stats["count_searches"]
+        )
+        self.c_stats["average_nodes_generated"] = int(
+            self.c_stats["total_nodes_generated"] / self.c_stats["count_searches"]
+        )
+        self.c_stats["average_depth_reached"] = (
+            self.c_stats["total_depth_reached"] / self.c_stats["count_searches"]
+        )
+        self.c_stats["average_search_time"] = (
+            self.c_stats["total_search_time"] / self.c_stats["count_searches"]
+        )
+        self.c_stats["percentage_searches_timed_out"] = int(
+            (self.c_stats["count_timed_out"] / self.c_stats["count_searches"]) * 100
+        )
+        if self.use_quiescence:
+            self.c_stats["average_q_searches"] = (
+                self.c_stats["total_q_searches"] / self.c_stats["count_searches"]
+            )
+        if self.use_null_moves:
+            self.c_stats["average_null_cutoffs"] = (
+                self.c_stats["total_null_cutoffs"] / self.c_stats["count_searches"]
+            )
+
+        print(f"Cumulative statistics for player {self.player}, {self}")
+        pretty_print_dict({**self.c_stats, **self.trans_table.get_cumulative_metrics()})
 
     def __repr__(self):
         return (

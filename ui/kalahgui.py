@@ -66,6 +66,7 @@ def main():
         ai_key="alphabeta",
         eval_key="evaluate_kalah",
         ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
+        transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, ai_player)
 

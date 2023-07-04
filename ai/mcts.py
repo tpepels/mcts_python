@@ -188,3 +188,6 @@ class MCTSPlayer(AIPlayer):
         """
         self.run()
         return self.root.best_action()
+
+    def print_cumulative_statistics(self) -> str:
+        pass

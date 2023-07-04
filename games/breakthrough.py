@@ -203,7 +203,7 @@ class BreakthroughGameState(GameState):
     @property
     def transposition_table_size(self):
         # return an appropriate size based on the game characteristics
-        return 2**20
+        return 2**18
 
 
 def to_chess_notation(index):
@@ -304,13 +304,13 @@ def evaluate_breakthrough_lorenz(
     state: BreakthroughGameState,
     player: int,
     m_lorenz: float = 1.0,
-    m_mobility: float = 0.0,
+    m_mobility: float = 1.0,
     m_blocked: float = 1.0,
-    m_safe: float = 0.0,
-    m_endgame: float = 0.0,
-    m_cap: float = 0.0,
-    m_cap_move: float = 0.0,
-    m_opp_disc: float = 0.0,
+    m_safe: float = 1.0,
+    m_endgame: float = 1.0,
+    m_cap: float = 2.0,
+    m_cap_move: float = 2.0,
+    m_opp_disc: float = 0.9,
     a: int = 200,
     norm: bool = True,
 ):

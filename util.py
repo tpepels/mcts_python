@@ -10,9 +10,34 @@ from contextlib import contextmanager
 from colorama import Fore, Style
 
 
+GLOBAL_HIGHLIGHTING = True
+
+
 def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
-    print()
     color_map = {float: Fore.BLUE, int: Fore.GREEN, str: Fore.CYAN, list: Fore.MAGENTA, bool: Fore.YELLOW}
+
+    # Function to format different types of values
+    def format_value(v):
+        if isinstance(v, bool):  # handle bool before int
+            return str(v), type(v)
+        elif isinstance(v, float):
+            return f"{v:.{float_precision}f}", type(v)
+        elif isinstance(v, int):
+            return f"{v:,}", type(v)
+        else:
+            return str(v), type(v)
+
+    # Function to colorize different types of values
+    def colorize_value(v, type_v, bright=True):
+        if GLOBAL_HIGHLIGHTING:
+            color = color_map.get(type_v, Fore.RESET)
+            if bright:
+                return f"{color}{Style.BRIGHT}{v}{Style.RESET_ALL}"
+            else:
+                return f"{color}{v}{Style.RESET_ALL}"
+        else:
+            return v
+
     # Calculate longest key length for proper indentation
     key_len_max = max(len(key) for key in d.keys()) + 1
 
@@ -22,34 +47,20 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
     for key, value in d.items():
         key = key.replace("_", " ").title()
 
-        # Apply color based on the value's type
-        color = color_map.get(type(value), Fore.RESET)
-
-        if isinstance(value, float):
-            value = f"{value:.{float_precision}f}"
         if isinstance(value, list):
-            print(
-                "\t" * indent + f"{str(key).ljust(key_len_max)}: ",
-                end="",
-            )
-            for i, item in enumerate(value):
-                if isinstance(item, float):
-                    item = f"{item:.{float_precision}f}"
+            value = [colorize_value(*format_value(v)) for v in value]
+            print("\t" * indent + f"{str(key).ljust(key_len_max)}: ", end="")
+            for i, v in enumerate(value):
                 if i == 0:
-                    print(f"{color}{Style.BRIGHT}{value[0]}{Style.RESET_ALL}")
+                    print(v)
                 else:
-                    print(
-                        f"{' ' * (indent * 8 + key_len_max + 2)}{color}{Style.BRIGHT}{str(item)}{Style.RESET_ALL}",
-                        end="\n",
-                    )
+                    print(f"{' ' * (indent * 8 + key_len_max + 2)}{v}", end="\n")
         elif isinstance(value, dict):
             print("\t" * indent + f"{str(key).ljust(key_len_max)}:")
             pretty_print_dict(value, float_precision, sort_keys, indent + 1)
         else:
-            print(
-                "\t" * indent
-                + f"{str(key).ljust(key_len_max)}: {color}{Style.BRIGHT}{str(value)}{Style.RESET_ALL}"
-            )
+            value = colorize_value(*format_value(value))
+            print("\t" * indent + f"{str(key).ljust(key_len_max)}: {value}")
 
 
 def read_config():
@@ -83,6 +94,10 @@ class PrintLogger:
 
 @contextmanager
 def redirect_print_to_log(log_file):
+    global GLOBAL_HIGHLIGHTING
+    # Disable highlighting so we don't write color codes to the log.
+    GLOBAL_HIGHLIGHTING = False
+
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     logger = PrintLogger(log_file)
     try:

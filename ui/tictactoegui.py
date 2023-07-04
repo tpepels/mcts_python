@@ -69,14 +69,15 @@ def draw_window(state):
 
 def main():
     run = True
+    game_state = TicTacToeGameState(board_size=ROWS)
     ai_player = 2
     ai_params = AIParams(
         ai_key="alphabeta",
         eval_key="evaluate_tictactoe",
         ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
+        transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, ai_player)
-    game_state = TicTacToeGameState(board_size=ROWS)
 
     while run:
         CLOCK.tick(60)

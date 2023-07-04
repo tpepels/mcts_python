@@ -62,14 +62,15 @@ def draw_board(game_state: AmazonsGameState, from_position=None, to_position=Non
 
 
 def main():
+    game_state = AmazonsGameState()
     ai_player = 2
     ai_params = AIParams(
         ai_key="alphabeta",
         eval_key="evaluate_amazons_lieberum",
         ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
+        transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, ai_player)
-    game_state = AmazonsGameState()
     from_position = None
     to_position = None
 

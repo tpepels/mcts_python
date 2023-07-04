@@ -25,10 +25,12 @@ class TranspositionTable:
         """
         self.size = size
         self.table = OrderedDict()
-        self.reset_metrics()
+        # Metrics for debugging and experimental purposes
+        self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
+        self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
     def get(
-        self, key: int, depth: int, player: str, board: Optional[str] = None
+        self, key: int, depth: int, player: str, max_d: int, board: Optional[str] = None
     ) -> Union[Tuple[int, Tuple[int, int]], None]:
         """
         Retrieve a value from the transposition table for the given key, depth, and player.
@@ -49,14 +51,15 @@ class TranspositionTable:
             transposition_table.get(key, depth, player, board)
         """
         try:
-            value, stored_depth, stored_player, best_move, stored_board = self.table.pop(key)
+            value, stored_depth, stored_player, best_move, stored_max_d, stored_board = self.table[key]
             if stored_board is not None and stored_board != board:
                 raise IncorrectBoardException(
                     f"Stored: {stored_board} is not the same as {board} stored at {key}"
                 )
 
-            if stored_depth >= depth and stored_player == player:
-                self.table[key] = (value, stored_depth, stored_player, best_move, stored_board)
+            if stored_depth >= depth and stored_player == player and stored_max_d >= max_d:
+                # Add the key to the LRU again so it it "refreshed"
+                self.table[key] = (value, stored_depth, stored_player, best_move, stored_max_d, stored_board)
                 self.cache_hits += 1  # Increase the cache hits
                 return value, best_move
 
@@ -71,6 +74,7 @@ class TranspositionTable:
         depth: int,
         player: str,
         best_move: Tuple[int, int],
+        max_d: int,
         board: Optional[str] = None,
     ):
         """
@@ -95,8 +99,15 @@ class TranspositionTable:
             transposition_table.put(key, value, depth, player, best_move, board)
         """
         if key in self.table:
-            v = self.table[key]
-            if v[1] >= depth:
+            (
+                _,
+                stored_depth,
+                _,
+                _,
+                stored_max_d,
+                _,
+            ) = self.table[key]
+            if stored_depth > depth and stored_max_d >= max_d:
                 return  # The stored value is from a deeper depth, don't overwrite it.
             else:
                 self.table.pop(key)
@@ -105,9 +116,14 @@ class TranspositionTable:
             self.table.popitem(last=False)
             self.cleanups += 1
 
-        self.table[key] = (value, depth, player, best_move, board)
+        self.table[key] = (value, depth, player, best_move, max_d, board)
 
     def reset_metrics(self):
+        # Keep some cumulative statistics
+        self.c_cache_hits += self.cache_hits
+        self.c_cache_misses += self.cache_misses
+        self.c_collisions += self.collisions
+        self.c_cleanups += self.cleanups
         # Metrics for debugging and experimental purposes
         self.cache_hits = 0
         self.cache_misses = 0
@@ -119,9 +135,19 @@ class TranspositionTable:
         Get the metrics for debugging and experimental purposes.
         """
         return {
-            "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses,
-            "table_size": len(self.table),
-            "collisions": self.collisions,
-            "cleanups": self.cleanups,
+            "tt_cache_hits": self.cache_hits,
+            "tt_cache_misses": self.cache_misses,
+            "tt_entries": len(self.table),
+            "tt_size": self.size,
+            "tt_collisions": self.collisions,
+            "tt_cleanups": self.cleanups,
+        }
+
+    def get_cumulative_metrics(self):
+        return {
+            "tt_total_cache_hits": self.c_cache_hits,
+            "tt_total_cache_misses": self.c_cache_misses,
+            "tt_total_collisions": self.c_collisions,
+            "tt_total_cleanups": self.c_cleanups,
+            "tt_size": self.size,
         }
