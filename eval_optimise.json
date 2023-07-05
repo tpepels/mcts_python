@@ -6,7 +6,7 @@
     "game_name": "tictactoe",
     "game_params": {
       "board_size": 9,
-      "row_size": 5
+      "row_length": 5
     },
     "player_name": "alphabeta",
     "eval_name": "evaluate_n_in_a_row",
