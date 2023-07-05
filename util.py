@@ -17,8 +17,10 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
     color_map = {float: Fore.BLUE, int: Fore.GREEN, str: Fore.CYAN, list: Fore.MAGENTA, bool: Fore.YELLOW}
 
     # Function to format different types of values
-    def format_value(v):
-        if isinstance(v, bool):  # handle bool before int
+    def format_value(v, key):
+        if "time" in key.lower() and isinstance(v, (int, float)):
+            return format_time(v), type(v)
+        elif isinstance(v, bool):  # handle bool before int
             return str(v), type(v)
         elif isinstance(v, float):
             return f"{v:.{float_precision}f}", type(v)
@@ -48,7 +50,7 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
         key = key.replace("_", " ").title()
 
         if isinstance(value, list):
-            value = [colorize_value(*format_value(v)) for v in value]
+            value = [colorize_value(*format_value(v, key)) for v in value]
             print("\t" * indent + f"{str(key).ljust(key_len_max)}: ", end="")
             for i, v in enumerate(value):
                 if i == 0:
@@ -59,8 +61,22 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
             print("\t" * indent + f"{str(key).ljust(key_len_max)}:")
             pretty_print_dict(value, float_precision, sort_keys, indent + 1)
         else:
-            value = colorize_value(*format_value(value))
+            value = colorize_value(*format_value(value, key))
             print("\t" * indent + f"{str(key).ljust(key_len_max)}: {value}")
+
+
+def format_time(seconds):
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    time_str = ""
+
+    if hours:
+        time_str += f"{int(hours)} hours, "
+    if minutes:
+        time_str += f"{int(minutes)} minutes, "
+    time_str += f"{seconds:.2f} seconds"
+
+    return time_str
 
 
 def read_config():

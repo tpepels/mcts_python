@@ -19,7 +19,7 @@ import util
 import jsonschema
 from games.gamestate import draw, loss, win
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
-from util import log_exception_handler
+from util import format_time, log_exception_handler
 
 sheet: gspread.Worksheet = None
 csv_f: TextIOWrapper = None
@@ -679,12 +679,12 @@ def run_experiments_from_file(file_path):
         avg_time_per_experiment = sum(times) / len(times)
         estimated_remaining_time = avg_time_per_experiment * (total_experiments - (i + 1))
 
-        print(f"Finished {experiment_name} in {exp_time:.2f} seconds.")
-        print(f"Estimated remaining time: {estimated_remaining_time:.2f} seconds.\n")
+        print(f"Finished {experiment_name} in {format_time(exp_time)}.")
+        print(f"Estimated remaining time: {format_time(estimated_remaining_time)}.\n")
 
     end_time = time.time()
     total_time = end_time - start_time
-    print(f"Finished all experiments in {total_time:.2f} seconds.")
+    print(f"Finished all experiments in {format_time(total_time)}.")
 
 
 def validate_experiment_config(config):

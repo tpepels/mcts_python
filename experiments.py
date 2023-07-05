@@ -16,23 +16,48 @@ import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
 from prettytable import PrettyTable
 
-from run_games import AIParams, run_multiple_game_experiments
+from run_games import AIParams, init_game, run_multiple_game_experiments
 from util import read_config
 
-# Column indices in Google Sheets (1-based)
-STATUS_COLUMN = 1
-N_GAMES_COLUMN = 2
-START_COLUMN = 3
-COMPLETED_GAMES_COLUMN = 4
-ERROR_GAMES_COLUMN = 5
-WORKSHEET_COLUMN = 6
+# USE THE FOLLOWING AS HEADER FOR THE GOOGLE SHEET
+# status, n_games, start, completed_games, errors, worksheet, game_key, game_params, p1_ai_key, p1_ai_params, p1_eval_key, p1_eval_params, p2_ai_key, p2_ai_params, p2_eval_key, p2_eval_params
 
-# Status values
-PENDING = "Pending"
-RUNNING = "Running"
-COMPLETED = "Completed"
-INTERRUPTED = "Interrupted"
-RESUME = "Resume"
+
+class ExperimentColumns:
+    STATUS_COLUMN = "status"
+    N_GAMES_COLUMN = "n_games"
+    START_COLUMN = "start"
+    COMPLETED_GAMES_COLUMN = "completed_games"
+    ERROR_GAMES_COLUMN = "n_errors"
+    WORKSHEET_COLUMN = "worksheet"
+    ERROR_COLUMN = "errors"
+    GAME_KEY_COLUMN = "game_key"
+    GAME_PARAMS_COLUMN = "game_params"
+    P1_AI_KEY_COLUMN = "p1_ai_key"
+    P1_AI_PARAMS_COLUMN = "p1_ai_params"
+    P1_EVAL_KEY_COLUMN = "p1_eval_key"
+    P1_EVAL_PARAMS_COLUMN = "p1_eval_params"
+    P2_AI_KEY_COLUMN = "p2_ai_key"
+    P2_AI_PARAMS_COLUMN = "p2_ai_params"
+    P2_EVAL_KEY_COLUMN = "p2_eval_key"
+    P2_EVAL_PARAMS_COLUMN = "p2_eval_params"
+
+
+class ExperimentStatus:
+    # Column indices in Google Sheets (1-based)
+    STATUS_COLUMN = 1
+    N_GAMES_COLUMN = 2
+    START_COLUMN = 3
+    COMPLETED_GAMES_COLUMN = 4
+    ERROR_GAMES_COLUMN = 5
+    WORKSHEET_COLUMN = 6
+    ERROR_MESSAGE_COLUMN = 7
+    # Status values
+    PENDING = "Pending"
+    RUNNING = "Running"
+    COMPLETED = "Completed"
+    INTERRUPTED = "Interrupted"
+    RESUME = "Resume"
 
 
 def mark_experiment_as_status(
@@ -68,93 +93,109 @@ def mark_experiment_as_status(
     """
     try:
         # We add 2 because Google Sheets has 1-based indexing and the first row is the header
-        sheet.update_cell(index + 2, STATUS_COLUMN, status)
-        if status in [RUNNING, COMPLETED]:
+        sheet.update_cell(index + 2, ExperimentStatus.STATUS_COLUMN, status)
+        if status in [ExperimentStatus.RUNNING, ExperimentStatus.COMPLETED]:
             if n_games:
-                sheet.update_cell(index + 2, N_GAMES_COLUMN, n_games)  # Total number of games
+                sheet.update_cell(
+                    index + 2, ExperimentStatus.N_GAMES_COLUMN, n_games
+                )  # Total number of games
             if start_time:
                 sheet.update_cell(
-                    index + 2, START_COLUMN, start_time.strftime("%Y-%m-%d %H:%M:%S")
+                    index + 2, ExperimentStatus.START_COLUMN, start_time.strftime("%Y-%m-%d %H:%M:%S")
                 )  # Start time
             if completed_games > 0:
-                sheet.update_cell(index + 2, COMPLETED_GAMES_COLUMN, completed_games)  # Completed games
+                sheet.update_cell(
+                    index + 2, ExperimentStatus.COMPLETED_GAMES_COLUMN, completed_games
+                )  # Completed games
             if error_games > 0:
-                sheet.update_cell(index + 2, ERROR_GAMES_COLUMN, error_games)  # Games with errors
+                sheet.update_cell(
+                    index + 2, ExperimentStatus.ERROR_GAMES_COLUMN, error_games
+                )  # Games with errors
             if worksheet_name:
-                sheet.update_cell(index + 2, WORKSHEET_COLUMN, worksheet_name)
+                sheet.update_cell(index + 2, ExperimentStatus.WORKSHEET_COLUMN, worksheet_name)
     except Exception as e:
         print(f"Failed to mark experiment as {status}: {e}")
 
 
-def parse_parameters(param_string: str, sheet: gspread.worksheet, index: int):
+def run_new_experiment(row: pd.Series, index: int, sheet: gspread.Worksheet, n_procs: int):
     """
-    Parse a string containing parameter details into a dictionary. If a value is a JSON list or a range (in the format
-    'start:end:step'), it's converted into a Python list.
+    Prepare and run a new experiment.
+
+    This function prepares the parameters needed to run a new experiment based on
+    information in a given row of a DataFrame. It then starts a new process to run
+    the experiment, and updates the status of the experiment in the Google Sheets document.
 
     Args:
-        param_string (str): A string containing parameter details. Expected to be a JSON-like string.
-        sheet (gspread.Worksheet): The Google Sheets document.
-        index (int): The index of the experiment in the DataFrame (0-based).
+        row (pandas.Series): A row from the DataFrame representing the experiments table.
+        index (int): The index of the row in the DataFrame.
+        sheet (gspread.Worksheet): The worksheet of the Google Sheets document.
 
     Returns:
-        dict: A dictionary containing the parsed parameters.
-
-    Example:
-        param_string = '{"param1": "[1, 2]", "param2": "3:5:1"}'
-        parse_parameters(param_string, sheet, 0) would return:
-        {"param1": [1, 2], "param2": [3.0, 4.0]}
+        multiprocessing.Process: The process that was started to run the experiment.
     """
-    try:
-        params = json.loads(param_string)
-        for key, value in params.items():
-            if isinstance(value, str) and re.match(r"\[(.*)\]", value):  # Check if the value is a list
-                params[key] = json.loads(value)  # Converts the string to list using json
-            elif isinstance(value, str) and ":" in value:  # Check if the value is a range
-                start, end, step = map(float, value.split(":"))
-                params[key] = list(np.arange(start, end, step))
-        return params
+    game_params = row[ExperimentColumns.GAME_PARAMS]
+    game_name = row[ExperimentColumns.GAME_KEY]
+    game = init_game(game_name, game_params=game_params)
 
-    except Exception as e:
-        print(f"Failed to parse parameters: {e}")
-        # Here, assuming that your ERROR_COLUMN is the 6th column. You can change this according to your sheet.
-        ERROR_COLUMN = 6
-        sheet.update_cell(index + 2, ERROR_COLUMN, f"Failed to parse parameters: {e}")
-        return None
+    p1_params = AIParams(
+        ai_key=row[ExperimentColumns.P1_AI_KEY],
+        ai_params=row[ExperimentColumns.P1_AI_PARAMS],
+        eval_key=row[ExperimentColumns.P1_EVAL_KEY],
+        eval_params=row[ExperimentColumns.P1_EVAL_PARAMS],
+        transposition_table_size=game.transposition_table_size(),
+    )
+    p2_params = AIParams(
+        ai_key=row[ExperimentColumns.P2_AI_KEY],
+        ai_params=row[ExperimentColumns.P2_AI_PARAMS],
+        eval_key=row[ExperimentColumns.P2_EVAL_KEY],
+        eval_params=row[ExperimentColumns.P2_EVAL_PARAMS],
+        transposition_table_size=game.transposition_table_size(),
+    )
+    del game
+    # Create a new sheet for this experiment if it's a new one, else fetch the interrupted one
+    if row[ExperimentColumns.STATUS] == ExperimentStatus.PENDING:
+        if game_params and "board_size" in game_params:
+            game_name_str = game_name + str(game_params["board_size"])
+        else:
+            game_name_str = game_name
 
+        sheet_name = (
+            f"{game_name_str}_{p1_params}_{p2_params}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        start_game = 0
+    else:
+        sheet_name = row[ExperimentColumns.SHEET_NAME]
+        start_game = row[ExperimentColumns.COMPLETED_GAMES] + 1
 
-def expand_rows(df: pd.DataFrame):
-    """
-    Expand the rows of the DataFrame to represent each combination of parameter values (parameter set).
+    # Run the experiment in a separate process
+    current_experiment_process = multiprocessing.Process(
+        target=run_multiple_game_experiments,
+        args=(
+            row[ExperimentColumns.N_GAMES],
+            start_game,
+            sheet_name,
+            game_name,
+            game_params,
+            p1_params,
+            p2_params,
+            n_procs,
+        ),
+    )
+    current_experiment_process.start()
 
-    Args:
-        df (pd.DataFrame): A pandas DataFrame with parameter columns. If a column's first value is a list,
-                           the entire column is treated as list-like.
+    # Mark the new experiment as running
+    mark_experiment_as_status(
+        sheet,
+        index,
+        ExperimentStatus.RUNNING,
+        row[ExperimentColumns.N_GAMES],
+        datetime.datetime.now(),
+        0,
+        0,
+        sheet_name,
+    )
 
-    Returns:
-        pd.DataFrame: A new pandas DataFrame with expanded rows.
-
-    Example:
-        input_df = pd.DataFrame({
-            "param1": [[1, 2]],
-            "param2": [[3, 4]]
-        })
-        expand_rows(input_df) would return:
-        pd.DataFrame({
-            "param1": [1, 2, 1, 2],
-            "param2": [3, 3, 4, 4]
-        })
-    """
-    param_columns = [col for col in df.columns if isinstance(df[col].iloc[0], list)]
-    expanded_rows = []
-
-    for _, row in df.iterrows():
-        temp_df = pd.DataFrame()
-        for col in param_columns:
-            temp_df = pd.concat([temp_df, pd.DataFrame({col: row[col]})], axis=1)
-
-        expanded_rows.append(temp_df)
-
-    return pd.concat(expanded_rows, ignore_index=True)
+    return current_experiment_process
 
 
 def get_experiments_from_sheet(sheet: gspread.Worksheet):
@@ -192,21 +233,36 @@ def get_experiments_from_sheet(sheet: gspread.Worksheet):
     original_df = df.copy()
 
     # Only process experiments that are 'Pending'
-    df = df[df["status"] == PENDING]
+    df = df[df[ExperimentColumns.STATUS_COLUMN] == ExperimentStatus.PENDING]
 
-    # Parse the parameters
-    df["game_params"] = df.apply(
-        lambda row: parse_parameters(row["game_params"], sheet, row["original_index"]), axis=1
+    df[ExperimentColumns.GAME_PARAMS_COLUMN] = df.apply(
+        lambda row: parse_parameters(row[ExperimentColumns.GAME_PARAMS_COLUMN], sheet, row.name), axis=1
     )
-    df["ai_params"] = df.apply(
-        lambda row: parse_parameters(row["ai_params"], sheet, row["original_index"]), axis=1
+    df[ExperimentColumns.P1_AI_PARAMS_COLUMN] = df.apply(
+        lambda row: parse_parameters(row[ExperimentColumns.P1_AI_PARAMS_COLUMN], sheet, row.name), axis=1
+    )
+    df[ExperimentColumns.P2_AI_PARAMS_COLUMN] = df.apply(
+        lambda row: parse_parameters(row[ExperimentColumns.P2_AI_PARAMS_COLUMN], sheet, row.name), axis=1
+    )
+    df[ExperimentColumns.P1_EVAL_PARAMS_COLUMN] = df.apply(
+        lambda row: parse_parameters(row[ExperimentColumns.P1_EVAL_PARAMS_COLUMN], sheet, row.name), axis=1
+    )
+    df[ExperimentColumns.P2_EVAL_PARAMS_COLUMN] = df.apply(
+        lambda row: parse_parameters(row[ExperimentColumns.P2_EVAL_PARAMS_COLUMN], sheet, row.name), axis=1
     )
 
-    # Filter out rows with parsing errors
-    df = df[df["game_params"].notna() & df["ai_params"].notna()]
+    df = df[
+        df[ExperimentColumns.GAME_PARAMS_COLUMN].notna()
+        & df[ExperimentColumns.P1_AI_PARAMS_COLUMN].notna()
+        & df[ExperimentColumns.P2_AI_PARAMS_COLUMN].notna()
+        & df[ExperimentColumns.P1_EVAL_PARAMS_COLUMN].notna()
+        & df[ExperimentColumns.P2_EVAL_PARAMS_COLUMN].notna()
+    ]
 
     # Expand rows for parameter combinations
     df_expanded = expand_rows(df)
+
+    print(df_expanded)
 
     if not df_expanded.equals(df):
         # Write the expanded df back to google sheets so we keep track of individual experiments
@@ -217,6 +273,140 @@ def get_experiments_from_sheet(sheet: gspread.Worksheet):
     result_df = pd.concat([original_df, df_expanded]).drop_duplicates()
 
     return result_df
+
+
+def monitor_sheet_and_run_experiments(interval: int, n_procs: int):
+    """
+    Continuously monitor a Google Sheets document for new experiments and execute them.
+
+    This function will read experiments marked as 'Pending' or 'Interrupted' in the Google Sheets document,
+    mark them as 'Running', run them in a separate process, and then mark them as 'Completed'. It checks
+    the document every interval seconds for new experiments.
+
+    If the function is interrupted (e.g., by a KeyboardInterrupt), it will attempt to terminate the currently
+    running experiment process, mark the experiment as 'Interrupted' in the Google Sheets document, and stop monitoring.
+
+    The Google Sheets document to monitor is specified in the application's configuration file.
+
+    Raises:
+        Exception: If any error occurs during the operation.
+
+    Returns:
+        None
+    """
+    # Use credentials to create a client to interact with the Google Drive API
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
+    client = gspread.authorize(creds)
+
+    # Get the Google Sheet from config
+    sheet = get_config_sheet(client)
+
+    # Running experiment process
+    current_experiment_process = None
+
+    try:
+        while True:
+            df = get_experiments_from_sheet(sheet)
+            for index, row in df.iterrows():
+                if row[ExperimentColumns.STATUS] in [
+                    ExperimentStatus.PENDING,
+                    ExperimentStatus.RESUME,
+                ] and not is_experiment_running(current_experiment_process):
+                    current_experiment_process = run_new_experiment(row, index, sheet, n_procs)
+                elif row[ExperimentColumns.STATUS] == ExperimentStatus.RUNNING:
+                    update_running_experiment_status(
+                        row, index, sheet, is_experiment_running(current_experiment_process)
+                    )
+
+                # Sleep for a while before checking for new experiments
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        print("Interrupted. Attempting to mark currently running experiment as interrupted.")
+        if is_experiment_running(current_experiment_process):
+            # Optionally: terminate the running experiment
+            current_experiment_process.terminate()
+            current_experiment_process.join(30)
+            # Mark the running experiment as interrupted
+            mark_experiment_as_status(sheet, index, ExperimentStatus.INTERRUPTED)
+        print("Stopped monitoring.")
+
+
+def parse_parameters(param_string: str, sheet: gspread.worksheet, index: int):
+    """
+    Parse a string containing parameter details into a dictionary. If a value is a JSON list or a range (in the format
+    'start:end:step'), it's converted into a Python list.
+
+    Args:
+        param_string (str): A string containing parameter details. Expected to be a JSON-like string.
+        sheet (gspread.Worksheet): The Google Sheets document.
+        index (int): The index of the experiment in the DataFrame (0-based).
+
+    Returns:
+        dict: A dictionary containing the parsed parameters.
+
+    Example:
+        param_string = '{"param1": "[1, 2]", "param2": "3:5:1"}'
+        parse_parameters(param_string, sheet, 0) would return:
+        {"param1": [1, 2], "param2": [3.0, 4.0]}
+    """
+    if not param_string:
+        return None
+
+    try:
+        params = json.loads(param_string)
+        for key, value in params.items():
+            if isinstance(value, str) and re.match(r"\[(.*)\]", value):  # Check if the value is a list
+                params[key] = json.loads(value)  # Converts the string to list using json
+            elif isinstance(value, str) and ":" in value:  # Check if the value is a range
+                start, end, step = map(float, value.split(":"))
+                params[key] = list(np.arange(start, end, step))
+        return params
+
+    except Exception as e:
+        print(f"Failed to parse parameters: {param_string}: {e}")
+        sheet.update_cell(
+            index + 2,
+            ExperimentStatus.ERROR_MESSAGE_COLUMN,
+            f"Failed to parse parameters {param_string}: {e}",
+        )
+        return None
+
+
+def expand_rows(df: pd.DataFrame):
+    """
+    Expand the rows of the DataFrame to represent each combination of parameter values (parameter set).
+
+    Args:
+        df (pd.DataFrame): A pandas DataFrame with parameter columns. If a column's first value is a list,
+                           the entire column is treated as list-like.
+
+    Returns:
+        pd.DataFrame: A new pandas DataFrame with expanded rows.
+
+    Example:
+        input_df = pd.DataFrame({
+            "param1": [[1, 2]],
+            "param2": [[3, 4]]
+        })
+        expand_rows(input_df) would return:
+        pd.DataFrame({
+            "param1": [1, 2, 1, 2],
+            "param2": [3, 3, 4, 4]
+        })
+    """
+    # TODO Dit gaat nog niet helemaal lekker...
+    param_columns = [col for col in df.columns if isinstance(df[col].iloc[0], list)]
+    expanded_rows = []
+
+    for _, row in df.iterrows():
+        temp_df = pd.DataFrame()
+        for col in param_columns:
+            temp_df = pd.concat([temp_df, pd.DataFrame({col: row[col]})], axis=1)
+
+        expanded_rows.append(temp_df)
+
+    return pd.concat(expanded_rows, ignore_index=True)
 
 
 def get_config_sheet(client: gspread.Client):
@@ -257,75 +447,6 @@ def is_experiment_running(current_experiment_process: multiprocessing.Process):
     return current_experiment_process and current_experiment_process.is_alive()
 
 
-def run_new_experiment(row: pd.Series, index: int, sheet: gspread.Worksheet):
-    """
-    Prepare and run a new experiment.
-
-    This function prepares the parameters needed to run a new experiment based on
-    information in a given row of a DataFrame. It then starts a new process to run
-    the experiment, and updates the status of the experiment in the Google Sheets document.
-
-    Args:
-        row (pandas.Series): A row from the DataFrame representing the experiments table.
-        index (int): The index of the row in the DataFrame.
-        sheet (gspread.Worksheet): The worksheet of the Google Sheets document.
-
-    Returns:
-        multiprocessing.Process: The process that was started to run the experiment.
-    """
-    # Create AIParams objects for each player
-    p1_params = AIParams(ai_key=row["p1_ai_key"], ai_params=row["p1_ai_params"])
-    p2_params = AIParams(ai_key=row["p2_ai_key"], ai_params=row["p2_ai_params"])
-
-    game_params = row["game_params"]
-    game_name = row["game_key"]
-
-    # Create a new sheet for this experiment if it's a new one, else fetch the interrupted one
-    if row["status"] == PENDING:
-        if game_params and "board_size" in game_params:
-            game_name_str = game_name + str(game_params["board_size"])
-        else:
-            game_name_str = game_name
-
-        sheet_name = (
-            f"{game_name_str}_{p1_params}_{p2_params}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
-        start_game = 0
-    else:
-        sheet_name = row["sheet_name"]
-        start_game = row["completed_games"] + 1
-
-    # Run the experiment in a separate process
-    current_experiment_process = multiprocessing.Process(
-        target=run_multiple_game_experiments,
-        args=(
-            row["n_games"],
-            start_game,
-            sheet_name,
-            game_name,
-            game_params,
-            p1_params,
-            p2_params,
-            row["status"] != PENDING,
-        ),
-    )
-    current_experiment_process.start()
-
-    # Mark the new experiment as running
-    mark_experiment_as_status(
-        sheet,
-        index,
-        RUNNING,
-        row["n_games"],
-        datetime.datetime.now(),
-        0,
-        0,
-        sheet_name,
-    )
-
-    return current_experiment_process
-
-
 def update_running_experiment_status(row: pd.Series, index: int, sheet: gspread.Worksheet, is_running: bool):
     """
     Scan log files for status updates and update Google Sheet.
@@ -340,7 +461,7 @@ def update_running_experiment_status(row: pd.Series, index: int, sheet: gspread.
         sheet (gspread.Worksheet): The worksheet of the Google Sheets document.
         is_running (bool): True if the experiment is still running, false otherwise.
     """
-    sheet_name = row["sheet_name"]
+    sheet_name = row[ExperimentColumns.WORKSHEET_COLUMN]
     completed_games = 0
     error_games = 0
     ai_stats = Counter()  # To hold cumulative statistics per AI
@@ -383,66 +504,43 @@ def update_running_experiment_status(row: pd.Series, index: int, sheet: gspread.
     print(print_stats)
 
     if is_running:
-        mark_experiment_as_status(sheet, index, RUNNING, None, None, completed_games, error_games)
+        mark_experiment_as_status(
+            sheet, index, ExperimentStatus.RUNNING, None, None, completed_games, error_games
+        )
     else:
-        mark_experiment_as_status(sheet, index, COMPLETED, None, None, completed_games, error_games)
+        mark_experiment_as_status(
+            sheet, index, ExperimentStatus.COMPLETED, None, None, completed_games, error_games
+        )
 
 
-def monitor_sheet_and_run_experiments(interval: int):
-    """
-    Continuously monitor a Google Sheets document for new experiments and execute them.
-
-    This function will read experiments marked as 'Pending' or 'Interrupted' in the Google Sheets document,
-    mark them as 'Running', run them in a separate process, and then mark them as 'Completed'. It checks
-    the document every interval seconds for new experiments.
-
-    If the function is interrupted (e.g., by a KeyboardInterrupt), it will attempt to terminate the currently
-    running experiment process, mark the experiment as 'Interrupted' in the Google Sheets document, and stop monitoring.
-
-    The Google Sheets document to monitor is specified in the application's configuration file.
-
-    Raises:
-        Exception: If any error occurs during the operation.
-
-    Returns:
-        None
-    """
-    # Use credentials to create a client to interact with the Google Drive API
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
-    client = gspread.authorize(creds)
-
-    # Get the Google Sheet from config
-    sheet = get_config_sheet(client)
-
-    # Running experiment process
-    current_experiment_process = None
-
-    try:
-        while True:
-            df = get_experiments_from_sheet(sheet)
-            for index, row in df.iterrows():
-                if row["status"] in [PENDING, RESUME] and not is_experiment_running(
-                    current_experiment_process
-                ):
-                    current_experiment_process = run_new_experiment(row, index, sheet)
-                elif row["Status"] == RUNNING:
-                    update_running_experiment_status(
-                        row, index, sheet, is_experiment_running(current_experiment_process)
-                    )
-
-                # Sleep for a while before checking for new experiments
-                time.sleep(interval)
-    except KeyboardInterrupt:
-        print("Interrupted. Attempting to mark currently running experiment as interrupted.")
-        if is_experiment_running(current_experiment_process):
-            # Optionally: terminate the running experiment
-            current_experiment_process.terminate()
-            current_experiment_process.join(30)
-            # Mark the running experiment as interrupted
-            mark_experiment_as_status(sheet, index, INTERRUPTED)
-        print("Stopped monitoring.")
-
+import argparse
 
 if __name__ == "__main__":
-    monitor_sheet_and_run_experiments(30)
+    # Initialize the argument parser
+    parser = argparse.ArgumentParser(
+        description="Monitor a Google Sheets document for new experiments and execute them."
+    )
+
+    # Add the interval argument
+    parser.add_argument(
+        "-i",
+        "--interval",
+        type=int,
+        required=True,
+        help="The interval in seconds between each check for new experiments.",
+    )
+
+    # Add the n_procs argument
+    parser.add_argument(
+        "-n",
+        "--n_procs",
+        type=int,
+        required=True,
+        help="The number of processor cores to use for running the experiments.",
+    )
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    # Call the function with the command-line arguments
+    monitor_sheet_and_run_experiments(args.interval, args.n_procs)
