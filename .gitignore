@@ -5,3 +5,4 @@ __pycache__/
 *.py[cod]
 *.csv
 .DS_Store
+config.ini
