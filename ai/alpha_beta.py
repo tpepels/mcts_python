@@ -38,6 +38,7 @@ class AlphaBetaPlayer(AIPlayer):
         transposition_table_size=2**16,
         use_null_moves=False,
         use_quiescence=False,
+        use_tt=True,
         debug=False,
     ):
         # Identify the player
@@ -61,8 +62,9 @@ class AlphaBetaPlayer(AIPlayer):
         # instance-level statistics
         self.stats = []
         self.c_stats = {key: 0 for key in AlphaBetaPlayer.cumulative_keys}  # Initialize to 0
-        # Store evaluation resuls
-        self.trans_table = TranspositionTable(transposition_table_size)
+        self.trans_table = None
+        if use_tt:  # Store evaluation resuls
+            self.trans_table = TranspositionTable(transposition_table_size)
         global total_search_time, n_moves, depth_reached
         total_search_time[player] = 0
         n_moves[player] = 0
@@ -90,16 +92,6 @@ class AlphaBetaPlayer(AIPlayer):
         ):
             nonlocal evaluated, nodes_visited, cutoffs, max_depth_reached, transpos, start_time, interrupted
             nonlocal total_moves_generated, null_moves_cutoff, search_times, iteration_count, time_limit, best_move_order
-            # null is true if a null-move is possible. If a null move cannot be made then, we are in a part of
-            # the tree where a null move was previously made. Hence we cannot use transpositions.
-            # i.e. do not consider illegal moves in the hash-table
-            if not root:
-                v, best_move = self.trans_table.get(
-                    key=state.board_hash, depth=max_d - depth, player=state.player, max_d=max_d
-                )
-
-                if v is not None:
-                    return v, best_move
 
             # This function checks if we are running out of time
             if iteration_count % 10000 == 0:  # Check every 1000 iterations
@@ -121,18 +113,6 @@ class AlphaBetaPlayer(AIPlayer):
             if depth == 0 or interrupted:
                 evaluated += 1
                 v = self.evaluate(state, self.player)
-                # If not a null-move result
-                if allow_null_move:
-                    self.trans_table.put(
-                        key=state.board_hash,
-                        value=v,
-                        # Store it one depth lower, that way, if we redo the search we can find the
-                        # best move for the position instead of using this evaluation without a next move.
-                        depth=(max_d - depth) - 1,
-                        player=state.player,
-                        best_move=None,
-                        max_d=max_d,
-                    )
                 return v, None
 
             is_max_player = state.player == self.player
@@ -247,7 +227,7 @@ class AlphaBetaPlayer(AIPlayer):
 
             finally:
                 # If not a null-move result
-                if allow_null_move:
+                if self.trans_table is not None and allow_null_move:
                     self.trans_table.put(
                         key=state.board_hash,
                         value=v,
@@ -342,9 +322,9 @@ class AlphaBetaPlayer(AIPlayer):
             self.c_stats["total_search_time"] += time.time() - start_time
             self.c_stats["count_searches"] += 1
             self.c_stats["count_timed_out"] += int(interrupted)
-
-            stat_dict = {**stat_dict, **self.trans_table.get_metrics()}
-            self.trans_table.reset_metrics()
+            if self.trans_table is not None:
+                stat_dict = {**stat_dict, **self.trans_table.get_metrics()}
+                self.trans_table.reset_metrics()
             pretty_print_dict(stat_dict)
 
         return best_move, v
@@ -434,7 +414,7 @@ class AlphaBetaPlayer(AIPlayer):
             (self.c_stats["count_timed_out"] / self.c_stats["count_searches"]) * 100
         )
         if self.use_quiescence:
-            self.c_stats["average_q_searches"] = (
+            self.c_stats["average_q_searches"] = int(
                 self.c_stats["total_q_searches"] / self.c_stats["count_searches"]
             )
         if self.use_null_moves:
@@ -443,7 +423,10 @@ class AlphaBetaPlayer(AIPlayer):
             )
 
         print(f"Cumulative statistics for player {self.player}, {self}")
-        pretty_print_dict({**self.c_stats, **self.trans_table.get_cumulative_metrics()})
+        if self.trans_table is not None:
+            pretty_print_dict({**self.c_stats, **self.trans_table.get_cumulative_metrics()})
+        else:
+            pretty_print_dict(self.c_stats)
 
     def __repr__(self):
         return (

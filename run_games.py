@@ -20,12 +20,13 @@ from games.breakthrough import (
 )
 from games.gamestate import GameState, draw, loss, win
 from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_enhanced
-from games.tictactoe import TicTacToeGameState, evaluate_tictactoe
+from games.tictactoe import TicTacToeGameState, evaluate_tictactoe, evaluate_n_in_a_row
 from util import log_exception_handler, read_config, redirect_print_to_log
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {
     evaluate_tictactoe.__name__: evaluate_tictactoe,
+    evaluate_n_in_a_row.__name__: evaluate_n_in_a_row,
     evaluate_breakthrough.__name__: evaluate_breakthrough,
     evaluate_breakthrough_lorenz.__name__: evaluate_breakthrough_lorenz,
     evaluate_amazons.__name__: evaluate_amazons,
@@ -138,7 +139,7 @@ def init_ai_player(params: AIParams, player: int) -> AIPlayer:
     return player
 
 
-def play_game_until_terminal(game, player1, player2, callback=None):
+def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlayer, callback=None):
     """
     Play the game with the provided players and return the result.
 
@@ -163,7 +164,7 @@ def play_game_until_terminal(game, player1, player2, callback=None):
             callback(current_player, action, game)
 
         # Switch the current player
-        current_player = player2 if current_player == player1 else player1
+        current_player = player2 if game.player == 2 else player1
 
     return game.get_reward(1)
 

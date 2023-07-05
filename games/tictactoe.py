@@ -206,46 +206,104 @@ def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 
     return score
 
 
-def evaluate_nk_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 1.0):
-    def calculate_score(marks, score_factor):
-        if opponent not in marks and player in marks:
-            return score_factor * ((len(marks) - marks.count(0)) * marks.count(player)) ** 2
-        elif player not in marks and opponent in marks:
-            return -score_factor * ((len(marks) - marks.count(0)) * marks.count(opponent)) ** 2
-        return 0
+def evaluate_n_in_a_row(
+    state,
+    player,
+    m_weight=2,
+    m_opp_disc=0.9,
+    m_win=1000,
+):
+    """
+    Evaluate the current state of a n-in-a-row Tic Tac Toe game.
 
-    def potential_win(marks):
-        return (
-            marks.count(player if state.player == player else opponent) == state.row_length - 1
-            and marks.count(0) == 1
-        )
+    This function calculates a score for the current game state,
+    favoring states where the specified player has more chances to win.
 
-    score = 0
-    board = state.board
+    Args:
+        state (TicTacToeGameState): The current game state.
+        player (int): The player for whom to evaluate the game state.
+        m_weight (float): The base of the exponential score for a player's marks. Default is 2.
+        m_opp_disc (float): The discount to apply to the score if it's the opponent's turn. Default is 0.99.
+        m_win (int): The bonus to add to the score if the game is potentially winnable on the next move. Default is 1000.
+
+    Returns:
+        float: The score of the current game state for the specified player.
+    """
+
+    def score_line(line: list):
+        """
+        Compute the score for a line by counting consecutive marks and adjacent empty spaces.
+
+        Args:
+            line (list): The line to score.
+
+        Returns:
+            tuple: The score for the player, the score for the opponent, and whether each player has a potential win in the next move.
+        """
+        score = {player: 0, opponent: 0}
+        max_sequence_length = {player: 0, opponent: 0}
+        current_sequence_length = {player: 0, opponent: 0}
+        adjacent_empty_spaces = {player: 0, opponent: 0}
+        potential_wins = {player: 0, opponent: 0}
+
+        for mark in line:
+            if mark == 0:  # empty space
+                for m in score:  # both players
+                    adjacent_empty_spaces[m] += 1
+            else:
+                current_sequence_length[mark] += 1
+                max_sequence_length[mark] = max(max_sequence_length[mark], current_sequence_length[mark])
+                # A mark for me resets the sequence for the opponent
+                current_sequence_length[3 - mark] = 0
+
+        for m in score:  # both players
+            if max_sequence_length[m] + adjacent_empty_spaces[m] >= row_length:  # there's room for a win
+                score[m] = m_weight ** max_sequence_length[m] + m_weight ** adjacent_empty_spaces[m]
+                # The sequence can lead to a win, hurray!
+                if max_sequence_length[m] == row_length - 1 and adjacent_empty_spaces[m] > 0:
+                    potential_wins[m] += 1
+
+        return score, potential_wins
+
+    total_score = 0
     size = state.size
     row_length = state.row_length
+    board = state.board
     opponent = 3 - player
-
     lines = []
 
-    # Rows and columns
     for i in range(size):
         for j in range(size - row_length + 1):
-            lines.append([board[i][j + k] for k in range(row_length)])  # row i
-            lines.append([board[j + k][i] for k in range(row_length)])  # column i
-
-    # Diagonals
+            lines.append([board[i][j + k] for k in range(row_length)])  # horizontal
+    for j in range(size):
+        for i in range(size - row_length + 1):
+            lines.append([board[i + k][j] for k in range(row_length)])  # vertical
+    # diagonal from top-left to bottom-right
     for i in range(size - row_length + 1):
         for j in range(size - row_length + 1):
-            lines.append([board[i + k][j + k] for k in range(row_length)])  # main diagonal
-            lines.append([board[i + k][size - j - k - 1] for k in range(row_length)])  # anti-diagonal
+            lines.append([board[i + k][j + k] for k in range(row_length)])
+    # diagonal from bottom-left to top-right
+    for i in range(row_length - 1, size):
+        for j in range(size - row_length + 1):
+            lines.append([board[i - k][j + k] for k in range(row_length)])
 
-    for marks in lines:
-        score += calculate_score(marks, m_score)
-        if potential_win(marks):
-            return 10000 if state.player == player else -10000
+    potential_wins = {player: 0, 3 - player: 0}
 
-    # Discount score if it is the opponent's turn
-    score *= m_opp_disc if state.player == opponent else 1.0
+    for line in lines:
+        line_scores, line_potential_wins = score_line(line)
+        total_score += line_scores[player] - line_scores[opponent]
+        potential_wins[player] += line_potential_wins[player]
+        potential_wins[opponent] += line_potential_wins[opponent]
 
-    return score
+    # Win bonusses should discount if the player is not the player to move (as that line can still be blocked)
+    if state.player != player:
+        potential_wins[player] -= 1
+    else:
+        potential_wins[opponent] -= 1
+    # Add win bonuses
+    if potential_wins[player] >= 1:
+        total_score += potential_wins[player] * m_win
+    if potential_wins[opponent] >= 1:
+        total_score -= potential_wins[opponent] * m_win
+
+    return total_score if state.player == player else m_opp_disc * total_score

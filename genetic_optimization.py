@@ -1,3 +1,4 @@
+import argparse
 import csv
 import datetime
 import json
@@ -23,6 +24,7 @@ from util import log_exception_handler
 sheet: gspread.Worksheet = None
 csv_f: TextIOWrapper = None
 csv_writer = None
+GLOBAL_N_PROCS = None  # set this value to override the number of cpu's to use for all experiments
 
 
 def setup_reporting(
@@ -153,7 +155,10 @@ def genetic_algorithm(
         >>> ai_param_ranges = {'a': {'range': (0, 10), 'precision': 2}, 'b': {'range': (0, 1), 'precision': 3},}
         >>> eval_param_ranges = {'m': {'range': ((0, 10), (1, 10), (1, 2), (1, 4)), 'precision': (1, 2, 2, 3)},}
     """
-    # The rest of your code...
+    global GLOBAL_N_PROCS
+    if GLOBAL_N_PROCS is not None:
+        n_procs = GLOBAL_N_PROCS
+
     if debug:
         start_time = time.time()
 
@@ -720,3 +725,16 @@ def validate_experiment_config(config):
 
     # Validate the configuration
     jsonschema.validate(config, schema)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run experiments from a JSON file.")
+    parser.add_argument("file", help="The path to the JSON file containing the experiments.")
+    parser.add_argument("--n_procs", type=int, help="The number of processors to use.")
+
+    args = parser.parse_args()
+
+    # Update the global variable based on the argument
+    GLOBAL_N_PROCS = args.n_procs
+
+    run_experiments_from_file(args.file)

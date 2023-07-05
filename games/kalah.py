@@ -283,7 +283,7 @@ class KalahGameState(GameState):
     @property
     def transposition_table_size(self):
         # return an appropriate size based on the game characteristics
-        return 2**18
+        return 2**21
 
 
 def calc_last_index_total_steps(seeds, move, k, size=13):
