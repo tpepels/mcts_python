@@ -150,6 +150,12 @@ class TicTacToeGameState(GameState):
         # return an appropriate size based on the game characteristics
         return 2**16
 
+    def __repr__(self) -> str:
+        if self.row_length == self.size:
+            return f"tic-tac-toe{self.size}"
+        else:
+            return f"{self.row_length}-in-a-row{self.size}"
+
 
 def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 1.0):
     """
@@ -209,8 +215,9 @@ def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 
 def evaluate_n_in_a_row(
     state,
     player,
-    m_weight=2,
-    m_opp_disc=0.9,
+    m_weight=4.1,
+    m_e_weight=0.2,
+    m_opp_disc=0.72,
     m_win=1000,
 ):
     """
@@ -258,7 +265,7 @@ def evaluate_n_in_a_row(
 
         for m in score:  # both players
             if max_sequence_length[m] + adjacent_empty_spaces[m] >= row_length:  # there's room for a win
-                score[m] = m_weight ** max_sequence_length[m] + m_weight ** adjacent_empty_spaces[m]
+                score[m] = m_weight ** max_sequence_length[m] + m_e_weight * adjacent_empty_spaces[m]
                 # The sequence can lead to a win, hurray!
                 if max_sequence_length[m] == row_length - 1 and adjacent_empty_spaces[m] > 0:
                     potential_wins[m] += 1
@@ -287,7 +294,7 @@ def evaluate_n_in_a_row(
         for j in range(size - row_length + 1):
             lines.append([board[i - k][j + k] for k in range(row_length)])
 
-    potential_wins = {player: 0, 3 - player: 0}
+    potential_wins = {player: 0, opponent: 0}
 
     for line in lines:
         line_scores, line_potential_wins = score_line(line)

@@ -89,23 +89,23 @@ class PrintLogger:
     def __init__(self, logfile):
         self.logfile = logfile
         self._original_stdout = sys.stdout
+        self._log_file = None
 
     def __enter__(self):
-        logging.basicConfig(filename=self.logfile, level=logging.INFO)
-        self._logger = logging.getLogger("")
-        self._logger.setLevel(logging.INFO)
+        self._log_file = open(self.logfile, "a")
         sys.stdout = self
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout = self._original_stdout
+        self._log_file.close()
 
     def write(self, message):
         if message.rstrip() != "":
-            self._logger.info(message.rstrip())
+            self._log_file.write(message.rstrip() + "\n")
 
     def flush(self):
-        for handler in self._logger.handlers:
-            handler.flush()
+        self._log_file.flush()
 
 
 @contextmanager
@@ -122,21 +122,15 @@ def redirect_print_to_log(log_file):
         logger.__exit__(None, None, None)
 
 
-logging.basicConfig(
-    filename="log/error.log",
-    filemode="w",
-    format="%(name)s - %(levelname)s - %(message)s",
-    level=logging.ERROR,
-)
-
-
 def log_exception_handler(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as e:
             error_message = str(e) + "\n" + traceback.format_exc()
-            logging.error(f"An exception occurred in {func.__name__}: {error_message}")
+            log_file = f"log/{func.__name__}_error.log"
+            with open(log_file, "a") as f:
+                f.write(f"An exception occurred in {func.__name__}: {error_message}\n")
             raise e  # re-throw the exception after logging
 
     return wrapper

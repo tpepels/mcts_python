@@ -62,22 +62,27 @@ class AIParams:
 
     ai_key: str
     eval_key: str
+    max_player: int
     ai_params: Optional[Dict[str, Any]] = None
     eval_params: Optional[Dict[str, Any]] = None
     transposition_table_size: int = 2**16
 
     def __str__(self):
         """Generate string representation of AI parameters."""
-        string_repr = f"AI: {self.ai_key}"
-        if self.ai_params is not None:
-            string_repr += f" with parameters {self.ai_params}"
+        string_repr = f"P{self.max_player}, {self.ai_key}"
+        if self.ai_params:
+            string_repr += f" parameters {d_to_s(self.ai_params)}"
 
-        string_repr += f" and evaluation function {self.eval_key}"
+        string_repr += f" evaluation {self.eval_key}"
 
-        if self.eval_params is not None:
-            string_repr += f" with parameters {self.eval_params}."
+        if self.eval_params:
+            string_repr += f" parameters {d_to_s(self.eval_params)}."
 
         return string_repr
+
+
+def d_to_s(d):
+    return [str(k) + ":" + str(v) for k, v in d.items()]
 
 
 def init_game_and_players(
@@ -163,7 +168,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
 
         # Call the callback function if any
         if callback is not None:
-            callback(current_player, action, game)
+            callback(current_player, action, game, time.time())
 
         # Switch the current player
         current_player = player2 if game.player == 2 else player1
@@ -181,7 +186,7 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
         p2_params (AIParams): The parameters for player 2's AI.
     """
 
-    def callback(player, action, game: GameState):
+    def callback(player, action, game: GameState, time):
         print(f"Player {player} chosen action: {action}. Current game state: \n {game.visualize()}")
         if game.is_terminal():
             if game.get_reward(1) == win:
@@ -227,17 +232,15 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     # Initialize stats
     setup = f"Game: {game_key} with parameters {game_params}. Player 1: {p1_params}. Player 2: {p2_params}"
 
-    times = {1: [], 2: []}
+    times = []
     n_moves = 0
+    # For the first move
+    times.append(time.time())
 
-    def callback(current_player, action, game):
+    def callback(current_player, action, game, time):
         nonlocal n_moves
-        start_time_move = time.time()
-        v = current_player.evaluate(game)
-        elapsed_time_move = time.time() - start_time_move
-        times[game.player].append(elapsed_time_move)
-
-        print(f"Player {game.player}, action: {action}, v: {v:.1f}, time: {elapsed_time_move:.1f}")
+        times.append(time)
+        print(f"Player {game.player}, action: {action}, time: {times[-1] - times[-2]:.1f}")
         print(game.visualize())
         n_moves += 1
 
@@ -245,7 +248,12 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     result = play_game_until_terminal(game, p1, p2, callback=callback)
     total_time = time.time() - start_time_total
 
-    avg_time_per_move = (sum(times[1]) / len(times[1]), sum(times[2]) / len(times[2]))
+    # Calculate time intervals between moves for each player
+    time_intervals = [times[i + 1] - times[i] for i in range(len(times) - 1)]
+    odd_moves = time_intervals[::2]
+    even_moves = time_intervals[1::2]
+
+    avg_time_per_move = (sum(odd_moves) / len(odd_moves), sum(even_moves) / len(even_moves))
 
     if result == win:
         result = 1
@@ -263,52 +271,98 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     return setup, total_time, avg_time_per_move, n_moves, result
 
 
-def get_authenticated_sheets_client() -> gspread.client.Client:
-    """Authorize a client to interact with the Google Drive API."""
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file("client_secret.json", scopes=scopes)
-    return gspread.authorize(creds)
-
-
-def run_multiple_game_experiments(
-    n_games: int,
-    start_game: int,
-    worksheet_name: str,
+def run_single_experiment(
+    i: int,
     game_key: str,
     game_params: dict[str, Any],
     p1_params: AIParams,
     p2_params: AIParams,
-    n_procs: 8,
+    players_switched: bool,
+    worksheet_name: str,
 ) -> None:
-    """
-    Run multiple game experiments and log the results in a Google Sheets document.
-
-    This function will shuffle the games to be played and use multiprocessing to run them in parallel.
-    Each game's result will be logged in a row in the Google Sheets document, along with statistics and
-    parameters. If the process is interrupted and restarted, the function will resume from the
-    last completed game (determined by the start_game parameter).
+    """Run a single game experiment and log the results in the worksheet.
 
     Args:
-        n_games (int): The number of games to run.
-        start_game (int): The game number from which to start (to resume interrupted experiments).
-        worksheet_name (str): The name of the Google Sheets document to write the results to.
+        i (int): The game number.
         game_key (str): The key for the game.
+        game_params (dict[str, Any]): The parameters for the game.
         p1_params (AIParams): The parameters for player 1's AI.
         p2_params (AIParams): The parameters for player 2's AI.
-        game_params (dict[str, Any]): The parameters for the game.
+        worksheet_name (str): The name of the sheet to place the results in.
+        players_switched (bool): Whether player 1 and 2 are switched.
+        worksheet_name (str): String used to identify the experiment
     """
 
-    client = get_authenticated_sheets_client()
+    try:
+        with redirect_print_to_log(f"log/games/{worksheet_name}/{i}.log"):
+            setup, total_time, avg_time_per_move, n_moves, result = run_game_experiment(
+                game_key, game_params, p1_params, p2_params
+            )
 
-    # Create a unique Google Sheets document
-    main_sheet = client.create(worksheet_name)
-    config = read_config()
-    main_sheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+        with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
+            # Write a status message to the log file
+            log_file.write("Experiment completed")
 
-    # Write headers
-    worksheet = main_sheet.get_worksheet(0)
-    resumed = start_game == 0  # If we resume an interrupted experiment that means that the start game is > 0
-    if not resumed:
+    except Exception as e:
+        with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
+            log_file.write(f"Experiment error: {e}")
+
+    avg_time_p1, avg_time_p2 = avg_time_per_move
+
+    # Keep track of results per AI not for p1/p2
+    # Map game result to player's outcomes
+    results_map = {
+        1: (1, 0),
+        2: (0, 1),
+        0: (0, 0),
+    }
+    p1_result, p2_result = results_map[result]
+    # If players were switched, swap the results
+    if players_switched:
+        p1_result, p2_result = p2_result, p1_result
+
+    try:
+        # Retrieve the pre-created Google Sheets document
+        worksheet = create_sheet_if_not_exists(worksheet_name)
+        worksheet.append_row(
+            [
+                i + 1,
+                setup,
+                total_time,
+                n_moves,
+                avg_time_p1,
+                avg_time_p2,
+                str(p1_params),
+                str(p2_params),
+                p1_result,
+                p2_result,
+                players_switched,
+            ]
+        )
+    except Exception as e:
+        print(f"An error occurred while writing to the sheet: {e}")
+        with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
+            log_file.write(f"Experiment error: {e}")
+
+
+def create_sheet_if_not_exists(worksheet_name: str):
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_file("client_secret.json", scopes=scopes)
+    client = gspread.authorize(creds)
+
+    # Get list of all spreadsheets
+    spreadsheet_list = client.list_spreadsheet_files()
+
+    # Check if worksheet exists in the list
+    worksheet_exists = any(sheet["name"] == worksheet_name for sheet in spreadsheet_list)
+
+    if not worksheet_exists:
+        # Create a new worksheet
+        main_sheet = client.create(worksheet_name)
+        worksheet = main_sheet.get_worksheet(0)
+        config = read_config()
+        main_sheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+        # Write headers
         worksheet.insert_row(
             [
                 "Experiment",
@@ -321,100 +375,25 @@ def run_multiple_game_experiments(
                 "Player 2",
                 "P1 Result",
                 "P2 Result",
+                "Swapped Seats",
             ],
             1,
         )
-
         # Write formulas to keep track of the results per AI (not per seat)
-        worksheet.update_acell("K1", "Winrate (per AI)")
-        worksheet.update_acell("K2", '=AVERAGEIF(I2:I, "1")')
-        worksheet.update_acell("L1", "95% CI")
-        worksheet.update_acell("L2", "=CONFIDENCE.T(0.05, STDEV(I2:I), COUNTA(I2:I))")
-        worksheet.update_acell("M1", "Average Time per Move")
-        worksheet.update_acell("M2", "=AVERAGE(E2:E, F2:F)")
-        worksheet.update_acell("N1", "Average # of moves")
-        worksheet.update_acell("N2", "=AVERAGE(D2:D)")
+        worksheet.update_acell("L1", "Winrate (per AI)")
+        worksheet.update_acell("L2", '=AVERAGEIF(I2:I, "1")')
+        worksheet.update_acell("M1", "95% CI")
+        worksheet.update_acell("M2", "=CONFIDENCE.T(0.05, STDEV(I2:I), COUNTA(I2:I))")
+        worksheet.update_acell("N1", "Average Time per Move")
+        worksheet.update_acell("N2", "=AVERAGE(E2:E, F2:F)")
+        worksheet.update_acell("O1", "Average # of moves")
+        worksheet.update_acell("O2", "=AVERAGE(D2:D)")
+    else:
+        # If the worksheet exists, open it
+        main_sheet = client.open(worksheet_name)
+        worksheet = main_sheet.get_worksheet(0)
 
-    def run_single_game(
-        i: int,
-        game_key: str,
-        game_params: dict[str, Any],
-        p1_params: AIParams,
-        p2_params: AIParams,
-        players_switched: bool,
-    ) -> None:
-        """Run a single game experiment and log the results in the worksheet.
-
-        Args:
-            i (int): The game number.
-            game_key (str): The key for the game.
-            game_params (dict[str, Any]): The parameters for the game.
-            p1_params (AIParams): The parameters for player 1's AI.
-            p2_params (AIParams): The parameters for player 2's AI.
-            work_sheet_name (str): The name of the sheet to place the results in.
-            players_switched (bool): Whether player 1 and 2 are switched.
-        """
-        try:
-            with redirect_print_to_log(f"log/games/{worksheet_name}/{i}.log") as log_file:
-                setup, total_time, avg_time_per_move, n_moves, result = run_game_experiment(
-                    game_key, game_params, p1_params, p2_params
-                )
-                # Write a status message to the log file
-                log_file.write("Experiment completed")
-        except Exception as e:
-            with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
-                log_file.write(f"Experiment error: {e}")
-
-        avg_time_p1, avg_time_p2 = avg_time_per_move
-        client = get_authenticated_sheets_client()
-
-        # Retrieve the pre-created Google Sheets document
-        game_sheet = client.open(worksheet_name)
-
-        # Write the game result to the sheet
-        worksheet = game_sheet.get_worksheet(0)
-
-        # Append the result to the sheet (view from p1)
-        # Keep track of results per AI not for p1/p2
-        p1_result = (3 - result) if players_switched else result
-        p2_result = result if players_switched else (3 - result)
-
-        try:
-            worksheet.append_row(
-                [
-                    i + 1,
-                    setup,
-                    total_time,
-                    n_moves,
-                    avg_time_p1,
-                    avg_time_p2,
-                    str(p1_params),
-                    str(p2_params),
-                    p1_result,
-                    p2_result,
-                ]
-            )
-        except Exception as e:
-            print(f"An error occurred while writing to the sheet: {e}")
-
-    # Prepare the game parameters
-    games_params = [
-        (i, game_key, game_params, p1_params, p2_params, False)
-        if i < n_games / 2
-        else (i, game_key, game_params, p2_params, p1_params, True)
-        for i in range(n_games)
-    ]
-
-    # Shuffle the game parameters to randomize the order (so intermediate results can be interpreted better)
-    random.shuffle(games_params)
-    games_params = [(i, *params) for i, params in enumerate(games_params)]
-
-    # Filter to include games starting from start_game
-    games_params = [game for game in games_params if game[0] >= start_game]
-
-    # Run the games in parallel, distributing across the available CPU cores
-    with multiprocessing.Pool(n_procs) as pool:
-        pool.starmap(run_single_game, games_params)
+    return worksheet
 
 
 def print_function_params(function_dict):

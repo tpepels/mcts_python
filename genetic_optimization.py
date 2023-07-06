@@ -162,6 +162,7 @@ def genetic_algorithm(
     global GLOBAL_N_PROCS
     if GLOBAL_N_PROCS is not None:
         n_procs = GLOBAL_N_PROCS
+    print(f"*** Using {n_procs} processes ***")
 
     if debug:
         start_time = time.time()
@@ -332,8 +333,8 @@ def evaluate_fitness(
     eval_params2 = {**eval_static_params, **individual2["eval"]}
 
     # Create AI players with given parameters
-    p1_params = AIParams(player_name, eval_name, ai_params1, eval_params1)
-    p2_params = AIParams(player_name, eval_name, ai_params2, eval_params2)
+    p1_params = AIParams(player_name, eval_name, 1, ai_params1, eval_params1)
+    p2_params = AIParams(player_name, eval_name, 2, ai_params2, eval_params2)
 
     game, player1, player2 = init_game_and_players(game_name, game_params, p1_params, p2_params)
     game_result = play_game_until_terminal(game, player1, player2)

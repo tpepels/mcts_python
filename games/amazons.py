@@ -311,6 +311,9 @@ class AmazonsGameState(GameState):
 
         return output
 
+    def __repr__(self) -> str:
+        return f"amazons{self.board_size}"
+
 
 def evaluate_amazons(state: AmazonsGameState, player: int, m_opp_disc=0.9, a=1, norm=True):
     """

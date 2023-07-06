@@ -26,7 +26,7 @@ class AlphaBetaPlayer(AIPlayer):
         "max_depth_finished",
         "total_search_time",
         "count_searches",
-        "count_timed_out",
+        "count_tim_out",
     ]
 
     def __init__(
@@ -292,7 +292,7 @@ class AlphaBetaPlayer(AIPlayer):
                 "search_time": (time.time() - start_time),
                 "search_times_p.d": search_times,
                 "search_time_average": int(total_search_time[self.player] / n_moves[self.player]),
-                "search_timed_out": interrupted,
+                "search_tim_out": interrupted,
                 "best_value": best_value_labels.get(v, v),
                 "best_move": best_move,
             }
@@ -321,7 +321,7 @@ class AlphaBetaPlayer(AIPlayer):
             self.c_stats["max_depth_finished"] = max(max_depth_reached, self.c_stats["max_depth_finished"])
             self.c_stats["total_search_time"] += time.time() - start_time
             self.c_stats["count_searches"] += 1
-            self.c_stats["count_timed_out"] += int(interrupted)
+            self.c_stats["count_tim_out"] += int(interrupted)
             if self.trans_table is not None:
                 stat_dict = {**stat_dict, **self.trans_table.get_metrics()}
                 self.trans_table.reset_metrics()
@@ -410,8 +410,8 @@ class AlphaBetaPlayer(AIPlayer):
         self.c_stats["average_search_time"] = (
             self.c_stats["total_search_time"] / self.c_stats["count_searches"]
         )
-        self.c_stats["percentage_searches_timed_out"] = int(
-            (self.c_stats["count_timed_out"] / self.c_stats["count_searches"]) * 100
+        self.c_stats["percentage_searches_tim_out"] = int(
+            (self.c_stats["count_tim_out"] / self.c_stats["count_searches"]) * 100
         )
         if self.use_quiescence:
             self.c_stats["average_q_searches"] = int(

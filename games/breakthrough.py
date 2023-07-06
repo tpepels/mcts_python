@@ -205,6 +205,9 @@ class BreakthroughGameState(GameState):
         # return an appropriate size based on the game characteristics
         return 2**18
 
+    def __repr__(self) -> str:
+        return "breakthrough"
+
 
 def to_chess_notation(index):
     """Transform a board index into chess notation."""

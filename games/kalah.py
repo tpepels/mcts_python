@@ -285,6 +285,9 @@ class KalahGameState(GameState):
         # return an appropriate size based on the game characteristics
         return 2**21
 
+    def __repr__(self) -> str:
+        return "kalah"
+
 
 def calc_last_index_total_steps(seeds, move, k, size=13):
     passes = count_passes(
