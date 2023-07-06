@@ -111,11 +111,11 @@ def genetic_algorithm(
     num_generations: int,
     mutation_rate: float,
     game_name: str,
-    game_params: Dict[str, Any],
     player_name: str,
     eval_name: str,
-    ai_param_ranges: Dict[str, Tuple[float, float]],
-    eval_param_ranges: Dict[str, Tuple[float, float]],
+    ai_param_ranges: Optional[Dict[str, Tuple[float, float]]] = {},
+    eval_param_ranges: Optional[Dict[str, Tuple[float, float]]] = {},
+    game_params: Optional[Dict[str, Any]] = {},
     ai_static_params: Optional[Dict[str, Any]] = {},
     eval_static_params: Optional[Dict[str, Any]] = {},
     n_procs: int = 8,
@@ -155,6 +155,10 @@ def genetic_algorithm(
         >>> ai_param_ranges = {'a': {'range': (0, 10), 'precision': 2}, 'b': {'range': (0, 1), 'precision': 3},}
         >>> eval_param_ranges = {'m': {'range': ((0, 10), (1, 10), (1, 2), (1, 4)), 'precision': (1, 2, 2, 3)},}
     """
+    assert (
+        ai_param_ranges or eval_param_ranges
+    ), "One range of parameters must be given: either ai params or eval params"
+
     global GLOBAL_N_PROCS
     if GLOBAL_N_PROCS is not None:
         n_procs = GLOBAL_N_PROCS
@@ -656,6 +660,10 @@ def run_experiments_from_file(file_path):
     times = []
 
     for i, experiment in enumerate(experiments):
+        if experiment.get("status", "incomplete") == "complete":
+            print(f"Experiment {i+1} already completed. Skipping...")
+            continue
+
         exp_start_time = time.time()
 
         # Creating a name and description for the experiment
@@ -664,11 +672,16 @@ def run_experiments_from_file(file_path):
 
         try:
             validate_experiment_config(experiment)
-        except jsonschema.exceptions.ValidationError as e:
-            print(f"Invalid experiment configuration for {experiment_name}: {e.message}")
+            genetic_algorithm(**experiment)
+            experiment["status"] = "complete"
+        except (jsonschema.exceptions.ValidationError, Exception) as e:
+            print(f"An error occurred with {experiment_name}: {e}")
+            experiment["status"] = "error"
             continue
-
-        genetic_algorithm(**experiment)
+        finally:
+            # Always write the status back to the file, whether the experiment completed or failed
+            with open(file_path, "w") as f:
+                json.dump(experiments, f)
 
         # Calculate time taken for the experiment and append it to times list
         exp_end_time = time.time()
@@ -712,6 +725,7 @@ def validate_experiment_config(config):
             "elite_count": {"type": "integer"},
             "draw_score": {"type": "number"},
             "debug": {"type": "boolean"},
+            "status": {"type": "string"},
         },
         "required": [
             "population_size",
