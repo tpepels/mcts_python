@@ -9,6 +9,7 @@ import time
 from functools import partial
 from io import TextIOWrapper
 from operator import itemgetter
+import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gspread
@@ -27,34 +28,38 @@ csv_writer = None
 GLOBAL_N_PROCS = None  # set this value to override the number of cpu's to use for all experiments
 
 
+@log_exception_handler
 def setup_reporting(
     sheet_name: str,
     game_name: str,
     ai_param_ranges: Dict[str, Tuple[float, float]],
     eval_param_ranges: Dict[str, Tuple[float, float]],
 ) -> Tuple[Any, Any]:
-    # Use credentials to create a client to interact with the Google Drive API
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
-    client = gspread.authorize(creds)
+    csv_header = ["Generation"] + list(ai_param_ranges.keys()) + list(eval_param_ranges.keys()) + ["Fitness"]
 
-    global sheet, csv_f, csv_writer
+    try:
+        # Use credentials to create a client to interact with the Google Drive API
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
+        client = gspread.authorize(creds)
 
-    sheet = client.create(sheet_name).sheet1
-    config = util.read_config()
-    sheet.spreadsheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+        global sheet, csv_f, csv_writer
+
+        sheet = client.create(sheet_name).sheet1
+        config = util.read_config()
+        sheet.spreadsheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+        # Append the header row to the Google Sheets file
+        sheet.append_row(csv_header)
+    except gspread.exceptions.APIError as a_ex:
+        print(f"An API error occurred while setting up reporting for {sheet_name}, {str(a_ex)}")
+        print("results only stored in logfiles.")
+        traceback.print_exc()
 
     path = f"results/genetic/{game_name}/"
     os.makedirs(path, exist_ok=True)
     csv_f = open(path + f"{sheet_name}.csv", "w", newline="")
-
     csv_writer = csv.writer(csv_f)
-    csv_header = ["Generation"] + list(ai_param_ranges.keys()) + list(eval_param_ranges.keys()) + ["Fitness"]
     csv_writer.writerow(csv_header)
-
-    # Append the header row to the Google Sheets file
-    sheet.append_row(csv_header)
-
     csv_f.flush()
 
 
@@ -69,7 +74,14 @@ def report_results(
         + list(best_individual["eval"].values())
         + [best_individual_fitness]
     )
-    sheet.append_row(row)
+    try:
+        if sheet:
+            sheet.append_row(row)
+    except gspread.exceptions.APIError as a_ex:
+        print(f"An API error occurred while writing results to google sheets, {str(a_ex)}")
+        print("results only stored in logfiles.")
+        traceback.print_exc()
+
     csv_writer.writerow(row)
     csv_f.flush()
 
@@ -81,7 +93,14 @@ def report_final_results(best_overall_individual: Tuple[Dict[str, Dict[str, floa
         + list(best_overall_individual[0]["eval"].values())
         + [best_overall_individual[1]]
     )
-    sheet.append_row(row)
+
+    try:
+        if sheet:
+            sheet.append_row(row)
+    except gspread.exceptions.APIError as a_ex:
+        print(f"An API error occurred while writing results to google sheets, {str(a_ex)}")
+        print("results only stored in logfiles.")
+        traceback.print_exc()
 
     csv_writer.writerow(row)
     csv_f.flush()
