@@ -20,6 +20,10 @@
         "range": [0, 10],
         "precision": 1
       },
+      "m_e_weight": {
+        "range": [0, 2],
+        "precision": 1
+      },
       "m_win": {
         "range": [10, 5000],
         "precision": 0
