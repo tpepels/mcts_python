@@ -1,6 +1,5 @@
 [
   {
-    "status": "complete",
     "population_size": 200,
     "num_generations": 50,
     "mutation_rate": 0.05,
@@ -18,16 +17,16 @@
         "precision": 2
       },
       "m_weight": {
-        "range": [1, 5],
+        "range": [0, 10],
         "precision": 1
       },
       "m_win": {
-        "range": [100, 5000],
+        "range": [10, 5000],
         "precision": 0
       }
     },
     "ai_static_params": {
-      "max_time": 5
+      "max_time": 10
     },
     "eval_static_params": {},
     "debug": true
@@ -42,32 +41,32 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_lorenz": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_mobility": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_blocked": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_safe": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_endgame": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_cap": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_cap_move": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_opp_disc": {
         "range": [0.5, 1.1],
@@ -75,7 +74,7 @@
       }
     },
     "ai_static_params": {
-      "max_time": 5
+      "max_time": 10
     },
     "eval_static_params": {},
     "debug": true
@@ -86,16 +85,36 @@
     "mutation_rate": 0.05,
     "game_name": "amazons",
     "player_name": "alphabeta",
-    "eval_name": "evaluate_amazons",
+    "eval_name": "evaluate_amazons_lieberum",
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_opp_disc": {
         "range": [0.5, 1.1],
         "precision": 2
+      },
+      "n_moves_cutoff": {
+        "range": [0, 20],
+        "precision": 0
+      },
+      "m_ter": {
+        "range": [0, 1],
+        "precision": 2
+      },
+      "m_kill_s": {
+        "range": [0, 1],
+        "precision": 2
+      },
+      "m_imm": {
+        "range": [0, 1],
+        "precision": 2
+      },
+      "m_mob": {
+        "range": [0, 1],
+        "precision": 2
       }
     },
     "ai_static_params": {
-      "max_time": 5
+      "max_time": 15
     },
     "eval_static_params": {},
     "debug": true
@@ -110,24 +129,24 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_score": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_seed_diff": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_empty": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_double": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_capture": {
-        "range": [0, 10],
-        "precision": 1
+        "range": [0, 1],
+        "precision": 2
       },
       "m_opp_disc": {
         "range": [0.5, 1.1],
@@ -135,7 +154,7 @@
       }
     },
     "ai_static_params": {
-      "max_time": 5
+      "max_time": 10
     },
     "eval_static_params": {},
     "debug": true

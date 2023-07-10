@@ -14,6 +14,7 @@ from ai.ai_player import AIPlayer
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
 from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
+from games.blokus import BlokusGameState, evaluate_blokus
 from games.breakthrough import (
     BreakthroughGameState,
     evaluate_breakthrough,
@@ -34,6 +35,7 @@ eval_dict = {
     evaluate_amazons_lieberum.__name__: evaluate_amazons_lieberum,
     evaluate_kalah_simple.__name__: evaluate_kalah_simple,
     evaluate_kalah_enhanced.__name__: evaluate_kalah_enhanced,
+    evaluate_blokus.__name__: evaluate_blokus,
 }
 
 # Contains all possible games for use in factory
@@ -43,6 +45,7 @@ game_dict = {
     "breakthrough": BreakthroughGameState,
     "amazons": AmazonsGameState,
     "kalah": KalahGameState,
+    "blokus": BlokusGameState,
 }
 
 # Contains all possible ai players for use in factory
@@ -56,6 +59,7 @@ class AIParams:
     Attributes:
         ai_key (str): The key for the AI algorithm.
         eval_key (str): The key for the evaluation function.
+        max_player: (int): The ai's player.
         ai_params (Dict[str, Any]): The parameters for the AI algorithm.
         eval_params (Dict[str, Any]): The parameters for the evaluation function.
     """
@@ -71,18 +75,18 @@ class AIParams:
         """Generate string representation of AI parameters."""
         string_repr = f"P{self.max_player}, {self.ai_key}"
         if self.ai_params:
-            string_repr += f" parameters {d_to_s(self.ai_params)}"
+            string_repr += f" params {d_to_s(self.ai_params)}"
 
-        string_repr += f" evaluation {self.eval_key}"
+        string_repr += f" {self.eval_key}"
 
         if self.eval_params:
-            string_repr += f" parameters {d_to_s(self.eval_params)}."
+            string_repr += f" params {d_to_s(self.eval_params)}."
 
         return string_repr
 
 
 def d_to_s(d):
-    return [str(k) + ":" + str(v) for k, v in d.items()]
+    return ", ".join([str(k) + ":" + str(v) for k, v in d.items()])
 
 
 def init_game_and_players(

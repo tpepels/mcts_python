@@ -66,6 +66,7 @@ class Status:
     COMPLETED = "Completed"
     INTERRUPTED = "Interrupted"
     RESUME = "Resume"
+    ERROR = "Error"
 
 
 def mark_experiment_as_status(
@@ -350,64 +351,61 @@ def monitor_sheet_and_run_experiments(interval: int, n_procs: int):
     current_experiment_index = None
     current_sheet_name = None
 
-    try:
-        while True:
-            print(colored("Fetching experiments from Google Sheets...", "yellow"))
-            df = get_experiments_from_sheet(sheet)
-            print(colored("Fetched experiments.", "green"))
+    while True:
+        print(colored("Fetching experiments from Google Sheets...", "yellow"))
+        df = get_experiments_from_sheet(sheet)
+        print(colored(f"Fetched {df.shape[0]} experiments.", "green"))
 
-            try:
-                if is_experiment_running(async_result):
-                    update_running_experiment_status(
-                        current_sheet_name, current_experiment_index, sheet, is_running=async_result.ready()
-                    )
-                    if async_result.ready():
-                        print(colored(f"Experiment at index {current_experiment_index} completed.", "green"))
-                        mark_experiment_as_status(
-                            current_sheet_name, current_experiment_index, Status.COMPLETED
-                        )
-                        pool = None
-                        async_result = None
-                        current_experiment_index = None
-                else:
-                    for index, row in df.iterrows():
-                        if row[ColName.STATUS] in [Status.PENDING, Status.RESUME]:
-                            pool, async_result, current_experiment_index, current_sheet_name = run_experiment(
-                                sheet, row, index, n_procs
-                            )
-                            if current_experiment_index is not None:
-                                break
-
-                print(colored("Sleeping before next check...", "yellow"))
-                time.sleep(interval)
-
-            except KeyboardInterrupt:
-                print(
-                    colored(
-                        "Interrupted. Attempting to mark currently running experiment as interrupted.", "red"
-                    )
+        try:
+            if is_experiment_running(async_result):
+                update_running_experiment_status(
+                    sheet_name=current_sheet_name,
+                    index=current_experiment_index,
+                    sheet=sheet,
+                    is_running=async_result.ready(),
                 )
 
-                if is_experiment_running(async_result):
-                    print(colored("Terminating running experiment...", "red"))
-                    pool.terminate()
-                    print(colored("Marking experiment as interrupted...", "red"))
-                    mark_experiment_as_status(sheet, current_experiment_index, Status.INTERRUPTED)
-                print(colored("Stopped monitoring.", "red"))
-                break
-            except Exception as e:
-                print(colored(f"Exception {str(e)}! {traceback.format_exc()}", "red"))
+            else:
+                # This probably means that the current experiment finished running
+                if async_result and async_result.ready():
+                    print(colored(f"Experiment at index {current_experiment_index} completed.", "green"))
+                    mark_experiment_as_status(current_sheet_name, current_experiment_index, Status.COMPLETED)
 
-                if is_experiment_running(async_result):
-                    print(colored("Terminating running experiment...", "red"))
-                    pool.terminate()
-                    print(colored("Marking experiment as interrupted...", "red"))
-                    mark_experiment_as_status(sheet, current_experiment_index, Status.INTERRUPTED)
-                print(colored("Stopped monitoring.", "red"))
-                break
-    except Exception as e:
-        print("Error occurred during monitoring...")
-        raise e
+                    pool = None
+                    async_result = None
+                    current_experiment_index = None
+
+                # Time to start a new experiment!
+                for index, row in df.iterrows():
+                    if row[ColName.STATUS] in [Status.PENDING, Status.RESUME]:
+                        pool, async_result, current_experiment_index, current_sheet_name = run_experiment(
+                            sheet, row, index, n_procs
+                        )
+                        if current_experiment_index is not None:
+                            break
+
+            print(colored("Sleeping before next check...", "yellow"))
+            time.sleep(interval)
+
+        except KeyboardInterrupt:
+            print(
+                colored("Interrupted. Attempting to mark currently running experiment as interrupted.", "red")
+            )
+            if is_experiment_running(async_result):
+                mark_experiment_as_status(sheet, current_experiment_index, Status.INTERRUPTED)
+            break
+        except Exception as e:
+            print(colored(f"Exception {str(e)}! {traceback.format_exc()}", "red"))
+            if is_experiment_running(async_result):
+                mark_experiment_as_status(sheet, current_experiment_index, Status.ERROR, error_message=str(e))
+            break
+        finally:
+            if is_experiment_running(async_result):
+                print(colored("Terminating running experiment...", "red"))
+                pool.terminate()
+                print(colored("Marking experiment as interrupted...", "red"))
+
+            print(colored("Stopped monitoring.", "red"))
 
 
 def is_experiment_running(async_result: AsyncResult):
@@ -558,6 +556,7 @@ def update_running_experiment_status(sheet_name, index: int, sheet: gspread.Work
     ai_stats = Counter()  # To hold cumulative statistics per AI
     os.makedirs(f"log/games/{sheet_name}/", exist_ok=True)
     log_files = glob.glob(f"log/games/{sheet_name}/?.log")
+
     # Open CSV file in append mode
     with open(f"log/games/{sheet_name}/_results.csv", "w", newline="") as f:
         writer = csv.writer(f)
@@ -589,11 +588,11 @@ def update_running_experiment_status(sheet_name, index: int, sheet: gspread.Work
                     writer.writerow([sheet_name, game_number, "Error"])
 
     # Print cumulative statistics per AI to the screen
-    print_stats = PrettyTable(["AI", "Wins"])
+    print_stats = PrettyTable(["AI", "Win %"])
     for ai, wins in ai_stats.items():
-        print_stats.add_row([ai, wins])
+        print_stats.add_row([ai, f"{(wins / completed_games) * 100: .2f}"])
 
-    print(sheet_name)
+    print(f"{sheet_name} - {completed_games} games completed.")
     print("***-" * 20)
     print(print_stats)
 
