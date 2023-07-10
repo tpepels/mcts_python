@@ -141,7 +141,9 @@ class AlphaBetaPlayer(AIPlayer):
                 # Check if a move already exists somewhere in the transposition table (regardless of its depth since we only use it for move-ordering)
                 # This way we can use the move for move ordering, naiisss
                 if self.trans_table is not None:
-                    _, best_move = self.trans_table.get(state.board_hash, 0, state.player, 0)
+                    _, best_move = self.trans_table.get(
+                        state.board_hash, 0, state.player, 0, board=state.board
+                    )
 
                 if is_max_player:
                     # Max player's turn
@@ -235,6 +237,7 @@ class AlphaBetaPlayer(AIPlayer):
                         player=state.player,
                         best_move=best_move,
                         max_d=max_d,
+                        board=state.board,
                     )
 
         v, best_move = None, None

@@ -8,24 +8,26 @@ import os
 import random
 import re
 import time
+import traceback
 from collections import Counter
 from multiprocessing.pool import AsyncResult
-import traceback
+from typing import Any
 
 import gspread
 import numpy as np
 import pandas as pd
-
 from gspread_dataframe import set_with_dataframe
 from oauth2client.service_account import ServiceAccountCredentials
 from prettytable import PrettyTable
 from termcolor import colored
 
-from run_games import AIParams, create_sheet_if_not_exists, init_game, run_single_experiment
-from util import read_config
+from run_games import AIParams, init_game, run_game_experiment
+from util import read_config, redirect_print_to_log
 
 # USE THE FOLLOWING AS HEADER FOR THE GOOGLE SHEET
 # status, n_games, start, completed_games, errors, worksheet, game_key, game_params, p1_ai_key, p1_ai_params, p1_eval_key, p1_eval_params, p2_ai_key, p2_ai_params, p2_eval_key, p2_eval_params
+
+WRITE_TO_SHEET = True
 
 
 class ColName:
@@ -350,62 +352,95 @@ def monitor_sheet_and_run_experiments(interval: int, n_procs: int):
     async_result = None
     current_experiment_index = None
     current_sheet_name = None
+    try:
+        while True:
+            print(colored("Fetching experiments from Google Sheets...", "yellow"))
+            df = get_experiments_from_sheet(sheet)
+            print(colored(f"Fetched {df.shape[0]} experiments.", "green"))
 
-    while True:
-        print(colored("Fetching experiments from Google Sheets...", "yellow"))
-        df = get_experiments_from_sheet(sheet)
-        print(colored(f"Fetched {df.shape[0]} experiments.", "green"))
+            try:
+                if is_experiment_running(async_result):
+                    update_running_experiment_status(
+                        sheet_name=current_sheet_name,
+                        index=current_experiment_index,
+                        sheet=sheet,
+                        is_running=True,
+                    )
 
-        try:
-            if is_experiment_running(async_result):
+                else:
+                    # This probably means that the current experiment finished running
+                    if async_result and async_result.ready():
+                        print(colored(f"Experiment at index {current_experiment_index} completed.", "green"))
+                        update_running_experiment_status(
+                            sheet_name=current_sheet_name,
+                            index=current_experiment_index,
+                            sheet=sheet,
+                            is_running=False,
+                        )
+                        mark_experiment_as_status(
+                            current_sheet_name, current_experiment_index, Status.COMPLETED
+                        )
+
+                        pool = None
+                        async_result = None
+                        current_experiment_index = None
+
+                    # Time to start a new experiment!
+                    for index, row in df.iterrows():
+                        if row[ColName.STATUS] in [Status.PENDING, Status.RESUME]:
+                            pool, async_result, current_experiment_index, current_sheet_name = run_experiment(
+                                sheet, row, index, n_procs
+                            )
+                            if current_experiment_index is not None:
+                                break
+
+                print(colored("Sleeping before next check...", "yellow"))
+                time.sleep(interval)
+                print("Pool:")
+                print(f"    Number of Processes: {pool._processes}")
+                print(f"    Current Task Queue: {pool._taskqueue}")
+                print(f"    Current Workers: {pool._pool}")
+                print(f"    Is Pool Terminated?: {pool._state}")
+
+                print("Async Result:")
+                print(f"    Ready?: {async_result.ready()}")
+                if async_result.ready():
+                    print(f"    Successful?: {async_result.successful()}")
+
+            except KeyboardInterrupt:
+                print(
+                    colored(
+                        "Interrupted. Attempting to mark currently running experiment as interrupted.", "red"
+                    )
+                )
+                if is_experiment_running(async_result):
+                    mark_experiment_as_status(sheet, current_experiment_index, Status.INTERRUPTED)
+                break
+            except Exception as e:
+                print(colored(f"Exception {str(e)}! {traceback.format_exc()}", "red"))
+                if is_experiment_running(async_result):
+                    mark_experiment_as_status(
+                        sheet, current_experiment_index, Status.ERROR, error_message=str(e)
+                    )
+                break
+    finally:
+        if current_experiment_index is not None:
+            try:
+                print(colored("Stopped... Processing final results.", "yellow"))
                 update_running_experiment_status(
                     sheet_name=current_sheet_name,
                     index=current_experiment_index,
                     sheet=sheet,
-                    is_running=async_result.ready(),
+                    is_running=False,
                 )
+            except Exception as ex:
+                print(colored(f"Could not write final result to file/sheet {str(ex)}", "red"))
 
-            else:
-                # This probably means that the current experiment finished running
-                if async_result and async_result.ready():
-                    print(colored(f"Experiment at index {current_experiment_index} completed.", "green"))
-                    mark_experiment_as_status(current_sheet_name, current_experiment_index, Status.COMPLETED)
+        if is_experiment_running(async_result):
+            print(colored("Terminating running experiment...", "red"))
+            pool.terminate()
 
-                    pool = None
-                    async_result = None
-                    current_experiment_index = None
-
-                # Time to start a new experiment!
-                for index, row in df.iterrows():
-                    if row[ColName.STATUS] in [Status.PENDING, Status.RESUME]:
-                        pool, async_result, current_experiment_index, current_sheet_name = run_experiment(
-                            sheet, row, index, n_procs
-                        )
-                        if current_experiment_index is not None:
-                            break
-
-            print(colored("Sleeping before next check...", "yellow"))
-            time.sleep(interval)
-
-        except KeyboardInterrupt:
-            print(
-                colored("Interrupted. Attempting to mark currently running experiment as interrupted.", "red")
-            )
-            if is_experiment_running(async_result):
-                mark_experiment_as_status(sheet, current_experiment_index, Status.INTERRUPTED)
-            break
-        except Exception as e:
-            print(colored(f"Exception {str(e)}! {traceback.format_exc()}", "red"))
-            if is_experiment_running(async_result):
-                mark_experiment_as_status(sheet, current_experiment_index, Status.ERROR, error_message=str(e))
-            break
-        finally:
-            if is_experiment_running(async_result):
-                print(colored("Terminating running experiment...", "red"))
-                pool.terminate()
-                print(colored("Marking experiment as interrupted...", "red"))
-
-            print(colored("Stopped monitoring.", "red"))
+        print(colored("Stopped monitoring.", "red"))
 
 
 def is_experiment_running(async_result: AsyncResult):
@@ -465,8 +500,13 @@ def run_new_experiment(row: pd.Series, index: int, sheet: gspread.Worksheet, n_p
             sheet_name = f"{game}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
             start_game = 0
         else:
-            sheet_name = row[ColName.SHEET_NAME]
-            start_game = row[ColName.COMPLETED_GAMES] + 1
+            sheet_name = row[ColName.WORKSHEET]
+            if row[ColName.COMPLETED_GAMES]:
+                start_game = int(row[ColName.COMPLETED_GAMES])
+            else:
+                start_game = 0
+
+            print(f"Restarting pending experiment from game {start_game}")
 
         del game
 
@@ -474,9 +514,9 @@ def run_new_experiment(row: pd.Series, index: int, sheet: gspread.Worksheet, n_p
         print(f"starting experiment {sheet_name}")
 
         games_params = [
-            (game_name, game_params, p1_params, p2_params, False, sheet_name)
+            (game_name, game_params, p1_params, p2_params, False, sheet_name, WRITE_TO_SHEET)
             if i < n_games / 2
-            else (game_name, game_params, p2_params, p1_params, True, sheet_name)
+            else (game_name, game_params, p2_params, p1_params, True, sheet_name, WRITE_TO_SHEET)
             for i in range(n_games)
         ]
 
@@ -588,7 +628,7 @@ def update_running_experiment_status(sheet_name, index: int, sheet: gspread.Work
                     writer.writerow([sheet_name, game_number, "Error"])
 
     # Print cumulative statistics per AI to the screen
-    print_stats = PrettyTable(["AI", "Win %"])
+    print_stats = PrettyTable(["AI", f"Win % (Games: {completed_games})"])
     for ai, wins in ai_stats.items():
         print_stats.add_row([ai, f"{(wins / completed_games) * 100: .2f}"])
 
@@ -600,6 +640,133 @@ def update_running_experiment_status(sheet_name, index: int, sheet: gspread.Work
         mark_experiment_as_status(sheet, index, Status.RUNNING, None, None, completed_games, error_games)
     else:
         mark_experiment_as_status(sheet, index, Status.COMPLETED, None, None, completed_games, error_games)
+
+
+def run_single_experiment(
+    i: int,
+    game_key: str,
+    game_params: dict[str, Any],
+    p1_params: AIParams,
+    p2_params: AIParams,
+    players_switched: bool,
+    worksheet_name: str,
+    write_to_sheet: bool = True,
+) -> None:
+    """Run a single game experiment and log the results in the worksheet.
+
+    Args:
+        i (int): The game number.
+        game_key (str): The key for the game.
+        game_params (dict[str, Any]): The parameters for the game.
+        p1_params (AIParams): The parameters for player 1's AI.
+        p2_params (AIParams): The parameters for player 2's AI.
+        worksheet_name (str): The name of the sheet to place the results in.
+        players_switched (bool): Whether player 1 and 2 are switched.
+        worksheet_name (str): String used to identify the experiment
+    """
+
+    try:
+        with redirect_print_to_log(f"log/games/{worksheet_name}/{i}.log"):
+            setup, total_time, avg_time_per_move, n_moves, result = run_game_experiment(
+                game_key, game_params, p1_params, p2_params
+            )
+
+        with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
+            # Write a status message to the log file
+            log_file.write("Experiment completed")
+
+    except Exception as e:
+        with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
+            log_file.write(f"Experiment error: {e}")
+
+    avg_time_p1, avg_time_p2 = avg_time_per_move
+
+    # Keep track of results per AI not for p1/p2
+    # Map game result to player's outcomes
+    results_map = {
+        1: (1, 0),
+        2: (0, 1),
+        0: (0, 0),
+    }
+    p1_result, p2_result = results_map[result]
+    # If players were switched, swap the results
+    if players_switched:
+        p1_result, p2_result = p2_result, p1_result
+
+    try:
+        if write_to_sheet:
+            # Retrieve the pre-created Google Sheets document
+            worksheet = create_sheet_if_not_exists(worksheet_name)
+            worksheet.append_row(
+                [
+                    i + 1,
+                    setup,
+                    total_time,
+                    n_moves,
+                    avg_time_p1,
+                    avg_time_p2,
+                    str(p1_params),
+                    str(p2_params),
+                    p1_result,
+                    p2_result,
+                    players_switched,
+                ]
+            )
+    except Exception as e:
+        print(f"An error occurred while writing to the sheet: {e}")
+        with open(f"log/games/{worksheet_name}/{i}.log", "a") as log_file:
+            log_file.write(f"Experiment error: {e}")
+
+
+def create_sheet_if_not_exists(worksheet_name: str):
+    if not WRITE_TO_SHEET:
+        return
+
+    client = authorize_with_google_sheets()
+    # Get list of all spreadsheets
+    spreadsheet_list = client.list_spreadsheet_files()
+
+    # Check if worksheet exists in the list
+    worksheet_exists = any(sheet["name"] == worksheet_name for sheet in spreadsheet_list)
+
+    if not worksheet_exists:
+        # Create a new worksheet
+        main_sheet = client.create(worksheet_name)
+        worksheet = main_sheet.get_worksheet(0)
+        config = read_config()
+        main_sheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+        # Write headers
+        worksheet.insert_row(
+            [
+                "Experiment",
+                "Setup",
+                "Total Time",
+                "# Moves Made",
+                "Avg Time Per Move p1",
+                "Avg Time Per Move p2",
+                "Player 1",
+                "Player 2",
+                "P1 Result",
+                "P2 Result",
+                "Swapped Seats",
+            ],
+            1,
+        )
+        # Write formulas to keep track of the results per AI (not per seat)
+        worksheet.update_acell("L1", "Winrate (per AI)")
+        worksheet.update_acell("L2", '=AVERAGEIF(I2:I, "1")')
+        worksheet.update_acell("M1", "95% CI")
+        worksheet.update_acell("M2", "=CONFIDENCE.T(0.05, STDEV(I2:I), COUNTA(I2:I))")
+        worksheet.update_acell("N1", "Average Time per Move")
+        worksheet.update_acell("N2", "=AVERAGE(E2:E, F2:F)")
+        worksheet.update_acell("O1", "Average # of moves")
+        worksheet.update_acell("O2", "=AVERAGE(D2:D)")
+    else:
+        # If the worksheet exists, open it
+        main_sheet = client.open(worksheet_name)
+        worksheet = main_sheet.get_worksheet(0)
+
+    return worksheet
 
 
 import argparse
@@ -628,8 +795,14 @@ if __name__ == "__main__":
         help="The number of processor cores to use for running the experiments.",
     )
 
+    parser.add_argument(
+        "--no_sheets",
+        action="store_true",
+        help="Set this to prevent writing results to gsheets (i.e., they are only written to log files).",
+    )
+
     # Parse the command-line arguments
     args = parser.parse_args()
-
+    WRITE_TO_SHEET = not args.no_sheets
     # Call the function with the command-line arguments
     monitor_sheet_and_run_experiments(args.interval, args.n_procs)

@@ -1,6 +1,8 @@
 from collections import OrderedDict
 from typing import Tuple, Union, Optional
 
+import numpy as np
+
 
 class IncorrectBoardException(Exception):
     pass
@@ -52,7 +54,7 @@ class TranspositionTable:
         """
         try:
             value, stored_depth, stored_player, best_move, stored_max_d, stored_board = self.table[key]
-            if stored_board is not None and stored_board != board:
+            if stored_board is not None and not np.array_equal(stored_board, board):
                 raise IncorrectBoardException(
                     f"Stored: {stored_board} is not the same as {board} stored at {key}"
                 )

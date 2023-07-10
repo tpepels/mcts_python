@@ -140,7 +140,7 @@ def genetic_algorithm(
     n_procs: int = 8,
     convergence_generations: int = 5,
     tournament_size: int = 5,
-    elite_count: int = 2,
+    elite_count: int = 4,
     draw_score: float = 0.25,
     debug: bool = False,
 ):
