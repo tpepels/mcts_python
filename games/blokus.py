@@ -1,5 +1,5 @@
 import copy
-from typing import List, Set, Tuple
+from typing import List, Tuple
 import numpy as np
 from termcolor import colored
 
@@ -15,13 +15,6 @@ ORTHOGONAL_NEIGHBORS = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 CORNERS = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
 # We create a constant player board as it's just used for comparing against the actual board
 PLAYER_BOARD = [np.full((BOARD_SIZE, BOARD_SIZE), 1), np.full((BOARD_SIZE, BOARD_SIZE), 2)]
-
-# Pre-compute the center weights
-center_coord = np.array([BOARD_SIZE, BOARD_SIZE]) // 2
-distances = np.abs(np.indices((BOARD_SIZE, BOARD_SIZE)).T - center_coord)
-CENTER_WEIGHTS = np.sqrt(np.sum(distances**2, axis=-1))
-max_distance = np.sqrt(2 * (BOARD_SIZE // 2) ** 2)
-CENTER_WEIGHTS = np.round(max_distance - CENTER_WEIGHTS)
 NEIGHBORS = (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
 
 BOARD_CORNERS = [
@@ -61,13 +54,20 @@ pieces = [
 ]
 # Calculate the total size of the pieces
 total_ones = 0
-for piece in pieces:
+# Pre-compute the number of 1's in each piece
+piece_sizes = {}
+for piece_index, piece in enumerate(pieces):
+    piece_sizes[piece_index] = np.sum(piece)
     total_ones += np.sum(piece)
 
 
 unique_rotations = {}
 for i, piece in enumerate(pieces):
     rotations = [np.rot90(piece, rotation) for rotation in range(4)]
+    # Add flipped versions of the piece and its rotations.
+    flips = [np.flip(piece), np.flip(piece, 0), np.flip(piece, 1)]
+    rotations += flips
+
     unique = [piece.tolist()]  # initialize with original piece
 
     for rotated in rotations:
@@ -76,13 +76,16 @@ for i, piece in enumerate(pieces):
 
     unique_rotations[i] = len(unique)
 
-# Pre-compute rotated pieces
+# Pre-compute rotated and flipped pieces
 piece_masks = {}
 rotated_pieces = {}
 for piece_index, piece in enumerate(pieces):
-    rotated_pieces[piece_index] = [
-        np.rot90(piece, rotation) for rotation in range(unique_rotations[piece_index])
-    ]
+    rotations = [np.rot90(piece, rotation) for rotation in range(unique_rotations[piece_index])]
+    # Add flipped versions of the piece and its rotations.
+    flips = [np.flip(piece), np.flip(piece, 0), np.flip(piece, 1)]
+    rotations += flips
+
+    rotated_pieces[piece_index] = rotations
     piece_masks[piece_index] = [rotation.astype(bool) for rotation in rotated_pieces[piece_index]]
 
 
@@ -90,12 +93,13 @@ MAX_PIECE_COUNT = total_ones * 2
 
 
 class BlokusPieces:
-    def __init__(self):
-        self.rem_pieces = {(color, i): True for color in [1, 2, 3, 4] for i in range(len(pieces))}
-        self.pieces_count = {i: len(pieces) for i in [1, 2, 3, 4]}
-        self.pieces_size = {
-            i: sum([np.sum(pieces[piece_i]) for piece_i in range(len(pieces))]) for i in [1, 2, 3, 4]
-        }
+    def __init__(self, init_state=False):
+        if init_state:
+            self.rem_pieces = {(color, i): True for color in [1, 2, 3, 4] for i in range(len(pieces))}
+            self.pieces_count = {i: len(pieces) for i in [1, 2, 3, 4]}
+            self.pieces_size = {
+                i: sum([np.sum(pieces[piece_i]) for piece_i in range(len(pieces))]) for i in [1, 2, 3, 4]
+            }
 
     def copy(self):
         return copy.deepcopy(self)
@@ -105,7 +109,7 @@ class BlokusPieces:
         if self.rem_pieces[key]:
             self.rem_pieces[key] = False
             self.pieces_count[color] -= 1
-            self.pieces_size[color] -= np.sum(pieces[piece_index])
+            self.pieces_size[color] -= piece_sizes[piece_index]
         else:
             raise ValueError(f"Player {color} doesn't have piece {piece_index} available.")
 
@@ -147,7 +151,7 @@ class BlokusGameState(GameState):
             passed = {1: False, 2: False, 3: False, 4: False}
 
         if pieces is None:
-            self.pieces = BlokusPieces()
+            self.pieces = BlokusPieces(init_state=True)
         else:
             self.pieces = pieces
 
@@ -355,7 +359,9 @@ class BlokusGameState(GameState):
     def evaluate_move(self, move):
         # Prefer placing larger pieces first
         _, _, piece_index, _ = move
-        return np.sum(pieces[piece_index])  # This works because piece cells are represented by 1's
+        if piece_index != -1:  # In the case of a pass move
+            return piece_sizes[piece_index]  # This works because piece cells are represented by 1's
+        return 0
 
     def is_terminal(self) -> bool:
         # If both players have passed, then we stop the game.
@@ -376,8 +382,8 @@ class BlokusGameState(GameState):
         if not self.is_terminal():
             return 0
 
-        player_pieces_left = self.pieces.pieces_left_for_player(player)
-        opponent_pieces_left = self.pieces.pieces_left_for_player(3 - player)
+        player_pieces_left = self.pieces.sum_piece_size(player)
+        opponent_pieces_left = self.pieces.sum_piece_size(3 - player)
 
         if opponent_pieces_left > player_pieces_left:
             return win
@@ -443,7 +449,9 @@ class BlokusGameState(GameState):
         return 2 ** (BOARD_SIZE)
 
 
-def evaluate_blokus(game_state: BlokusGameState, m_piece_diff=0.33, m_corn_diff=0.33, m_piece_size=0.33):
+def evaluate_blokus(
+    game_state: BlokusGameState, m_piece_diff=0.33, m_corn_diff=0.33, m_piece_size=0.33, m_turn=0.9
+):
     player = game_state.player
     opponent = 3 - player
 
@@ -453,76 +461,28 @@ def evaluate_blokus(game_state: BlokusGameState, m_piece_diff=0.33, m_corn_diff=
     player_pieces = game_state.pieces.pieces_left_for_player(player)
     opponent_pieces = game_state.pieces.pieces_left_for_player(opponent)
 
-    print(f"Player pieces left: {player_pieces}, Opponent pieces left: {opponent_pieces}")
+    # print(f"Player pieces left: {player_pieces}, Opponent pieces left: {opponent_pieces}")
 
     # The available corners for current player and the opponent.
     player_corners = len(game_state.perimeters[p_colors[0]]) + len(game_state.perimeters[p_colors[1]])
     opponent_corners = len(game_state.perimeters[o_colors[0]]) + len(game_state.perimeters[o_colors[1]])
-    print(f"Player corners available: {player_corners}, Opponent corners available: {opponent_corners}")
+    # print(f"Player corners available: {player_corners}, Opponent corners available: {opponent_corners}")
 
     # The difference in pieces and corners can be used as a simple evaluation.
     piece_diff = opponent_pieces - player_pieces  # Having less pieces is beneficial
     corner_diff = player_corners - opponent_corners  # Having more corners is desired
-    print(f"Piece difference: {piece_diff}, Corner difference: {corner_diff}")
+    # print(f"Piece difference: {piece_diff}, Corner difference: {corner_diff}")
 
     # This method can reference player (it already takes care of summing the colors)
     player_pieces_sizes = game_state.pieces.sum_piece_size(player)
     opponent_pieces_sizes = game_state.pieces.sum_piece_size(opponent)
-    print(f"{player_pieces_sizes=}, {opponent_pieces_sizes=}")
-    piece_size_diff = np.sum(opponent_pieces_sizes) - np.sum(player_pieces_sizes)
-    print(f"Piece size difference: {piece_size_diff}")
+    # print(f"{player_pieces_sizes=}, {opponent_pieces_sizes=}")
+    piece_size_diff = opponent_pieces_sizes - player_pieces_sizes
+    # print(f"Piece size difference: {piece_size_diff}")
 
     # A simple linear combination can be a good evaluation.
     score = m_piece_diff * piece_diff + m_corn_diff * corner_diff + m_piece_size * piece_size_diff
-    print(f"Score: {score}")
+    # print(f"Score: {score}")
 
-    return score
-
-
-# TODO Dit moet je nog verbeteren
-def evaluate_blokus_enhanced(
-    game_state: BlokusGameState,
-    player: int,
-    m_size_weight=1.0,
-    m_corner_weight=1.0,
-    m_turn_discount=0.9,
-    m_territory_weight=1.0,
-    m_piece_weight=1.0,
-):
-    board = game_state.board  # board is a numpy array
-    opponent = 3 - player  # Assuming player numbers are 1 and 2
-
-    piece_size = game_state.pieces.pieces_left_for_player(
-        game_state.player_turn
-    ) - game_state.pieces.pieces_left_for_player(opponent)
-
-    # TODO This is wrong. It should count the number of corners, i.e. legal places where the player can play a piece
-    corner_score = np.sum([CENTER_WEIGHTS[c] if board[c] == 0 else 0 for c in BOARD_CORNERS])
-
-    # For territory control, we use convolution to calculate the number of neighbour cells for each cell
-    from scipy.signal import convolve2d
-
-    kernel = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
-    neighbour_counts = convolve2d(board == PLAYER_BOARD[player - 1], kernel, mode="same")
-    territory_score = np.sum(CENTER_WEIGHTS[neighbour_counts == 4])
-
-    # TODO THis is per color
-    remaining_pieces_sizes = [np.sum(piece) for piece in game_state.pieces.avail_pieces_for_color(player)]
-    opponent_pieces_sizes = [np.sum(piece) for piece in game_state.pieces.avail_pieces_for_color(opponent)]
-    remaining_pieces_score = (MAX_PIECE_COUNT - np.sum(remaining_pieces_sizes)) - (
-        MAX_PIECE_COUNT - np.sum(opponent_pieces_sizes)
-    )
-
-    # Calculate the total score
-    score = (
-        m_size_weight * piece_size
-        + m_corner_weight * corner_score
-        + m_territory_weight * territory_score
-        + m_piece_weight * remaining_pieces_score
-    )
-
-    # Apply the turn discount if it's not my turn
-    if game_state.player != player:
-        score *= m_turn_discount
-
-    return score
+    # If I am to move I will by definition be a bit behind the opponent as they will have one more piece on the board
+    return score if game_state.player == player else m_turn * score

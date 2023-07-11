@@ -141,9 +141,7 @@ class AlphaBetaPlayer(AIPlayer):
                 # Check if a move already exists somewhere in the transposition table (regardless of its depth since we only use it for move-ordering)
                 # This way we can use the move for move ordering, naiisss
                 if self.trans_table is not None:
-                    _, best_move = self.trans_table.get(
-                        state.board_hash, 0, state.player, 0, board=state.board
-                    )
+                    _, best_move = self.trans_table.get(state.board_hash, 0, state.player, 0)
 
                 if is_max_player:
                     # Max player's turn
@@ -237,7 +235,6 @@ class AlphaBetaPlayer(AIPlayer):
                         player=state.player,
                         best_move=best_move,
                         max_d=max_d,
-                        board=state.board,
                     )
 
         v, best_move = None, None
@@ -286,6 +283,7 @@ class AlphaBetaPlayer(AIPlayer):
                 "nodes_best_move_order": best_move_order,
                 "nodes_visited": nodes_visited,
                 "nodes_evaluated": evaluated,
+                "nodes_per_sec": nodes_visited / (time.time() - start_time),
                 "nodes_cutoff": cutoffs,
                 "nodes_avg_br_fact": int(round(total_moves_generated / nodes_visited, 0)),
                 "nodes_generated": total_moves_generated,
@@ -415,6 +413,9 @@ class AlphaBetaPlayer(AIPlayer):
         )
         self.c_stats["percentage_searches_tim_out"] = int(
             (self.c_stats["count_tim_out"] / self.c_stats["count_searches"]) * 100
+        )
+        self.c_stats["nodes_per_sec"] = int(
+            (self.c_stats["total_nodes_evaluated"] / self.c_stats["total_search_time"]) * 100
         )
         if self.use_quiescence:
             self.c_stats["average_q_searches"] = int(

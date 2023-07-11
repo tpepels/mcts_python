@@ -162,5 +162,37 @@
     },
     "eval_static_params": {},
     "debug": true
+  },
+  {
+    "population_size": 200,
+    "num_generations": 50,
+    "mutation_rate": 0.05,
+    "game_name": "blokus",
+    "player_name": "alphabeta",
+    "eval_name": "evaluate_blokus",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_piece_diff": {
+        "range": [0, 2],
+        "precision": 1
+      },
+      "m_corn_diff": {
+        "range": [0, 2],
+        "precision": 1
+      },
+      "m_piece_size": {
+        "range": [0, 2],
+        "precision": 1
+      },
+      "m_turn": {
+        "range": [0, 2],
+        "precision": 2
+      }
+    },
+    "ai_static_params": {
+      "max_time": 10
+    },
+    "eval_static_params": {},
+    "debug": true
   }
 ]
