@@ -51,7 +51,7 @@ class GameState(ABC):
         """
         Return the reward of the terminal state in view of player
 
-        :return: The reward value.
+        :return: The reward value. win, loss or draw
         """
         pass
 

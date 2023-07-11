@@ -1,193 +1,163 @@
-import math
-from random import random
+import random
+import time
+from typing import List, Tuple
 
+import numpy as np
 from ai.ai_player import AIPlayer
-from games.gamestate import GameState
-
-# I've made changes to the uct method and added the select, update, simulate, expand,
-# and playout methods in the UCTNode class, as well as updated the run and best_action methods in the MCTS class.
-
-# To implement MCTS-Solver, I've made changes to the UCTNode class by adding the solved and terminal_value attributes,
-# and modifying the update, simulate, and best_action methods.
+from ai.transpos_table import TranspositionTableMCTS
+from games.gamestate import GameState, win, loss, draw
 
 
-class UCTNode:
-    def __init__(self, state: GameState, parent=None, action=None, c=1.0):
-        """
-        Initialize a UCT (Upper Confidence Bound for Trees) node.
-
-        :param state: The game state at this node.
-        :param parent: The parent node.
-        :param action: The action taken to reach this node.
-        """
-        self.state: GameState = state
-        self.parent = parent
+class Node:
+    def __init__(self, state: GameState, action: Tuple, tt: TranspositionTableMCTS, c: float = 1.0):
+        self.state = state
+        self.children: List[Node] = []
+        # The action that led to this state, needed for root selection
         self.action = action
-        self.children = []
-        self.visits = 0
-        self.total_value = 0
-        self.solved = False
-        self.terminal_value = None
-        self.c: float = c
-
-    def simulate(self):
-        """
-        Perform a simulation from this node ending in a playout from this node.
-
-        :return: The reward from the simulation.
-        """
-        if self.solved:
-            return self.terminal_value
-
-        if self.state.is_terminal():
-            self.solved = True
-            self.terminal_value = self.state.get_reward()  # TODO Rewards are in absolute perspective of p1
-            return -self.terminal_value
-
-        if not self.children:
-            self.expand()
-
-        selected_child = self.select()
-        reward = -selected_child.playout()
-        self.update(reward)
-        return reward
-
-    def uct(self) -> float:
-        """
-        Calculate the UCT value of this node.
-
-        :return: The UCT value.
-        """
-        if self.visits == 0:
-            return math.inf
-
-        exploitation = self.total_value / self.visits
-        exploration = self.c * math.sqrt(math.log(self.parent.visits) / self.visits)
-        return exploitation + exploration
+        self.tt = tt
+        self.c = c
+        self.player = state.player
+        # This checks if in another part of the tree, this state was already expanded.
+        # In that case, we can immediately add all children and mark the node as expanded
+        stats = self.stats()
+        self.expanded = stats[5]
+        if self.expanded:
+            self.add_all_children()
+        else:
+            self.expanded = False
 
     def select(self):
-        """
-        Select the best child based on UCT value.
+        if not self.expanded:
+            return self.expand()
+        else:
+            return self.utc()
 
-        :return: The selected child node.
-        """
-        best_children = []
-        best_uct = float("-inf")
+    def utc(self):
+        _, _, _, my_visits, _, _ = self.stats()
+
+        max_val = -float("inf")
+        max_child = None
 
         for child in self.children:
-            # TODO Dit klopt niet, het ligt eraan vanuit welk perspectief je kijkt
-            if child.solved:
-                return child
+            # 0: v1, 1: v2, 2: im_value, 3: visits, 4: solved_player, 5: is_expanded
+            stats = child.stats()
+            i = self.player - 1  # This makes is easier to index the player in the stats
 
-            child_uct = child.uct()
-            if child_uct > best_uct:
-                best_children = [child]
-                best_uct = child_uct
-            elif child_uct == best_uct:
-                best_children.append(child)
+            uct_val = (
+                stats[i] / stats[3]
+                + np.sqrt(self.c * np.log(my_visits) / stats[3])
+                + np.random.uniform(0.0001, 0.001)
+            )
+            if uct_val >= max_val:
+                max_child = child
+                max_val = uct_val
 
-        return random.choice(best_children)
-
-    def update(self, reward):
-        """
-        Update the visits and total value of this node.
-
-        :param reward: The reward obtained from the simulation.
-        """
-        self.visits += 1
-        self.total_value += reward
-
-        if self.solved:
-            return
-
-        if self.parent and self.parent.solved:
-            self.solved = True
-            self.terminal_value = -self.parent.terminal_value
+        return max_child
 
     def expand(self):
-        """
-        Expand this node by generating all possible child nodes.
+        actions = self.state.get_legal_actions()
 
-        :return: A randomly selected child node for playout.
-        """
-        for action in self.state.get_legal_actions():
-            child_state = self.state.apply_action(action)
-            child = UCTNode(child_state, parent=self, action=action)
-            self.add_child(child)
+        for action in actions:
+            if action not in [child.action for child in self.children]:
+                child = Node(self.state.apply_action(action), action=action, tt=self.tt, c=self.c)
+                self.children.append(child)
+                return child
 
-        # Return a random node for playout
-        return self.children[random.randrange(len(self.children))]
+        # The node is fully expanded so we can switch to UTC selection
+        self.expanded = True
+        self.tt.put(self.state.board_hash, is_expanded=True, board=self.state.board)
+        return self.utc()
 
-    def best_action(self):
-        """
-        Determine the best action based on the most visited child node.
+    def add_all_children(self):
+        actions = self.state.get_legal_actions()
+        for action in actions:
+            child = Node(self.state.apply_action(action), action=action, tt=self.tt, c=self.c)
+            self.children.append(child)
 
-        :return: The action corresponding to the most visited child node.
-        """
-        return max(self.children, key=lambda child: child.visits).action
+    def stats(self):
+        # 0: v1, 1: v2, 3: im_value, 4: visits, 5: solved_player, 6: is_expanded
+        return self.tt.get(self.state.board_hash, board=self.state.board)
 
-    def playout(self):
-        """
-        Perform a - random - playout from this node.
-
-        :param evaluation_function: The evaluation function to score the resulting state.
-        :return: The score of the final state.
-        """
-        current_state = self.state
-        while not current_state.is_terminal():
-            action = random.choice(current_state.get_legal_actions())
-            current_state = current_state.apply_action(action)
-
-        return self.state.get_reward()
-
-    def add_child(self, child):
-        """
-        Add a child node.
-
-        :param child: The child node to add.
-        """
-        self.children.append(child)
-
-    def value(self):
-        """
-        Calculate the value of this node.
-
-        :return: The average value of this node.
-        """
-        return self.total_value / self.visits if self.visits != 0 else 0
+    def __str__(self):
+        return f"Node(Action: {self.action}, C: {self.c}, Player: {self.player}, Expanded: {self.expanded})"
 
 
 class MCTSPlayer(AIPlayer):
-    def init(self, node_class, state, num_simulations, exploration_param=1.0):
-        """
-        Initialize a Monte Carlo Tree Search (MCTS) player.
+    def __init__(
+        self,
+        player: int,
+        evaluate,
+        transposition_table_size=2**16,
+        num_simulations=None,
+        max_time=None,
+        c=1.0,
+        debug=False,
+    ):
+        self.player = player
+        self.evaluate = evaluate
+        if num_simulations:
+            self.num_simulations = num_simulations
+            self.time = None
+        elif max_time:
+            self.time = max_time
+            self.num_simulations = None
+        else:
+            assert (
+                time is not None or num_simulations is not None
+            ), "Either provide num_simulations or search time"
 
-        :param node_class: The UCTNode class to be used for nodes.
-        :param state: The current game state.
-        :param num_simulations: The number of simulations to run.
-        :param exploration_param: The exploration parameter.
-        """
-        self.node_class = node_class
-        self.state = state
-        self.num_simulations = num_simulations
-        self.exploration_param = exploration_param
-        self.root: UCTNode = self.node_class(self.state)
+        self.debug = debug
+        self.c = c
+        self.tt = TranspositionTableMCTS(transposition_table_size)
 
-    def run(self):
-        """
-        Run the MCTS algorithm for the specified number of simulations.
-        """
-        for _ in range(self.num_simulations):
-            self.root.simulate()
+    def best_action(self, state: GameState):
+        self.root = Node(state, None, self.tt, c=self.c)  # reset root for new round of MCTS
 
-    def best_action(self):
-        """
-        Determine the best action based on the most visited child node after running MCTS.
+        if self.num_simulations:
+            for _ in range(self.num_simulations):
+                self.simulate()
+        else:
+            start_time = time.time()
+            while time.time() - start_time < self.time:
+                self.simulate()
 
-        :return: The best action.
-        """
-        self.run()
-        return self.root.best_action()
+        # Clean the transposition table
+        self.tt.evict()
+        max_node = max(self.root.children, key=lambda node: node.stats()[3])
+        return max_node.action, 0  # return the most visited state
+
+    def simulate(self):
+        node = self.root
+        selected = [node]
+
+        while not node.state.is_terminal():
+            _node = node.select()
+            selected.append(_node)
+            node = _node
+
+        # Do a random playout and collect the result
+        result = self.play_out(node.state)
+
+        # Backpropagate the result along the chosen nodes
+        for node in selected:
+            self.tt.put(
+                key=node.state.board_hash, v1=result[0], v2=result[1], visits=1, board=node.state.board
+            )
+
+    def play_out(self, state: GameState):
+        while not state.is_terminal():
+            action = random.choice(state.get_legal_actions())
+            state = state.apply_action(action)
+
+        # Map the result to the correct player
+        result = state.get_reward(1)
+        if result == win:
+            result = (1, 0)
+        elif result == loss:
+            result = (0, 1)
+        else:
+            result = (0, 0)
+        return result
 
     def print_cumulative_statistics(self) -> str:
         pass

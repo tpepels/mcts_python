@@ -1,4 +1,6 @@
 import random
+
+import numpy as np
 from games.gamestate import GameState, win, loss, draw, normalize
 
 MARKS = {0: " ", 1: "X", 2: "O"}
@@ -20,7 +22,7 @@ class TicTacToeGameState(GameState):
 
         self.zobrist_table = self.zobrist_tables[self.size]
         if self.board is None:
-            self.board = [[0] * self.size for _ in range(self.size)]
+            self.board = np.zeros((self.size, self.size), dtype=int)
             self.board_hash = 0
             for i in range(self.size):
                 for j in range(self.size):
@@ -33,7 +35,7 @@ class TicTacToeGameState(GameState):
         if self.board[x][y] != 0:
             raise ValueError("Illegal move")
 
-        new_board = [row.copy() for row in self.board]
+        new_board = np.copy(self.board)
         new_board[x][y] = self.player
         board_hash = (
             self.board_hash
@@ -53,7 +55,7 @@ class TicTacToeGameState(GameState):
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search"""
-        new_board = [row[:] for row in self.board]
+        new_board = np.copy(self.board)
         # Pass the same hash since this is only used for null-moves
         return TicTacToeGameState(
             board_size=self.size,

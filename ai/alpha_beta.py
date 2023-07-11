@@ -1,7 +1,5 @@
-import random
 import time
 
-import numpy as np
 
 from ai.ai_player import AIPlayer
 from ai.transpos_table import TranspositionTable
@@ -156,8 +154,8 @@ class AlphaBetaPlayer(AIPlayer):
                         else state.evaluate_move(move)
                     )
 
-                    if best_move is not None:
-                        assert best_move in actions, "best_move found but not in available actions"
+                    if best_move is not None and best_move in actions:
+                        # assert best_move in actions, "best_move found but not in available actions"
                         best_move_order += 1
                         # Put the best move from the transposition table at the front of the list
                         actions.remove(best_move)
@@ -195,8 +193,8 @@ class AlphaBetaPlayer(AIPlayer):
                         if self.player == state.player
                         else -state.evaluate_move(move)
                     )
-                    if best_move is not None:
-                        assert best_move in actions, "best_move found but not in available actions"
+                    if best_move is not None and best_move in actions:
+                        # assert best_move in actions, "best_move found but not in available actions"
                         best_move_order += 1
                         # Put the best move from the transposition table at the front of the list
                         actions.remove(best_move)

@@ -208,7 +208,6 @@ class BlokusGameState(GameState):
         )
 
         if action == PASS_MOVE:
-            print(f"pass {self.color}")
             new_state.passed[self.color] = True
         else:
             x, y, piece_index, rotation = action

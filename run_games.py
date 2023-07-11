@@ -1,14 +1,8 @@
-import datetime
 import inspect
-import multiprocessing
-import random
 import time
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple, Type
-
-import gspread
-from google.oauth2.service_account import Credentials
 
 from ai.ai_player import AIPlayer
 from ai.alpha_beta import AlphaBetaPlayer
@@ -20,10 +14,10 @@ from games.breakthrough import (
     evaluate_breakthrough,
     evaluate_breakthrough_lorenz,
 )
-from games.gamestate import GameState, draw, loss, win
+from games.gamestate import GameState, loss, win
 from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_enhanced
 from games.tictactoe import TicTacToeGameState, evaluate_tictactoe, evaluate_n_in_a_row
-from util import log_exception_handler, read_config, redirect_print_to_log
+from util import log_exception_handler
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {
