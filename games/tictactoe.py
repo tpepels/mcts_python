@@ -218,7 +218,7 @@ def evaluate_n_in_a_row(
     m_weight=4.1,
     m_e_weight=0.2,
     m_opp_disc=0.72,
-    m_win=1000,
+    m_win=10,
 ):
     """
     Evaluate the current state of a n-in-a-row Tic Tac Toe game.
@@ -238,37 +238,35 @@ def evaluate_n_in_a_row(
     """
 
     def score_line(line: list):
-        """
-        Compute the score for a line by counting consecutive marks and adjacent empty spaces.
-
-        Args:
-            line (list): The line to score.
-
-        Returns:
-            tuple: The score for the player, the score for the opponent, and whether each player has a potential win in the next move.
-        """
         score = {player: 0, opponent: 0}
-        max_sequence_length = {player: 0, opponent: 0}
-        current_sequence_length = {player: 0, opponent: 0}
-        adjacent_empty_spaces = {player: 0, opponent: 0}
         potential_wins = {player: 0, opponent: 0}
+        line_len = len(line)
 
-        for mark in line:
-            if mark == 0:  # empty space
-                for m in score:  # both players
-                    adjacent_empty_spaces[m] += 1
-            else:
-                current_sequence_length[mark] += 1
-                max_sequence_length[mark] = max(max_sequence_length[mark], current_sequence_length[mark])
-                # A mark for me resets the sequence for the opponent
-                current_sequence_length[3 - mark] = 0
+        for m in [player, opponent]:
+            i = 0
+            while i < line_len:
+                if line[i] == m:
+                    # calculate longest uninterrupted sequence
+                    seq_end = i
+                    while seq_end < line_len and line[seq_end] == m:
+                        seq_end += 1
+                    seq_len = seq_end - i
 
-        for m in score:  # both players
-            if max_sequence_length[m] + adjacent_empty_spaces[m] >= row_length:  # there's room for a win
-                score[m] = m_weight ** max_sequence_length[m] + m_e_weight * adjacent_empty_spaces[m]
-                # The sequence can lead to a win, hurray!
-                if max_sequence_length[m] == row_length - 1 and adjacent_empty_spaces[m] > 0:
-                    potential_wins[m] += 1
+                    # calculate degree of freedom
+                    left_empty = i - 1 if i - 1 >= 0 and line[i - 1] == 0 else 0
+                    right_empty = seq_end if seq_end < line_len and line[seq_end] == 0 else 0
+
+                    if seq_len + left_empty + right_empty >= row_length:  # can be extended to n-in-a-row
+                        score[m] += m_weight**seq_len + m_e_weight * (left_empty + right_empty)
+
+                        # check for potential win in the next move
+                        if seq_len == row_length - 1:
+                            potential_wins[m] += 1
+
+                    # move the index to the end of the sequence
+                    i = seq_end
+                else:
+                    i += 1
 
         return score, potential_wins
 

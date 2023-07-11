@@ -17,20 +17,20 @@
         "precision": 2
       },
       "m_weight": {
-        "range": [0, 10],
+        "range": [0, 5],
         "precision": 1
       },
       "m_e_weight": {
-        "range": [0, 2],
+        "range": [0, 5],
         "precision": 1
       },
       "m_win": {
-        "range": [10, 5000],
+        "range": [0, 1000],
         "precision": 0
       }
     },
     "ai_static_params": {
-      "max_time": 10
+      "max_time": 5
     },
     "eval_static_params": {},
     "debug": true
