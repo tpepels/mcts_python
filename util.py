@@ -129,6 +129,7 @@ def log_exception_handler(func):
         except Exception as e:
             error_message = str(e) + "\n" + traceback.format_exc()
             log_file = f"log/{func.__name__}_error.log"
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
             with open(log_file, "a") as f:
                 f.write(f"An exception occurred in {func.__name__}: {error_message}\n")
             raise e  # re-throw the exception after logging
