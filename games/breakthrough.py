@@ -350,9 +350,8 @@ def evaluate_breakthrough_lorenz(
             continue
 
         multiplier = 1 if piece == player else -1
-        if m_lorenz != 0:
-            piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
-            board_values += multiplier * piece_value
+        piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
+        board_values += multiplier * piece_value
 
         if m_mobility != 0 or m_blocked != 0:
             mob_val = piece_mobility(position, piece, state.board)
