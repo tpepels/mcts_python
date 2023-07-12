@@ -685,7 +685,9 @@ def run_experiments_from_file(file_path: str):
             print(f"Experiment {i+1} already completed. Skipping...")
             continue
 
-        experiment.pop("status")
+        if "status" in experiment:  # Don't pass the status parameter to the function
+            experiment.pop("status")
+
         exp_start_time = time.time()
 
         # Creating a name and description for the experiment
