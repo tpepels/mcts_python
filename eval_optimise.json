@@ -33,7 +33,8 @@
       "max_time": 5
     },
     "eval_static_params": {},
-    "debug": true
+    "debug": true,
+    "status": "complete"
   },
   {
     "population_size": 200,
