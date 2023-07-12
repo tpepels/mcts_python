@@ -665,7 +665,7 @@ def _mutate_value(value: float, value_range: Tuple[float, float], precision: int
     return round(mutated_value, None if precision == 0 else precision)
 
 
-def run_experiments_from_file(file_path):
+def run_experiments_from_file(file_path: str):
     """
     Run experiments from a JSON file.
 
@@ -678,12 +678,14 @@ def run_experiments_from_file(file_path):
     start_time = time.time()
     total_experiments = len(experiments)
     times = []
+    experiment: dict
 
     for i, experiment in enumerate(experiments):
         if experiment.get("status", "incomplete") == "complete":
             print(f"Experiment {i+1} already completed. Skipping...")
             continue
 
+        experiment.pop("status")
         exp_start_time = time.time()
 
         # Creating a name and description for the experiment
