@@ -65,6 +65,15 @@ class TicTacToeGameState(GameState):
             board_hash=self.board_hash,
         )
 
+    def get_random_action(self):
+        return random.choice(self.get_legal_actions())
+
+    def yield_legal_actions(self):
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.board[i][j] == 0:
+                    yield (i, j)
+
     def get_legal_actions(self):
         return [(i, j) for i in range(self.size) for j in range(self.size) if self.board[i][j] == 0]
 

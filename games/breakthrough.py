@@ -81,6 +81,68 @@ class BreakthroughGameState(GameState):
         # Pass the same board hash since this is only used for null moves
         return BreakthroughGameState(np.copy(self.board), 3 - self.player, board_hash=self.board_hash)
 
+    def get_random_action(self):
+        """
+        Generate a single legal action for the current player.
+
+        :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
+        """
+
+        positions = np.where(self.board == self.player)[0]
+        random.shuffle(positions)  # shuffle the positions to add randomness
+        dr = -1 if self.player == 1 else 1
+        directions = [-1, 0, 1]
+        random.shuffle(directions)  # shuffle the directions to add randomness
+
+        for position in positions:
+            row, col = divmod(position, 8)
+
+            for dc in directions:
+                new_row, new_col = row + dr, col + dc
+                in_bounds = (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
+
+                if not in_bounds:  # if the new position is not in bounds, skip to the next direction
+                    continue
+
+                new_position = new_row * 8 + new_col
+
+                if dc == 0:  # moving straight
+                    if self.board[new_position] == 0:
+                        return (position, new_position)
+                else:  # capturing
+                    if self.board[new_position] != self.player:
+                        return (position, new_position)
+
+        # if no legal moves are found after iterating all positions and directions, return None
+        return None
+
+    def yield_legal_actions(self):
+        """
+        Yield all legal actions for the current player.
+
+        :yield: Legal actions as tuples (from_position, to_position). In case of a terminal state, an empty sequence is returned.
+        """
+        positions = np.where(self.board == self.player)[0]
+        random.shuffle(positions)  # Shuffle positions
+
+        dr = -1 if self.player == 1 else 1
+
+        for position in positions:
+            row, col = divmod(position, 8)
+            dc_values = [-1, 0, 1]
+            random.shuffle(dc_values)  # Shuffle dc_values for each position
+
+            for dc in dc_values:
+                new_row, new_col = row + dr, col + dc
+
+                if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if new position is in bounds
+                    new_position = new_row * 8 + new_col
+
+                    if dc == 0 and self.board[new_position] == 0:  # moving straight
+                        yield position, new_position
+                    elif dc != 0 and self.board[new_position] != self.player:  # capturing / diagonal move
+                        yield position, new_position
+
     def get_legal_actions(self):
         """
         Get all legal actions for the current player.

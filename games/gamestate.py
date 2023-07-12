@@ -29,6 +29,20 @@ class GameState(ABC):
         pass
 
     @abstractmethod
+    def get_random_action(self):
+        """
+        Return a single legal action, uniformly chosen from all legal actions
+        """
+        pass
+
+    @abstractmethod
+    def yield_legal_actions(self):
+        """
+        Returns legal actions one by one
+        """
+        pass
+
+    @abstractmethod
     def get_legal_actions(self):
         """
         Get a list of legal actions for the current game state.

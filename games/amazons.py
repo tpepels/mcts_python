@@ -168,12 +168,67 @@ class AmazonsGameState(GameState):
             n_moves=self.n_moves + 1,
         )
 
+    def get_random_action(self):
+        """
+        Get a single random legal action for the current player.
+        """
+        # Select a random queen
+        queens = self.white_queens if self.player == 1 else self.black_queens
+        random_queen = random.choice(queens)
+
+        # Randomly select a direction
+        random_direction = random.choice(DIRECTIONS)
+
+        move_x, move_y = random_queen[0] + random_direction[0], random_queen[1] + random_direction[1]
+
+        num_iterations = random.randint(1, self.board_size)
+        last_valid_action = None
+        for _ in range(num_iterations):
+            if not (
+                0 <= move_x < self.board_size
+                and 0 <= move_y < self.board_size
+                and self.board[move_x][move_y] == 0
+            ):
+                break
+
+            # Randomly select a direction for the arrow shot
+            random_arrow_direction = random.choice(DIRECTIONS)
+            arrow_x, arrow_y = move_x + random_arrow_direction[0], move_y + random_arrow_direction[1]
+
+            if (
+                0 <= arrow_x < self.board_size
+                and 0 <= arrow_y < self.board_size
+                and (
+                    self.board[arrow_x][arrow_y] == 0
+                    or (arrow_x == random_queen[0] and arrow_y == random_queen[1])
+                )
+            ):
+                last_valid_action = (random_queen[0], random_queen[1], move_x, move_y, arrow_x, arrow_y)
+
+            move_x += random_direction[0]
+            move_y += random_direction[1]
+
+        if last_valid_action is not None:
+            return last_valid_action
+
+        return self.get_random_action()
+
+    def yield_legal_actions(self):
+        """
+        Get a generator of legal actions for the current player.
+        """
+        queens = self.white_queens if self.player == 1 else self.black_queens
+        random.shuffle(queens)
+        for queen in queens:
+            for move in self.get_legal_moves_for_amazon(*queen):
+                yield move
+
     def get_legal_actions(self):
         """
         Get a list of legal actions for the current player.
         """
         queens = self.white_queens if self.player == 1 else self.black_queens
-
+        random.shuffle(queens)
         return [move for queen in queens for move in self.get_legal_moves_for_amazon(*queen)]
 
     def get_legal_moves_for_amazon(self, x, y):

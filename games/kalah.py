@@ -146,6 +146,24 @@ class KalahGameState(GameState):
         new_board = self.board.copy()
         return KalahGameState(new_board, 3 - self.player)
 
+    def get_random_action(self):
+        return random.choice(self.get_legal_actions())
+
+    def yield_legal_actions(self):
+        """
+        Generate legal actions for the current game state.
+
+        :yield: Legal actions, represented as the indices of the houses with seeds.
+        """
+        start = 0 if self.player == 1 else self.num_houses + 1
+        end = self.num_houses if self.player == 1 else len(self.board) - 1
+        actions = [i for i in range(start, end) if self.board[i] > 0]
+
+        random.shuffle(actions)  # Shuffle actions for randomness
+
+        for action in actions:
+            yield action
+
     def get_legal_actions(self):
         """
         Get a list of legal actions for the current game state.

@@ -55,9 +55,7 @@ class Node:
         return max_child
 
     def expand(self):
-        actions = self.state.get_legal_actions()
-
-        for action in actions:
+        for action in self.state.yield_legal_actions():
             if action not in [child.action for child in self.children]:
                 child = Node(self.state.apply_action(action), action=action, tt=self.tt, c=self.c)
                 self.children.append(child)
@@ -146,7 +144,7 @@ class MCTSPlayer(AIPlayer):
 
     def play_out(self, state: GameState):
         while not state.is_terminal():
-            action = random.choice(state.get_legal_actions())
+            action = state.get_random_action()
             state = state.apply_action(action)
 
         # Map the result to the correct player

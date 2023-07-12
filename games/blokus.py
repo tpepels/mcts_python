@@ -1,5 +1,6 @@
 import copy
-from typing import List, Tuple
+import random
+from typing import Generator, List, Tuple
 import numpy as np
 from termcolor import colored
 
@@ -87,7 +88,6 @@ for piece_index, piece in enumerate(pieces):
 
     rotated_pieces[piece_index] = rotations
     piece_masks[piece_index] = [rotation.astype(bool) for rotation in rotated_pieces[piece_index]]
-
 
 MAX_PIECE_COUNT = total_ones * 2
 
@@ -269,11 +269,118 @@ class BlokusGameState(GameState):
 
         return new_state
 
+    def get_random_action(self):
+        if self.passed[self.color]:
+            return PASS_MOVE
+        # Store already checked actions to prevent repeating them
+        checked_actions = set()
+
+        perimeter_points = list(self.perimeters[self.color])
+        avail_pieces = self.pieces.avail_pieces_for_color(self.color)
+        total_possible_actions = sum(unique_rotations[piece_index] for piece_index in avail_pieces) * len(
+            perimeter_points
+        )
+
+        while len(checked_actions) < total_possible_actions:
+            # Select a random perimeter point
+            if perimeter_points:
+                px, py = random.choice(perimeter_points)
+            else:  # No available perimeter points
+                return [PASS_MOVE]
+
+            # Select a random piece
+            if avail_pieces:
+                piece_index = random.choice(avail_pieces)
+            else:  # No available pieces
+                return [PASS_MOVE]
+
+            rotation = random.randint(0, unique_rotations[piece_index] - 1)
+            piece = rotated_pieces[piece_index][rotation]
+            piece_width, piece_height = piece.shape
+
+            dx = random.randint(max(-piece_width + 1, -px), min(piece_width, BOARD_SIZE - px))
+            dy = random.randint(max(-piece_height + 1, -py), min(piece_height, BOARD_SIZE - py))
+
+            x, y = px + dx, py + dy
+
+            # Check if piece can be physically placed, considering its shape
+            if not (0 <= x + piece_width - 1 < BOARD_SIZE and 0 <= y + piece_height - 1 < BOARD_SIZE):
+                continue
+
+            action = (x, y, piece_index, rotation)
+            if action in checked_actions:
+                continue
+
+            checked_actions.add(action)
+            if self.is_legal_action(x, y, piece, piece_masks[piece_index][rotation]):
+                return action
+
+        # All possible actions have been tried and are illegal, return a PASS_MOVE
+        return PASS_MOVE
+
+    import random
+
+    def yield_legal_actions(self) -> Generator[Tuple[int, int, int, int], None, None]:
+        if self.passed[self.color]:
+            yield PASS_MOVE
+            return
+
+        self.positions_checked = 0
+        checked_actions = set()
+        perimeter_points = list(self.perimeters[self.color])
+        random.shuffle(perimeter_points)  # Shuffle perimeter points
+
+        avail_pieces = self.pieces.avail_pieces_for_color(self.color)
+        random.shuffle(avail_pieces)  # Shuffle available pieces
+
+        for px, py in perimeter_points:
+            # The first 4 moves must be played in the corners
+            if self.n_turns <= 3 and (px, py) not in BOARD_CORNERS:
+                continue
+
+            for piece_index in avail_pieces:
+                rotations = list(range(unique_rotations[piece_index]))  # Create list of rotations
+                random.shuffle(rotations)  # Shuffle rotations
+                for rotation in rotations:  # Use pre-computed rotations
+                    piece = rotated_pieces[piece_index][rotation]
+                    piece_width, piece_height = piece.shape
+
+                    dx_values = list(range(max(-piece_width + 1, -px), min(piece_width, BOARD_SIZE - px)))
+                    random.shuffle(dx_values)  # Shuffle dx_values
+                    for dx in dx_values:
+                        dy_values = list(
+                            range(max(-piece_height + 1, -py), min(piece_height, BOARD_SIZE - py))
+                        )
+                        random.shuffle(dy_values)  # Shuffle dy_values
+                        for dy in dy_values:
+                            x, y = px + dx, py + dy
+                            # Check if piece can be physically placed, considering its shape
+                            if not (
+                                0 <= x + piece_width - 1 < BOARD_SIZE
+                                and 0 <= y + piece_height - 1 < BOARD_SIZE
+                            ):
+                                continue
+
+                            action = (x, y, piece_index, rotation)
+                            if action in checked_actions:
+                                continue
+
+                            checked_actions.add(action)
+                            if self.is_legal_action(x, y, piece, piece_masks[piece_index][rotation]):
+                                yield action
+
+        # If we haven't yielded any actions, then it's a PASS_MOVE
+        yield PASS_MOVE
+
     def get_legal_actions(self) -> List[Tuple[int, int, int, int]]:
+        if self.passed[self.color]:
+            return [PASS_MOVE]
+
         self.positions_checked = 0
         legal_actions = []
         checked_actions = set()
         perimeter_points = set(self.perimeters[self.color])
+
         avail_pieces = self.pieces.avail_pieces_for_color(self.color)
 
         for px, py in perimeter_points:
