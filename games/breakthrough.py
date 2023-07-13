@@ -225,7 +225,7 @@ class BreakthroughGameState(GameState):
 
         # Reward capturing
         if self.is_capture(move):
-            score ^= 2  # square score if it's a capture
+            score = score**2  # square score if it's a capture
 
         return score
 
