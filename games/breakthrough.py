@@ -210,24 +210,22 @@ class BreakthroughGameState(GameState):
         :return: The heuristic value of the move.
         """
         from_position, to_position = move
-        from_row = from_position // 8
-        to_row = to_position // 8
 
         # Player 1 views the lorenz_values in reverse
         if self.player == 1:
             to_position = 63 - to_position
+            from_position = 63 - from_position
 
-        # Reward moving forward
-        base_value = lorentz_values[to_position]  # Use lorentz_values for base_value
-        score = abs(to_row - from_row) * base_value
+        # Use lorentz_values for base_value
+        score = lorentz_values[to_position] - lorentz_values[from_position]
+
+        # Reward safe positions
+        if is_safe(move[1], self.player, self.board):
+            score += score  # Add base_value again if the position is safe
 
         # Reward capturing
         if self.is_capture(move):
             score ^= 2  # square score if it's a capture
-
-        # Reward safe positions
-        if is_safe(to_position, self.player, self.board):
-            score += base_value  # Add base_value again if the position is safe
 
         return score
 
@@ -323,8 +321,10 @@ def evaluate_breakthrough(
         dist = 7 - x if piece == 2 else x
         metrics[piece]["distance"] += dist
 
-        if (piece == 2 and x >= 5) or (piece == 1 and x <= 2):
-            metrics[piece]["near_opponent_side"] += 7 - dist  # the close the better
+        if (piece == 2 and x >= 4) or (piece == 1 and x <= 3):
+            metrics[piece]["near_opponent_side"] = min(
+                dist, metrics[piece]["near_opponent_side"]
+            )  # the closer the better
 
         dr = -1 if piece == 1 else 1  # Determine the direction of movement based on the current player
         blocked = True
@@ -404,39 +404,38 @@ def evaluate_breakthrough_lorenz(
     blocked_values = 0
     safety_values = 0
     endgame_values = 0
-
+    piece_diff = 0
+    pieces = 0
     opponent = 3 - player
 
     for position, piece in enumerate(state.board):
         if piece == 0:
             continue
 
+        # Player or opponent
         multiplier = 1 if piece == player else -1
+        pieces += 1
+        piece_diff += multiplier
+
         piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
         board_values += multiplier * piece_value
 
         if m_mobility != 0 or m_blocked != 0:
             mob_val = piece_mobility(position, piece, state.board)
             mobility_values += multiplier * mob_val
-            if mob_val == 0:  # Keep track of blocked pieces
+            if mob_val == 0:  # Keep track of the number of blocked pieces
                 blocked_values -= multiplier
 
         if m_safe != 0 and is_safe(position, piece, state.board):
-            safety_bonus = m_safe * piece_value
-            safety_values += safety_bonus if piece == player else -safety_bonus
+            safety_values += multiplier * m_safe * piece_value
 
-    if m_endgame != 0 and np.count_nonzero(state.board) < 16:
-        endgame_values = m_endgame * (
-            np.count_nonzero(state.board == player) - np.count_nonzero(state.board == opponent)
-        )
+    if m_endgame != 0 and pieces < 12:
+        endgame_values = m_endgame * piece_diff
 
     my_caps, my_cap_moves = count_capture_moves(state, player) if m_cap != 0 or m_cap_move != 0 else (0, 0)
     opp_caps, opp_cap_moves = (
         count_capture_moves(state, opponent) if m_cap != 0 or m_cap_move != 0 else (0, 0)
     )
-
-    cap_diff = m_cap * (my_caps - opp_caps) if m_cap != 0 else 0
-    cap_move_diff = m_cap_move * (my_cap_moves - opp_cap_moves) if m_cap_move != 0 else 0
 
     eval_value = (
         endgame_values
@@ -444,8 +443,8 @@ def evaluate_breakthrough_lorenz(
         + m_mobility * mobility_values
         + m_blocked * blocked_values
         + safety_values
-        + cap_diff
-        + cap_move_diff
+        + m_cap * (my_caps - opp_caps)
+        + m_cap_move * (my_cap_moves - opp_cap_moves)
     ) * (m_opp_disc if state.player == opponent else 1)
 
     if norm:
@@ -632,3 +631,5 @@ lorentz_values = np.array(
     ],
     dtype=int,
 )
+# Normalize the lorenz values so it requires less tuning to combine with other heuristics
+lorentz_values = (lorentz_values - np.min(lorentz_values)) / (np.max(lorentz_values) - np.min(lorentz_values))

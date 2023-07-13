@@ -43,6 +43,17 @@ class Node:
             stats = child.stats()
             i = self.player - 1  # This makes is easier to index the player in the stats
 
+            # TODO Dit moet je nog checken
+            if stats[4] is not None:  # This child node has been solved
+                if stats[4] == self.player:  # Winning move
+                    self.solved = True
+                    self.tt.put(
+                        self.state.board_hash, is_expanded=True, solved=self.player, board=self.state.board
+                    )
+                    return child
+                else:  # Losing move
+                    continue  # Skip this child
+
             uct_val = (
                 stats[i] / stats[3]
                 + np.sqrt(self.c * np.log(my_visits) / stats[3])
@@ -55,11 +66,26 @@ class Node:
         return max_child
 
     def expand(self):
+        # TODO Dit moet je nog checken
+        all_children_loss = True
         for action in self.state.yield_legal_actions():
             if action not in [child.action for child in self.children]:
                 child = Node(self.state.apply_action(action), action=action, tt=self.tt, c=self.c)
                 self.children.append(child)
-                return child
+                if not child.solved or child.stats()[4] != self.player:  # This child is not a loss
+                    all_children_loss = False
+                elif child.stats()[4] == self.player:  # This child is a win
+                    self.solved = True
+                    self.tt.put(
+                        self.state.board_hash, is_expanded=True, solved=self.player, board=self.state.board
+                    )
+                    return child
+
+        if all_children_loss:  # All children are loss
+            self.solved = True
+            self.tt.put(
+                self.state.board_hash, is_expanded=True, solved=3 - self.player, board=self.state.board
+            )
 
         # The node is fully expanded so we can switch to UTC selection
         self.expanded = True
@@ -85,14 +111,26 @@ class MCTSPlayer(AIPlayer):
         self,
         player: int,
         evaluate,
-        transposition_table_size=2**16,
-        num_simulations=None,
-        max_time=None,
-        c=1.0,
-        debug=False,
+        transposition_table_size: int = 2**16,
+        num_simulations: int = None,
+        max_time: int = None,
+        c: float = 1.0,
+        early_term: bool = False,
+        early_term_cutoff: float = 0.9,
+        e_greedy: bool = False,
+        e_g_epsilon: float = 0.05,
+        node_priors: bool = False,
+        debug: bool = False,
     ):
         self.player = player
         self.evaluate = evaluate
+
+        self.early_term = early_term
+        self.early_term_cutoff = early_term_cutoff
+        self.e_greedy = e_greedy
+        self.e_g_epsilon = e_g_epsilon
+
+        self.node_priors = node_priors
         if num_simulations:
             self.num_simulations = num_simulations
             self.time = None
@@ -129,9 +167,8 @@ class MCTSPlayer(AIPlayer):
         selected = [node]
 
         while not node.state.is_terminal():
-            _node = node.select()
-            selected.append(_node)
-            node = _node
+            node = node.select()
+            selected.append(node)
 
         # Do a random playout and collect the result
         result = self.play_out(node.state)
@@ -143,7 +180,15 @@ class MCTSPlayer(AIPlayer):
             )
 
     def play_out(self, state: GameState):
+        turns = 1
         while not state.is_terminal():
+            if self.early_term and turns % 5 == 0:
+                # Early termination condition
+                evaluation = self.evaluate(state, 1)
+                if evaluation > self.early_term_cutoff:
+                    return (1, 0)
+                elif evaluation < self.early_term_cutoff:
+                    return (0, 1)
             action = state.get_random_action()
             state = state.apply_action(action)
 
@@ -154,7 +199,7 @@ class MCTSPlayer(AIPlayer):
         elif result == loss:
             result = (0, 1)
         else:
-            result = (0, 0)
+            result = (0.5, 0.5)  # TODO Make this a parameter
         return result
 
     def print_cumulative_statistics(self) -> str:
