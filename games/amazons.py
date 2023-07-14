@@ -328,6 +328,27 @@ class AmazonsGameState(GameState):
 
         return False
 
+    def evaluate_moves(self, moves):
+        """
+        Evaluate the given moves using a simple heuristic:
+        Each move to a location closer to the center of the board is valued.
+        If the move involves shooting an arrow that restricts the mobility of an opponent's Amazon, the value is increased.
+
+        :param moves: The list of moves to evaluate.
+        :return: The list of heuristic values of the moves.
+        """
+        scores = []
+        for move in moves:
+            # Extract the start and end positions of the amazon and the arrow shot from the move
+            _, _, end_x, end_y, arrow_x, arrow_y = move
+            # Calculate score based on the distance of the Amazon's move from the center
+            score = abs(self.mid - end_x) + abs(self.mid - end_y)
+            # Add value to the score based on the distance of the arrow shot from the Amazon
+            arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
+            score += arrow_distance
+            scores.append((move, score))
+        return scores
+
     def evaluate_move(self, move):
         """
         Evaluate the given move using a simple heuristic:
@@ -370,7 +391,7 @@ class AmazonsGameState(GameState):
         return f"amazons{self.board_size}"
 
 
-def evaluate_amazons(state: AmazonsGameState, player: int, m_opp_disc=0.9, a=1, norm=True):
+def evaluate_amazons(state: AmazonsGameState, player: int, m_opp_disc=0.9, a=1, norm=False):
     """
     Evaluate the given game state from the perspective of the specified player.
 
@@ -415,7 +436,7 @@ def evaluate_amazons_lieberum(
     m_mob=0.25,
     m_opp_disc=0.9,
     a=50,
-    norm=True,
+    norm=False,
 ):
     """
     Evaluates the current game state for Game of the Amazons using Lieberum's evaluation function,

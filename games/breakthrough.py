@@ -127,9 +127,9 @@ class BreakthroughGameState(GameState):
 
         dr = -1 if self.player == 1 else 1
 
+        dc_values = [-1, 0, 1]
         for position in positions:
             row, col = divmod(position, 8)
-            dc_values = [-1, 0, 1]
             random.shuffle(dc_values)  # Shuffle dc_values for each position
 
             for dc in dc_values:
@@ -152,26 +152,24 @@ class BreakthroughGameState(GameState):
 
         legal_actions = []
         positions = np.where(self.board == self.player)[0]
-        row, col = divmod(positions, 8)
+        random.shuffle(positions)  # Shuffle positions
         dr = -1 if self.player == 1 else 1
+        dc_values = [-1, 0, 1]
+        for position in positions:
+            row, col = divmod(position, 8)
+            random.shuffle(dc_values)  # Shuffle dc_values for each position
+            for dc in dc_values:
+                new_row, new_col = row + dr, col + dc
+                if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if the new position is within the board
+                    new_position = new_row * 8 + new_col
 
-        for dc in [-1, 0, 1]:
-            new_row, new_col = row + dr, col + dc
-            in_bounds = (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
+                    if dc == 0:  # moving straight
+                        if self.board[new_position] == 0:
+                            legal_actions.append((position, new_position))
 
-            valid_positions = positions[in_bounds]  # update the positions based on in_bound mask
-            new_positions = new_row * 8 + new_col
-            valid_new_positions = new_positions[in_bounds]  # update the new_positions based on in_bound mask
-
-            if len(valid_new_positions) == 0:  # if there are no valid new positions, continue to next dc
-                continue
-
-            if dc == 0:  # moving straight
-                mask = self.board[valid_new_positions] == 0
-            else:  # capturing
-                mask = self.board[valid_new_positions] != self.player
-
-            legal_actions.extend(zip(valid_positions[mask], valid_new_positions[mask]))
+                    else:  # diagonal capture / move
+                        if self.board[new_position] != self.player:
+                            legal_actions.append((position, new_position))
 
         return legal_actions
 
@@ -201,6 +199,38 @@ class BreakthroughGameState(GameState):
         # Check if the destination cell contains an opponent's piece
         return self.board[move[1]] == 3 - self.player
 
+    def evaluate_moves(self, moves):
+        """
+        Evaluate the given moves using a simple heuristic: each step forward is worth 1 point,
+        and capturing an opponent's piece is worth 2 points.
+
+        :param moves: The list of moves to evaluate.
+        :return: The list of heuristic values of the moves.
+        """
+        scores = []
+        for move in moves:
+            from_position, to_position = move
+
+            # Player 1 views the lorenz_values in reverse
+            if self.player == 1:
+                to_position = 63 - to_position
+                from_position = 63 - from_position
+
+            # Use lorentz_values for base_value
+            score = lorentz_values[to_position] - lorentz_values[from_position]
+
+            # Reward safe positions
+            if is_safe(move[1], self.player, self.board):
+                score *= 2  # Add base_value again if the position is safe
+
+            # Reward capturing
+            if self.is_capture(move):
+                score = (MAX_LORENZ + score) ** 2  # square score if it's a capture
+
+            scores.append((move, score))
+
+        return scores
+
     def evaluate_move(self, move):
         """
         Evaluate the given move using a simple heuristic: each step forward is worth 1 point,
@@ -221,11 +251,11 @@ class BreakthroughGameState(GameState):
 
         # Reward safe positions
         if is_safe(move[1], self.player, self.board):
-            score += score  # Add base_value again if the position is safe
+            score *= 2  # Add base_value again if the position is safe
 
         # Reward capturing
         if self.is_capture(move):
-            score = score**2  # square score if it's a capture
+            score = (MAX_LORENZ + score) ** 2  # square score if it's a capture
 
         return score
 
@@ -375,9 +405,12 @@ def evaluate_breakthrough_lorenz(
     m_endgame: float = 1.0,
     m_cap: float = 2.0,
     m_cap_move: float = 2.0,
+    m_piece_diff: float = 1.0,
     m_opp_disc: float = 0.9,
+    m_decisive: float = 100.0,
+    m_antidecisive: float = -100.0,
     a: int = 200,
-    norm: bool = True,
+    norm: bool = False,
 ):
     """
     Evaluates the current game state using an enhanced Lorenz evaluation function,
@@ -422,15 +455,30 @@ def evaluate_breakthrough_lorenz(
 
         if m_mobility != 0 or m_blocked != 0:
             mob_val = piece_mobility(position, piece, state.board)
-            mobility_values += multiplier * mob_val
+            mobility_values += multiplier * mob_val * (1 + piece_value)
             if mob_val == 0:  # Keep track of the number of blocked pieces
                 blocked_values -= multiplier
 
         if m_safe != 0 and is_safe(position, piece, state.board):
-            safety_values += multiplier * m_safe * piece_value
+            safety_values += multiplier * (1 + piece_value)
 
     if m_endgame != 0 and pieces < 12:
         endgame_values = m_endgame * piece_diff
+
+    decisive_values = 0
+    antidecisive_values = 0
+
+    # if player reaches opponent's home row, decisive condition is met
+    if any(x == player for x in state.board[0:8] if player == 2) or any(
+        x == player for x in state.board[56:64] if player == 1
+    ):
+        decisive_values = m_decisive
+
+    # if opponent is one move away from reaching home row, anti-decisive condition is met
+    if any(x == opponent for x in state.board[8:16] if player == 2) or any(
+        x == opponent for x in state.board[48:56] if player == 1
+    ):
+        antidecisive_values = m_antidecisive
 
     my_caps, my_cap_moves = count_capture_moves(state, player) if m_cap != 0 or m_cap_move != 0 else (0, 0)
     opp_caps, opp_cap_moves = (
@@ -438,11 +486,14 @@ def evaluate_breakthrough_lorenz(
     )
 
     eval_value = (
-        endgame_values
+        decisive_values
+        + antidecisive_values
+        + endgame_values
         + m_lorenz * board_values
         + m_mobility * mobility_values
         + m_blocked * blocked_values
-        + safety_values
+        + m_safe * safety_values
+        + m_piece_diff * piece_diff
         + m_cap * (my_caps - opp_caps)
         + m_cap_move * (my_cap_moves - opp_cap_moves)
     ) * (m_opp_disc if state.player == opponent else 1)
@@ -494,38 +545,57 @@ def is_safe(position, player, board):
 
     :param position: The position of the piece.
     :param player: The player to which the piece belongs (1 or 2).
-    :param state: The game state.
+    :param board: The game board.
     :return: True if the piece is safe, False otherwise.
     """
+
+    # Convert linear position to 2D grid coordinates.
     x, y = divmod(position, 8)
+
+    # Set direction of checks based on the player's piece color.
+    # Player 1 pieces move up the board, so check positions below for safety.
+    # Player 2 pieces move down the board, so check positions above for safety.
     row_offsets = [-1, 1] if player == 1 else [1, -1]
     col_offsets = [-1, 1]
+
+    # Initialize counters for opponent pieces (attackers) and own pieces (defenders) around the current piece.
     attackers = 0
     defenders = 0
 
+    # Determine opponent's player number
     opponent = 1 if player == 2 else 2
 
+    # For each direction (-1, 1), check the positions in the row direction (straight and diagonals).
     for i in range(2):
+        # Check the first row direction (upwards for player 1, downwards for player 2).
         new_x = x + row_offsets[0]
         new_y = y + col_offsets[i]
 
+        # If the new position is within the board boundaries
         if 0 <= new_x < 8 and 0 <= new_y < 8:
+            # Calculate linear position from grid coordinates.
             new_position = new_x * 8 + new_y
             piece = board[new_position]
 
+            # If there's an opponent piece in this position, increment the attackers counter.
             if piece == opponent:
                 attackers += 1
 
+        # Check the second row direction (downwards for player 1, upwards for player 2).
         new_x = x + row_offsets[1]
         new_y = y + col_offsets[i]
 
+        # If the new position is within the board boundaries
         if 0 <= new_x < 8 and 0 <= new_y < 8:
+            # Calculate linear position from grid coordinates.
             new_position = new_x * 8 + new_y
             piece = board[new_position]
 
+            # If there's a friendly piece in this position, increment the defenders counter.
             if piece == player:
                 defenders += 1
 
+    # The piece is considered safe if the number of attackers is less than or equal to the number of defenders.
     return attackers <= defenders
 
 
@@ -631,5 +701,8 @@ lorentz_values = np.array(
     ],
     dtype=int,
 )
+MAX_LORENZ = 10
 # Normalize the lorenz values so it requires less tuning to combine with other heuristics
-lorentz_values = (lorentz_values - np.min(lorentz_values)) / (np.max(lorentz_values) - np.min(lorentz_values))
+lorentz_values = (
+    MAX_LORENZ * (lorentz_values - np.min(lorentz_values)) / (np.max(lorentz_values) - np.min(lorentz_values))
+)

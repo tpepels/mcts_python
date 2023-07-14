@@ -90,6 +90,11 @@ class AlphaBetaPlayer(AIPlayer):
         ):
             nonlocal evaluated, nodes_visited, cutoffs, max_depth_reached, transpos, start_time, interrupted
             nonlocal total_moves_generated, null_moves_cutoff, search_times, iteration_count, time_limit, best_move_order
+            is_max_player = state.player == self.player
+
+            if state.is_terminal():
+                v = state.get_reward(self.player)  # evaluate in the view of the player to move
+                return v, None
 
             # This function checks if we are running out of time
             if iteration_count % 10000 == 0:  # Check every 1000 iterations
@@ -100,128 +105,81 @@ class AlphaBetaPlayer(AIPlayer):
                 # Do this increment after the check or the timeout error will only occur once instead of at each level
                 iteration_count += 1
 
-            if state.is_terminal():
-                v = state.get_reward(self.player)
-                return v, None
-
             if depth == 0 and allow_null_move and self.use_quiescence and not interrupted:
                 v = self.quiescence(state, alpha, beta)
 
             # If we are interrupted, cut off the search and return evaluations straight away
-            if depth == 0 or interrupted:
+            if depth == 0:
                 evaluated += 1
-                v = self.evaluate(state, self.player)
+                v = self.evaluate(state, self.player)  # evaluate in the view of the player to move
                 return v, None
-
-            is_max_player = state.player == self.player
 
             # Apply a null move to check if skipping turns results in better results than making a move
             if self.use_null_moves and is_max_player and not root and allow_null_move and depth >= self.R + 1:
                 null_state = state.skip_turn()
                 # Perform a reduced-depth search
                 null_score, _ = value(
-                    null_state,
-                    alpha,
-                    beta,
-                    (depth - self.R) - 1,
+                    state=null_state,
+                    alpha=alpha,
+                    beta=beta,
+                    depth=(depth - self.R) - 1,
                     max_d=max_d,
                     allow_null_move=False,
                     root=False,
                 )
-
                 if null_score >= beta:
                     null_moves_cutoff += 1
                     cutoffs += 1
                     return null_score, None
-
             try:
                 best_move = None
-                # Check if a move already exists somewhere in the transposition table (regardless of its depth since we only use it for move-ordering)
-                # This way we can use the move for move ordering, naiisss
-                if self.trans_table is not None:
+                v = float("-inf") if is_max_player else float("inf")
+
+                # Check if a move already exists somewhere in the transposition table
+                if self.trans_table:
                     _, best_move = self.trans_table.get(state.board_hash, 0, state.player, 0)
 
-                if is_max_player:
-                    # Max player's turn
-                    v = -float("inf")
-                    actions = state.get_legal_actions()
-                    total_moves_generated += len(actions)
+                actions = sorted(
+                    state.evaluate_moves(state.get_legal_actions()), key=lambda x: x[1], reverse=is_max_player
+                )
+                actions = [move for move, _ in actions]
+                total_moves_generated += len(actions)
 
-                    # Order moves by their heuristic value
-                    actions.sort(
-                        key=lambda move: -state.evaluate_move(move)
-                        if self.player == state.player
-                        else state.evaluate_move(move)
+                # If best_move exists, place it first in the list
+                if best_move is not None and best_move in actions:
+                    best_move_order += 1
+                    actions.remove(best_move)
+                    actions.insert(0, best_move)
+
+                nodes_visited += 1
+
+                for move in actions:
+                    new_v, _ = value(
+                        state=state.apply_action(move),
+                        alpha=alpha,
+                        beta=beta,
+                        depth=depth - 1,
+                        max_d=max_d,
+                        root=False,
+                        allow_null_move=allow_null_move,
                     )
 
-                    if best_move is not None and best_move in actions:
-                        # assert best_move in actions, "best_move found but not in available actions"
-                        best_move_order += 1
-                        # Put the best move from the transposition table at the front of the list
-                        actions.remove(best_move)
-                        actions.insert(0, best_move)
+                    # Update v, alpha or beta based on the player
+                    if (is_max_player and new_v > v) or (not is_max_player and new_v < v):
+                        v = new_v
+                        best_move = move
 
-                    nodes_visited += 1
-                    for move in actions:
-                        new_state = state.apply_action(move)
-                        min_v, _ = value(
-                            new_state,
-                            alpha,
-                            beta,
-                            depth - 1,
-                            max_d=max_d,
-                            root=False,
-                            allow_null_move=allow_null_move,
-                        )
-                        if min_v > v:
-                            v = min_v
-                            best_move = move
-                        if v >= beta:
-                            cutoffs += 1
-                            return v, move
-                        alpha = max(alpha, v)
+                    if is_max_player:
+                        alpha = max(alpha, new_v)
+                    else:
+                        beta = min(beta, new_v)
 
-                    return v, best_move
+                    # Prune the branch
+                    if beta <= alpha:
+                        cutoffs += 1
+                        break
 
-                else:  # minimizing player
-                    v = float("inf")
-                    actions = state.get_legal_actions()
-                    total_moves_generated += len(actions)
-                    # Order moves by heuristic value
-                    actions.sort(
-                        key=lambda move: state.evaluate_move(move)
-                        if self.player == state.player
-                        else -state.evaluate_move(move)
-                    )
-                    if best_move is not None and best_move in actions:
-                        # assert best_move in actions, "best_move found but not in available actions"
-                        best_move_order += 1
-                        # Put the best move from the transposition table at the front of the list
-                        actions.remove(best_move)
-                        actions.insert(0, best_move)
-
-                    nodes_visited += 1
-                    for move in actions:
-                        new_state = state.apply_action(move)
-                        max_v, _ = value(
-                            new_state,
-                            alpha,
-                            beta,
-                            depth - 1,
-                            max_d=max_d,
-                            root=False,
-                            allow_null_move=allow_null_move,
-                        )
-
-                        if max_v < v:
-                            cutoffs += 1
-                            v = max_v
-                            best_move = move
-                        if v <= alpha:
-                            return v, move
-                        beta = min(beta, v)
-
-                    return v, None
+                return v, best_move
 
             finally:
                 # If not a null-move result
@@ -252,9 +210,9 @@ class AlphaBetaPlayer(AIPlayer):
 
             v, best_move = value(
                 state,
-                -float("inf"),
-                float("inf"),
-                depth,
+                alpha=-float("inf"),
+                beta=float("inf"),
+                depth=depth,
                 max_d=depth,
                 allow_null_move=True,
                 root=True,
@@ -442,3 +400,81 @@ class AlphaBetaPlayer(AIPlayer):
             f"use_transpositions={self.trans_table is not None}, "
             f"tt_size={self.trans_table.size if self.trans_table else None})"
         )
+
+
+# try:
+#                 best_move = None
+#                 # Check if a move already exists somewhere in the transposition table (regardless of its depth since we only use it for move-ordering)
+#                 if self.trans_table is not None:
+#                     _, best_move = self.trans_table.get(state.board_hash, 0, state.player, 0)
+
+#                 if is_max_player:
+#                     # Max player's turn
+#                     v = -float("inf")
+#                     actions = state.get_legal_actions()
+#                     total_moves_generated += len(actions)
+
+#                     # Order moves by their heuristic value (highest to lowest)
+#                     actions.sort(key=lambda move: state.evaluate_move(move), reverse=True)
+
+#                     if best_move is not None and best_move in actions:
+#                         best_move_order += 1
+#                         # Put the best move from the transposition table at the front of the list
+#                         actions.remove(best_move)
+#                         actions.insert(0, best_move)
+
+#                     nodes_visited += 1
+#                     for move in actions:
+#                         new_state = state.apply_action(move)
+#                         max_v, _ = value(
+#                             new_state,
+#                             alpha,
+#                             beta,
+#                             depth - 1,
+#                             max_d=max_d,
+#                             allow_null_move=allow_null_move,
+#                             root=False,
+#                         )
+#                         alpha = max(alpha, max_v)
+#                         if max_v > v:
+#                             v = max_v
+#                             best_move = move
+#                         if beta <= alpha:
+#                             cutoffs += 1
+#                             return v, best_move
+
+#                     return v, best_move
+
+#                 else:  # minimizing player
+#                     v = float("inf")
+#                     actions: list = state.get_legal_actions()
+#                     total_moves_generated += len(actions)
+
+#                     # Order moves by their heuristic value (lowest to highest)
+#                     actions.sort(key=lambda move: state.evaluate_move(move))
+#                     if best_move is not None and best_move in actions:
+#                         best_move_order += 1
+#                         actions.remove(best_move)
+#                         actions.insert(0, best_move)
+
+#                     nodes_visited += 1
+#                     for move in actions:
+#                         new_state = state.apply_action(move)
+#                         min_v, _ = value(
+#                             new_state,
+#                             alpha,
+#                             beta,
+#                             depth - 1,
+#                             max_d=max_d,
+#                             root=False,
+#                             allow_null_move=allow_null_move,
+#                         )
+#                         beta = min(beta, min_v)
+#                         if min_v < v:
+#                             v = min_v
+#                             best_move = move
+#                         if beta <= alpha:
+#                             cutoffs += 1
+#                             return v, best_move
+
+#                     return v, best_move

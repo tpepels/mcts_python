@@ -4,7 +4,7 @@ from typing import Generator, List, Tuple
 import numpy as np
 from termcolor import colored
 
-from games.gamestate import GameState, win, loss, draw
+from games.gamestate import GameState, normalize, win, loss, draw
 
 PLAYER_COUNT = 2
 BOARD_SIZE = 20
@@ -462,6 +462,23 @@ class BlokusGameState(GameState):
                         return True
         return False
 
+    def evaluate_moves(self, moves):
+        """
+        Evaluates a list of moves, preferring the placement of larger pieces first.
+
+        :param moves: The list of moves to evaluate.
+        :return: The list of scores for the moves.
+        """
+        scores = []
+        for move in moves:
+            _, _, piece_index, _ = move
+            if piece_index != -1:  # In the case of a pass move
+                # This works because piece cells are represented by 1's
+                scores.append((move, piece_sizes[piece_index]))
+            else:
+                scores.append((move, 0))
+        return scores
+
     def evaluate_move(self, move):
         # Prefer placing larger pieces first
         _, _, piece_index, _ = move
@@ -556,7 +573,13 @@ class BlokusGameState(GameState):
 
 
 def evaluate_blokus(
-    game_state: BlokusGameState, m_piece_diff=0.33, m_corn_diff=0.33, m_piece_size=0.33, m_turn=0.9
+    game_state: BlokusGameState,
+    m_piece_diff=0.33,
+    m_corn_diff=0.33,
+    m_piece_size=0.33,
+    m_turn=0.9,
+    a=50,
+    norm=False,
 ):
     player = game_state.player
     opponent = 3 - player
@@ -591,4 +614,9 @@ def evaluate_blokus(
     # print(f"Score: {score}")
 
     # If I am to move I will by definition be a bit behind the opponent as they will have one more piece on the board
-    return score if game_state.player == player else m_turn * score
+    score = score if game_state.player == player else m_turn * score
+
+    if norm:
+        return normalize(score, a)
+    else:
+        return score

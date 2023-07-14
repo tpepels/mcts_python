@@ -6,7 +6,7 @@ from run_games import AIParams, init_ai_player
 
 # define constants
 WIDTH, HEIGHT = 600, 600
-ROWS, COLS = 5, 5  # This also determines the board size to play on
+ROWS, COLS = 9, 9  # This also determines the board size to play on
 SQUARE_SIZE = WIDTH // ROWS
 
 # RGB
@@ -39,6 +39,8 @@ def draw_window(state):
     # Draw marks
     for i in range(ROWS):
         for j in range(COLS):
+            if state.board[i][j] > 2:
+                continue
             mark = MARKS[state.board[i][j]]
             if mark == "X":
                 pygame.draw.line(
@@ -69,13 +71,13 @@ def draw_window(state):
 
 def main():
     run = True
-    game_state = TicTacToeGameState(board_size=ROWS)
+    game_state = TicTacToeGameState(board_size=ROWS, row_length=5)
     ai_player = 2
     ai_params = AIParams(
         ai_key="alphabeta",
-        eval_key="evaluate_tictactoe",
+        eval_key="evaluate_n_in_a_row",
         max_player=2,
-        ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
+        ai_params={"max_depth": 4, "max_time": 10, "debug": True},
         transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, ai_player)
@@ -94,7 +96,7 @@ def main():
                     game_state = game_state.apply_action((row, col))
                 except ValueError:
                     pass  # Illegal move, ignore and let player try again.
-
+                print(f" AI EVAL: {ai.evaluate(game_state, 1)}")
         draw_window(game_state)
 
         if ai_to_play:
@@ -102,6 +104,7 @@ def main():
             move, _ = ai.best_action(game_state)
             game_state = game_state.apply_action(move)
             print(f"    ---- AI moved {move} ---- ")
+            print(f" AI EVAL: {ai.evaluate(game_state, 2)}")
 
         draw_window(game_state)
 

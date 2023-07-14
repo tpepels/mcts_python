@@ -1,3 +1,4 @@
+import itertools
 import random
 import time
 from typing import List, Tuple
@@ -115,20 +116,26 @@ class MCTSPlayer(AIPlayer):
         num_simulations: int = None,
         max_time: int = None,
         c: float = 1.0,
+        dyn_early_term: bool = False,
+        dyn_early_term_cutoff: float = 0.9,
         early_term: bool = False,
-        early_term_cutoff: float = 0.9,
+        early_term_turns: int = 10,
         e_greedy: bool = False,
         e_g_epsilon: float = 0.05,
+        e_g_subset: int = 20,
         node_priors: bool = False,
         debug: bool = False,
     ):
         self.player = player
         self.evaluate = evaluate
 
-        self.early_term = early_term
-        self.early_term_cutoff = early_term_cutoff
+        self.dyn_early_term = dyn_early_term
+        self.dyn_early_term_cutoff = dyn_early_term_cutoff
         self.e_greedy = e_greedy
         self.e_g_epsilon = e_g_epsilon
+        self.e_g_subset = e_g_subset
+        self.early_term = early_term
+        self.early_term_turns = early_term_turns
 
         self.node_priors = node_priors
         if num_simulations:
@@ -180,17 +187,44 @@ class MCTSPlayer(AIPlayer):
             )
 
     def play_out(self, state: GameState):
-        turns = 1
+        turns = 0
         while not state.is_terminal():
-            if self.early_term and turns % 5 == 0:
+            turns += 1
+            if self.early_term and turns >= self.early_term_turns:
                 # Early termination condition
-                evaluation = self.evaluate(state, 1)
-                if evaluation > self.early_term_cutoff:
-                    return (1, 0)
-                elif evaluation < self.early_term_cutoff:
-                    return (0, 1)
-            action = state.get_random_action()
-            state = state.apply_action(action)
+                # ! This assumes symmetric evaluation functions centered around 0!
+                evaluation = self.evaluate(state, state.player, norm=True)
+                if evaluation > 0.001:
+                    return (1, 0) if state.player == 1 else (0, 1)
+                elif evaluation < -0.001:
+                    return (0, 1) if state.player == 1 else (1, 0)
+                else:
+                    return (0.5, 0.5)
+
+            if self.dyn_early_term and turns % 5 == 0:
+                # Dynamic Early termination condition
+                # ! This assumes symmetric evaluation functions centered around 0!
+                evaluation = self.evaluate(state, state.player, norm=True)
+                if evaluation > self.dyn_early_term_cutoff:
+                    return (1, 0) if state.player == 1 else (0, 1)
+                elif evaluation < -self.dyn_early_term_cutoff:
+                    return (0, 1) if state.player == 1 else (1, 0)
+
+            best_action = None
+            # With probability epsilon choose the best action from a subset of moves
+            if self.e_greedy and np.random.uniform(0, 1) < self.e_g_epsilon:
+                # This presupposes that yield_legal_actions generates moves in a random order
+                actions = itertools.islice(state.yield_legal_actions(), self.e_g_subset)
+                # * No normalization needed here since it is just used to order the moves
+                best_action = max(
+                    actions, key=lambda a: self.evaluate(state.apply_action(a), state.player), default=None
+                )
+
+            # With probability 1-epsilon chose a move at random
+            if best_action is None:
+                best_action = state.get_random_action()
+
+            state = state.apply_action(best_action)
 
         # Map the result to the correct player
         result = state.get_reward(1)
@@ -199,7 +233,7 @@ class MCTSPlayer(AIPlayer):
         elif result == loss:
             result = (0, 1)
         else:
-            result = (0.5, 0.5)  # TODO Make this a parameter
+            result = (0.5, 0.5)
         return result
 
     def print_cumulative_statistics(self) -> str:

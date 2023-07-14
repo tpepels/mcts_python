@@ -80,9 +80,18 @@ class GameState(ABC):
         pass
 
     @abstractmethod
+    def evaluate_moves(self, moves):
+        """Evaluate a list of moves to use in move ordering
+
+        Args:
+            moves list: A list of moves to evaluate
+        """
+        pass
+
+    @abstractmethod
     def evaluate_move(self, move):
         """
-        Evaluates a move (used for playouts and move-ordering).
+        Evaluates a move use for playouts. (This is a simple evaluation)
 
         :param move: The move to evaluate.
         :return: a numeric evaluation of the move given the current gamestate

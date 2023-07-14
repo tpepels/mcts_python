@@ -250,6 +250,31 @@ class KalahGameState(GameState):
                 return True
         return False
 
+    def evaluate_moves(self, moves):
+        """
+        Evaluate the given moves using a heuristic based on the potential benefits of the move.
+
+        :param moves: The list of moves to evaluate.
+        :return: The list of heuristic scores for the moves.
+        """
+        scores = []
+        for move in moves:
+            # Initialize score to 0
+            score = 0
+
+            # Check if the move results in a capture and assign a positive score
+            if self.is_capture(move):
+                score += 2
+
+            # Check if the move results in another move for the current player and assign a positive score
+            last_index, _ = calc_last_index_total_steps(self.board[move], move, 13 if self.player == 1 else 6)
+            if (self.player == 1 and last_index == 6) or (self.player == 2 and last_index == 6):
+                score += 1
+
+            scores.append((move, score))
+
+        return scores
+
     def evaluate_move(self, move):
         """
         Evaluates the given move using a heuristic based on the potential benefits of the move.
@@ -347,11 +372,18 @@ def evaluate_kalah_simple(
     state: KalahGameState,
     player: int,
     m_opp_disc: float = 0.9,
+    a: int = 20,
+    norm: bool = False,
 ) -> float:
+    score = 0
     if player == 1:
-        return state.board[6] - state.board[-1] * (m_opp_disc if state.player == 3 - player else 1)
+        score = state.board[6] - state.board[-1] * (m_opp_disc if state.player == 3 - player else 1)
     else:
-        return state.board[-1] - state.board[6] * (m_opp_disc if state.player == 3 - player else 1)
+        score = state.board[-1] - state.board[6] * (m_opp_disc if state.player == 3 - player else 1)
+    if norm:
+        return normalize(score, a)
+    else:
+        return score
 
 
 def evaluate_kalah_enhanced(
@@ -364,7 +396,7 @@ def evaluate_kalah_enhanced(
     m_capture: float = 0.5,
     m_opp_disc: float = 0.9,
     a: int = 5,
-    norm: bool = True,
+    norm: bool = False,
 ) -> float:
     """
     Evaluate a given state of a Kalah game from the perspective of the specified player.
@@ -421,7 +453,7 @@ def evaluate_kalah_enhanced(
                     opponent_capture_moves += 1
 
     evaluation = (
-        m_score * evaluate_kalah_simple(state, player, m_opp_disc=1.0)  # Don't apply the discount twice
+        m_score * evaluate_kalah_simple(state, player, m_opp_disc=1.0, norm=False)
         + m_seed_diff * (player_seeds - opponent_seeds)
         + m_empty * (empty_opponent_houses - empty_player_houses)
         + m_double * (player_double_moves - opponent_double_moves)

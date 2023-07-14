@@ -46,40 +46,44 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_lorenz": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_mobility": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_blocked": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_safe": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_endgame": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_cap": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_cap_move": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_opp_disc": {
-        "range": [0.5, 1.1],
+        "range": [0.5, 1.3],
+        "precision": 2
+      },
+      "m_piece_diff": {
+        "range": [0.5, 1.3],
         "precision": 2
       }
     },
     "ai_static_params": {
-      "max_time": 10
+      "max_time": 6
     },
     "eval_static_params": {},
     "debug": true
@@ -94,7 +98,7 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_opp_disc": {
-        "range": [0.5, 1.1],
+        "range": [0.5, 1.3],
         "precision": 2
       },
       "n_moves_cutoff": {
@@ -102,24 +106,24 @@
         "precision": 0
       },
       "m_ter": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_kill_s": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_imm": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_mob": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       }
     },
     "ai_static_params": {
-      "max_time": 15
+      "max_time": 7
     },
     "eval_static_params": {},
     "debug": true
@@ -134,32 +138,32 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_score": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_seed_diff": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_empty": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_double": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_capture": {
-        "range": [0, 1],
+        "range": [0, 5],
         "precision": 2
       },
       "m_opp_disc": {
-        "range": [0.5, 1.1],
+        "range": [0.5, 1.3],
         "precision": 2
       }
     },
     "ai_static_params": {
-      "max_time": 10
+      "max_time": 6
     },
     "eval_static_params": {},
     "debug": true
@@ -174,19 +178,19 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_piece_diff": {
-        "range": [0, 2],
+        "range": [0, 5],
         "precision": 1
       },
       "m_corn_diff": {
-        "range": [0, 2],
+        "range": [0, 5],
         "precision": 1
       },
       "m_piece_size": {
-        "range": [0, 2],
+        "range": [0, 5],
         "precision": 1
       },
       "m_turn": {
-        "range": [0, 2],
+        "range": [0, 5],
         "precision": 2
       }
     },
