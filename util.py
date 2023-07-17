@@ -1,14 +1,12 @@
-import logging
+import configparser
+import io
 import os
 import sys
+import time
 import traceback
-
-import configparser
 from contextlib import contextmanager
 
-
 from colorama import Fore, Style
-
 
 GLOBAL_HIGHLIGHTING = True
 
@@ -83,6 +81,36 @@ def read_config():
     config = configparser.ConfigParser()
     config.read("config.ini")
     return config
+
+
+# TODO Deze gebruiken om wat meer info te krijgen over de errors
+class ErrorLogger:
+    def __init__(self, func, log_dir="."):
+        self.func = func
+        self.log_dir = log_dir
+        self.old_stdout = sys.stdout
+
+    def __enter__(self):
+        self.start_time = time.time()
+        sys.stdout = self.captured_output = io.StringIO()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback_):
+        sys.stdout = self.old_stdout
+        if exc_type is not None:
+            log_file = os.path.join(
+                self.log_dir,
+                f"errors_{self.func.__name__}_{int(self.start_time)}.log",
+            )
+            with open(log_file, "w") as file:
+                file.write(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(self.start_time))}\n")
+                file.write(f"Function: {self.func.__name__}\n")
+                file.write("Print Output:\n")
+                file.write(self.captured_output.getvalue())
+                file.write("\n")
+                file.write(f"Exception occurred: {exc_type.__name__}: {str(exc_value)}\n")
+                file.write("Traceback (most recent call last):\n")
+                traceback.print_tb(traceback_, file=file)
 
 
 class PrintLogger:

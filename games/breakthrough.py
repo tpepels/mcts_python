@@ -422,11 +422,9 @@ def evaluate_breakthrough_lorenz(
     player: int,
     m_lorenz: float = 1.0,
     m_mobility: float = 1.0,
-    m_blocked: float = 1.0,
     m_safe: float = 1.0,
     m_endgame: float = 1.0,
     m_cap: float = 2.0,
-    m_cap_move: float = 2.0,
     m_piece_diff: float = 1.0,
     m_opp_disc: float = 0.9,
     m_decisive: float = 100.0,
@@ -443,7 +441,6 @@ def evaluate_breakthrough_lorenz(
     :param player: The player to evaluate for (1 or 2).
     :param m_lorenz: Weight assigned to the Lorenz value of the board configuration.
     :param m_mobility: Weight assigned to the mobility of the player's pieces.
-    :param m_blocked: Weight assigned to the blocked pieces of the player.
     :param m_safe: Weight assigned to the safety of the player's pieces.
     :param m_endgame: Weight assigned to the endgame phase.
     :param m_cap: Weight assigned to the capture difference between the player and the opponent.
@@ -456,16 +453,18 @@ def evaluate_breakthrough_lorenz(
     """
     board_values = 0
     mobility_values = 0
-    blocked_values = 0
     safety_values = 0
     endgame_values = 0
     piece_diff = 0
     pieces = 0
+    decisive_values = 0
+    antidecisive_values = 0
+    caps = 0
     opponent = 3 - player
 
-    for position, piece in enumerate(state.board):
-        if piece == 0:
-            continue
+    pieces = np.where(state.board > 0)[0]  # get all pieces from the board
+    for position in pieces:
+        piece = state.board[position]
 
         # Player or opponent
         multiplier = 1 if piece == player else -1
@@ -475,38 +474,34 @@ def evaluate_breakthrough_lorenz(
         piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
         board_values += multiplier * piece_value
 
-        if m_mobility != 0 or m_blocked != 0:
+        if m_mobility != 0:
             mob_val = piece_mobility(position, piece, state.board)
             mobility_values += multiplier * mob_val * (1 + piece_value)
-            if mob_val == 0:  # Keep track of the number of blocked pieces
-                blocked_values -= multiplier
 
         if m_safe != 0 and is_safe(position, piece, state.board):
-            safety_values += multiplier * (1 + piece_value)
+            safety_values += multiplier * piece_value
 
     if m_endgame != 0 and pieces < 12:
         endgame_values = m_endgame * piece_diff
 
-    player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive = is_decisive(state)
+    if m_decisive != 0 or m_antidecisive != 0:
+        player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive = is_decisive(
+            state
+        )
 
-    decisive_values = 0
-    antidecisive_values = 0
+        if player == 1:
+            decisive_values = m_decisive if player_1_decisive else 0
+            decisive_values -= m_decisive if player_2_decisive else 0
+            antidecisive_values = m_antidecisive if player_1_antidecisive else 0
+            antidecisive_values -= m_antidecisive if player_2_antidecisive else 0
+        else:  # self.player == 2
+            decisive_values = m_decisive if player_2_decisive else 0
+            decisive_values -= m_decisive if player_1_decisive else 0
+            antidecisive_values = m_antidecisive if player_2_antidecisive else 0
+            antidecisive_values -= m_antidecisive if player_1_antidecisive else 0
 
-    if player == 1:
-        decisive_values = m_decisive if player_1_decisive else 0
-        decisive_values -= m_decisive if player_2_decisive else 0
-        antidecisive_values = m_antidecisive if player_1_antidecisive else 0
-        antidecisive_values -= m_antidecisive if player_2_antidecisive else 0
-    else:  # self.player == 2
-        decisive_values = m_decisive if player_2_decisive else 0
-        decisive_values -= m_decisive if player_1_decisive else 0
-        antidecisive_values = m_antidecisive if player_2_antidecisive else 0
-        antidecisive_values -= m_antidecisive if player_1_antidecisive else 0
-
-    my_caps, my_cap_moves = count_capture_moves(state, player) if m_cap != 0 or m_cap_move != 0 else (0, 0)
-    opp_caps, opp_cap_moves = (
-        count_capture_moves(state, opponent) if m_cap != 0 or m_cap_move != 0 else (0, 0)
-    )
+    if m_cap >= 0:
+        caps = count_capture_moves(state, player) - count_capture_moves(state, opponent)
 
     eval_value = (
         decisive_values
@@ -514,11 +509,9 @@ def evaluate_breakthrough_lorenz(
         + endgame_values
         + m_lorenz * board_values
         + m_mobility * mobility_values
-        + m_blocked * blocked_values
         + m_safe * safety_values
         + m_piece_diff * piece_diff
-        + m_cap * (my_caps - opp_caps)
-        + m_cap_move * (my_cap_moves - opp_cap_moves)
+        + m_cap * caps
     ) * (m_opp_disc if state.player == opponent else 1)
 
     if norm:
@@ -665,14 +658,13 @@ def is_safe(position, player, board):
     return attackers <= defenders
 
 
-def count_capture_moves(game_state: BreakthroughGameState, player: int) -> Tuple[int, int]:
+def count_capture_moves(game_state: BreakthroughGameState, player: int) -> int:
     """Count the number of pieces that can capture and the total number of possible capture moves for a given player.
 
     :param game_state: The game state instance.
     :param player: The player (1 or 2) to count capture moves for.
     :return: The number of pieces that can capture and the total number of possible capture moves for the player.
     """
-    num_pieces_that_can_capture = 0
     total_capture_moves = 0
     positions = np.where(game_state.board == player)[0]
 
@@ -681,6 +673,7 @@ def count_capture_moves(game_state: BreakthroughGameState, player: int) -> Tuple
         dr = -1 if player == 1 else 1
 
         piece_capture_moves = 0
+
         for dc in [-1, 1]:  # Only diagonal movements can result in capture
             new_row, new_col = row + dr, col + dc
             if (
@@ -689,12 +682,15 @@ def count_capture_moves(game_state: BreakthroughGameState, player: int) -> Tuple
                 new_position = new_row * 8 + new_col
                 # Check if the new position contains an opponent's piece
                 if game_state.board[new_position] == 3 - player:
-                    piece_capture_moves += 1
+                    # Add the lorenz value from the opponent's perspective
+                    # Assume that we'll capture the most valuable piece
+                    piece_capture_moves = max(
+                        piece_capture_moves,
+                        (lorentz_values[new_position] if player == 1 else lorentz_values[63 - new_position]),
+                    )
         total_capture_moves += piece_capture_moves
-        if piece_capture_moves > 0:
-            num_pieces_that_can_capture += 1
 
-    return num_pieces_that_can_capture, total_capture_moves
+    return total_capture_moves
 
 
 # List of values representing the importance of each square on the board. In view of player 2.

@@ -248,6 +248,7 @@ class KalahGameState(GameState):
             # Either the opposing side had a stone before, or we dropped one in it
             if self.board[opp] > 0 or passed_opp:
                 return True
+
         return False
 
     def evaluate_moves(self, moves):
@@ -264,7 +265,13 @@ class KalahGameState(GameState):
 
             # Check if the move results in a capture and assign a positive score
             if self.is_capture(move):
-                score += 2
+                last_index, _ = calc_last_index_total_steps(
+                    seeds=self.board[move],
+                    move=move,
+                    k=6 if self.player == 2 else 13,
+                    size=len(self.board),
+                )
+                score += self.board[12 - last_index] * 4
 
             # Check if the move results in another move for the current player and assign a positive score
             last_index, _ = calc_last_index_total_steps(self.board[move], move, 13 if self.player == 1 else 6)
@@ -288,7 +295,7 @@ class KalahGameState(GameState):
 
         # Check if the move results in a capture and assign a positive score
         if self.is_capture(move):
-            score += 2
+            score += self.board[move] + 1
 
         # Check if the move results in another move for the current player and assign a positive score
         last_index, _ = calc_last_index_total_steps(self.board[move], move, 13 if self.player == 1 else 6)
@@ -333,39 +340,21 @@ class KalahGameState(GameState):
 
 
 def calc_last_index_total_steps(seeds, move, k, size=13):
-    passes = count_passes(
-        seeds=seeds,
-        move=move,
-        k=k,
-        size=size,
-    )
+    passes = seeds // size
+    remaining_steps = seeds % size
+
+    if remaining_steps + move >= size + k:
+        passes += 1
+    # passes = count_passes(
+    #     seeds=seeds,
+    #     move=move,
+    #     k=k,
+    #     size=size,
+    # )
+
     # Calculate total steps considering the opponent's store
     total_steps = move + seeds + passes
     return total_steps % (13 + passes), total_steps
-
-
-def count_passes(seeds, move, k, size=13):
-    """
-    Function can be used to determine the last index of a given move without having to execute the full move.
-
-    Args:
-        seeds (int): the number of seeds picked up
-        size (int): the size of the board (default = 13)
-        move (int): The position the seeds are picked up from
-        k (int): The function counts how often position k is passed (6 for p1 13 for p2 if we count the stores)
-
-    Returns:
-        int: How often k is passed given the parameters
-    """
-    rounds = seeds // size
-    remaining_steps = seeds % size
-
-    # if (move >= k and (remaining_steps + move) % size >= k) or (
-    #     move < k and remaining_steps + move >= size + k
-    # ):
-    if remaining_steps + move >= size + k:
-        rounds += 1
-    return rounds
 
 
 def evaluate_kalah_simple(
@@ -389,12 +378,12 @@ def evaluate_kalah_simple(
 def evaluate_kalah_enhanced(
     state: KalahGameState,
     player: int,
-    m_score: float = 1.0,
-    m_seed_diff: float = 0.5,
-    m_empty: float = 0.25,
-    m_double: float = 0.5,
-    m_capture: float = 0.5,
-    m_opp_disc: float = 0.9,
+    m_score: float = 10.0,
+    m_seed_diff: float = 2,
+    m_empty: float = 1,
+    m_double: float = 2,
+    m_capture: float = 4,
+    m_opp_disc: float = 0.99,
     a: int = 5,
     norm: bool = False,
 ) -> float:
@@ -412,14 +401,8 @@ def evaluate_kalah_enhanced(
     :param norm: A boolean indicating whether to normalize the evaluation.
     :return: A score representing the player's advantage in the game state.
     """
-    if player == 1:
-        player_store = 6
-        opponent_store = 13
-        player_houses = range(0, 6)
-    else:
-        player_store = 13
-        opponent_store = 6
-        player_houses = range(7, 13)
+    player_store = 6 if player == 1 else 13
+    opponent_store = 13 if player == 2 else 6
 
     player_seeds = opponent_seeds = 0
     player_double_moves = opponent_double_moves = 0
@@ -427,12 +410,12 @@ def evaluate_kalah_enhanced(
     empty_opponent_houses = empty_player_houses = 0
 
     for i in range(0, 13):  # go through all houses (excluding p2 store)
-        if i == 6:  # Skip p1 store
+        if i == 6 or i == 13:  # Skip p1/p2 store
             continue
 
         seeds = state.board[i]
         # Check if the house belongs to the player or the opponent
-        if i in player_houses:
+        if (player == 1 and 0 <= i <= 5) or (player == 2 and 7 <= i <= 12):
             player_seeds += seeds
             if seeds == 0:
                 empty_player_houses += 1
@@ -442,7 +425,7 @@ def evaluate_kalah_enhanced(
                 elif m_capture != 0 and is_capture(state.board, i, player):
                     player_capture_moves += 1
 
-        else:  # This is possible because we exclude the stores from the loop
+        elif (player == 2 and 0 <= i <= 5) or (player == 1 and 7 <= i <= 12):
             opponent_seeds += seeds
             if seeds == 0:
                 empty_opponent_houses += 1
@@ -452,9 +435,7 @@ def evaluate_kalah_enhanced(
                 elif m_capture != 0 and is_capture(state.board, i, 3 - player):
                     opponent_capture_moves += 1
 
-    score = state.board[6] - state.board[-1]
-    if player == 2:
-        score = state.board[-1] - state.board[6]
+    score = state.board[player_store] - state.board[opponent_store]
 
     evaluation = (
         m_score * score
@@ -487,9 +468,6 @@ def is_capture(board, move, player):
         k=6 if player == 2 else 13,
         size=size,
     )
-    # TODO Hier was je gebleven, chatgpt is het er niet mee eens..
-    # opp_pit = 12 if player == 1 else 5
-    # passed_opp_pit = total_steps > opp_pit if move < opp_pit else total_steps > size + opp_pit
     opp = 12 - last_index
     passed_opp = total_steps > opp if move < opp else total_steps > size + opp
     rounds = seeds // 13

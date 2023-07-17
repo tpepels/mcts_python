@@ -95,8 +95,9 @@ class AlphaBetaPlayer(AIPlayer):
                 v = state.get_reward(self.player)  # evaluate in the view of the player to move
                 return v, None
 
-            # This function checks if we are running out of time
-            if iteration_count % 10000 == 0:  # Check every 1000 iterations
+            # This function checks if we are running out of time.
+            # Don't do this for the first depth, in some games, even the lowest search depth takes a lot of time..
+            if not first_depth and iteration_count % 10000 == 0:  # Check every 1000 iterations
                 if (time.time() - start_time) > time_limit:
                     interrupted = True
 
@@ -199,15 +200,12 @@ class AlphaBetaPlayer(AIPlayer):
         best_values = []
         last_best_move = None
         last_best_v = 0
+        first_depth = True
         for depth in range(2, self.max_depth + 1):  # Start depth from 2
             start_depth_time = time.time()  # Time when this depth search starts
             # How much time can be spent searching this depth
             time_limit = self.max_time - (start_depth_time - start_time)
-            if self.debug:
-                print(
-                    f"d={depth} t_r={(time_limit):.2f} l_t={search_times[-1]:.2f} *** ",
-                    end="",
-                )
+
             if interrupted or ((time.time() - start_time) + (search_times[-1]) >= self.max_time):
                 # print(f"interrupted. {last_best_move=}, {last_best_v=}, {best_move=}, {v=}")
                 break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
@@ -220,12 +218,18 @@ class AlphaBetaPlayer(AIPlayer):
                 allow_null_move=True,
                 root=True,
             )
+            first_depth = False
             if not interrupted:
                 last_best_move = best_move
                 last_best_v = v
 
                 best_values.append((depth, v, best_move))
                 max_depth_reached = depth
+                if self.debug:
+                    print(
+                        f" d={depth} t_r={(time_limit):.2f} l_t={search_times[-1]:.2f} ***  ",
+                        end="",
+                    )
 
             # keep track of the time spent
             depth_time = time.time() - start_depth_time  # Time spent on this depth
