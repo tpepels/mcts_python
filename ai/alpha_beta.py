@@ -403,12 +403,17 @@ class AlphaBetaPlayer(AIPlayer):
             pretty_print_dict(self.c_stats)
 
     def __repr__(self):
+        # Try to get the name of the evaluation function, which can be a partial
+        try:
+            eval_name = self.evaluate.__name__
+        except AttributeError:
+            eval_name = self.evaluate.func.__name__
         return (
             f"AlphaBetaPlayer("
             f"player={self.player}, "
             f"max_depth={self.max_depth}, "
             f"max_time={self.max_time}, "
-            f"evaluate={self.evaluate.__name__}, "
+            f"evaluate={eval_name}, "
             f"use_null_moves={self.use_null_moves}, "
             f"use_quiescence={self.use_quiescence}, "
             f"use_transpositions={self.trans_table is not None}, "

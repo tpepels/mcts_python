@@ -436,11 +436,14 @@ def evaluate_n_in_a_row(
                     if state.board[i, j] == element:
                         score_bonus[element] += 1  # Note that the connection will be counted twice
 
-    # Sort and take the top k scores, weigh them
-    for p in player_scores:
-        player_scores[p].sort(reverse=True)
-        player_scores[p] = sum(s * w for s, w in zip(player_scores[p][:m_top_k], m_weights))
-
+    try:
+        # Sort and take the top k scores, weigh them
+        for p in player_scores:
+            player_scores[p].sort(reverse=True)
+            player_scores[p] = sum(s * w for s, w in zip(player_scores[p][:m_top_k], m_weights))
+    except TypeError as e:
+        print(f"{m_bonus=}, {m_decay=}, {m_weights=}, {m_top_k=}, {m_disc=}, {m_pow=}")
+        raise e
     final_scores = {p: player_scores[p] + (decay * m_bonus * score_bonus[p]) for p in player_scores}
 
     # The score is player 1's score minus player 2's score from the perspective of the provided player
