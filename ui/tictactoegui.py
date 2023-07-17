@@ -77,7 +77,7 @@ def main():
         ai_key="alphabeta",
         eval_key="evaluate_n_in_a_row",
         max_player=2,
-        ai_params={"max_depth": 4, "max_time": 10, "debug": True},
+        ai_params={"max_depth": 20, "max_time": 10, "debug": True},
         transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, ai_player)
@@ -96,7 +96,7 @@ def main():
                     game_state = game_state.apply_action((row, col))
                 except ValueError:
                     pass  # Illegal move, ignore and let player try again.
-                print(f" AI EVAL: {ai.evaluate(game_state, 1)}")
+                print(f" AI EVAL 1: {ai.evaluate(game_state, 1)}")
         draw_window(game_state)
 
         if ai_to_play:
@@ -104,7 +104,7 @@ def main():
             move, _ = ai.best_action(game_state)
             game_state = game_state.apply_action(move)
             print(f"    ---- AI moved {move} ---- ")
-            print(f" AI EVAL: {ai.evaluate(game_state, 2)}")
+            print(f" AI EVAL 2:  {ai.evaluate(game_state, 2)}")
 
         draw_window(game_state)
 

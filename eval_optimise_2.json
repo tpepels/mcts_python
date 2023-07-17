@@ -3,95 +3,6 @@
     "population_size": 200,
     "num_generations": 50,
     "mutation_rate": 0.05,
-    "game_name": "tictactoe",
-    "game_params": {
-      "board_size": 9,
-      "row_length": 5
-    },
-    "player_name": "alphabeta",
-    "eval_name": "evaluate_n_in_a_row",
-    "ai_param_ranges": {},
-    "eval_param_ranges": {
-      "m_opp_disc": {
-        "range": [0.5, 1.1],
-        "precision": 2
-      },
-      "m_weight": {
-        "range": [0, 5],
-        "precision": 1
-      },
-      "m_e_weight": {
-        "range": [0, 5],
-        "precision": 1
-      },
-      "m_win": {
-        "range": [0, 1000],
-        "precision": 0
-      }
-    },
-    "ai_static_params": {
-      "max_time": 5
-    },
-    "eval_static_params": {},
-    "debug": true,
-    "status": "complete"
-  },
-  {
-    "population_size": 200,
-    "num_generations": 50,
-    "mutation_rate": 0.05,
-    "game_name": "breakthrough",
-    "player_name": "alphabeta",
-    "eval_name": "evaluate_breakthrough_lorenz",
-    "ai_param_ranges": {},
-    "eval_param_ranges": {
-      "m_lorenz": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_mobility": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_blocked": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_safe": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_endgame": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_cap": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_cap_move": {
-        "range": [0, 5],
-        "precision": 2
-      },
-      "m_opp_disc": {
-        "range": [0.5, 1.3],
-        "precision": 2
-      },
-      "m_piece_diff": {
-        "range": [0.5, 1.3],
-        "precision": 2
-      }
-    },
-    "ai_static_params": {
-      "max_time": 6
-    },
-    "eval_static_params": {},
-    "debug": true
-  },
-  {
-    "population_size": 200,
-    "num_generations": 50,
-    "mutation_rate": 0.05,
     "game_name": "amazons",
     "player_name": "alphabeta",
     "eval_name": "evaluate_amazons_lieberum",
@@ -102,7 +13,7 @@
         "precision": 2
       },
       "n_moves_cutoff": {
-        "range": [0, 20],
+        "range": [0, 30],
         "precision": 0
       },
       "m_ter": {
@@ -123,7 +34,7 @@
       }
     },
     "ai_static_params": {
-      "max_time": 7
+      "max_time": 8
     },
     "eval_static_params": {},
     "debug": true

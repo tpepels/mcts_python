@@ -14,13 +14,16 @@ class TicTacToeGameState(GameState):
         for size in range(3, 10)
     }
 
-    def __init__(self, board_size=3, row_length=None, last_move=None, board=None, player=1, board_hash=None):
+    def __init__(
+        self, board_size=3, row_length=None, last_move=None, board=None, player=1, n_turns=0, board_hash=None
+    ):
         self.size = board_size
         self.row_length = row_length if row_length else self.size
         self.board = board
         self.board_hash = board_hash
         self.player = player
         self.last_move = last_move
+        self.n_turns = n_turns
 
         self.zobrist_table = self.zobrist_tables[self.size]
 
@@ -54,6 +57,7 @@ class TicTacToeGameState(GameState):
             player=3 - self.player,
             row_length=self.row_length,
             board_hash=board_hash,
+            n_turns=self.n_turns + 1,
             last_move=action,
         )
         return new_state
@@ -68,6 +72,7 @@ class TicTacToeGameState(GameState):
             player=3 - self.player,
             row_length=self.row_length,
             board_hash=self.board_hash,
+            n_turns=self.n_turns,
             last_move=None,
         )
 
@@ -84,10 +89,13 @@ class TicTacToeGameState(GameState):
         return list(zip(*np.where(self.board == 0)))
 
     def is_terminal(self):
-        return self.get_reward(1) != 0 or len(self.get_legal_actions()) == 0
+        return np.count_nonzero(self.board == 0) == 0 or self.get_reward(1) != 0
 
     def get_reward(self, player):
         if self.last_move is None:
+            return 0
+        # We first need enough marks on the board to be able to win
+        if self.n_turns < self.row_length * 2 - 1:
             return 0
 
         directions = [(0, 1), (1, 0), (1, 1), (-1, 1)]  # horizontal, vertical, two diagonal directions
@@ -145,7 +153,7 @@ class TicTacToeGameState(GameState):
             center = self.size // 2
             centrality_score = -abs(x - center) - abs(y - center)
 
-            scores.append((move, connectivity_score + centrality_score))
+            scores.append((move, connectivity_score * self.size + centrality_score))
         return scores
 
     def evaluate_move(self, move):
@@ -167,9 +175,9 @@ class TicTacToeGameState(GameState):
 
         # Calculate the Manhattan distance from the center
         center = self.size // 2
-        centrality_score = -abs(x - center) - abs(y - center)
+        centrality_score = ((center - abs(x - center)) + (center - abs(y - center))) / center
 
-        return connectivity_score + centrality_score
+        return (2 * connectivity_score) + centrality_score
 
     def visualize(self):
         visual = "    " + "   ".join(str(i) for i in range(self.size)) + "\n"  # Print column numbers
@@ -254,27 +262,28 @@ def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 
     return score
 
 
-def generate_masks(length, player):
+def generate_masks(length, player, e=3):
     print("generating masks for p" + str(player))
     masks = []
     # Generate all possible masks with one missing entry
-    for r in range(3, length + 1):
-        for mask_indices in itertools.combinations(range(length), r):
+    for num_marks in range(3, length + 1):
+        for mask_indices in itertools.combinations(range(length), num_marks):
+            if num_marks == length:
+                continue
             new_mask = np.zeros(length)
             new_mask[list(mask_indices)] = player
-            # Compute the score for the mask
-            num_marks = r
+
+            # Special case: Generate the special mask (0 1 1 1 1 0)
+            if num_marks == length - 1:
+                special_mask = np.zeros(length + 1)
+                special_mask[1:length] = player
+                masks.append((special_mask, length**e))
+
             # Find connected segments by splitting the mask at zeros
             mask_str = "".join(map(str, new_mask.astype(int)))
             connected_segments = [len(segment) for segment in mask_str.split("0") if str(player) in segment]
-
-            # Maximum connected marks in the mask
-            max_connected = max(connected_segments) if connected_segments else 0
-
-            # Score increases exponentially with the number of connected marks
-            # and linearly with the total number of marks
-            # TODO Hier was je gebleven, dit is nog niet echt waar je naar op zoek bent...
-            score = num_marks**2 - len(connected_segments) + max_connected
+            penalty = len(connected_segments) if num_marks < length - 1 else 0
+            score = num_marks**e - (penalty - 1) * 2 * e
 
             masks.append(
                 (
@@ -287,6 +296,13 @@ def generate_masks(length, player):
 
     # Sort the masks by score in descending order
     masks.sort(key=lambda x: x[1], reverse=True)
+    max_score = max([score for _, score in masks])
+    # min_score = min([score for _, score in masks])
+    # Normalize scores to range from 0 to 100
+    for i in range(len(masks)):
+        mask, score = masks[i]
+        normalized_score = score / max_score * 100
+        masks[i] = (mask, normalized_score)
     return masks
 
 
@@ -297,70 +313,6 @@ def masks_to_dict(masks):
         key = "".join(map(str, mask.astype(int)))
         masks_dict[key] = score
     return masks_dict
-
-
-def evaluate_n_in_a_row(state: TicTacToeGameState, player: int, norm: bool = False, a=100):
-    if not hasattr(evaluate_n_in_a_row, "player1_masks"):
-        masks_p1 = generate_masks(state.row_length, 1)
-        evaluate_n_in_a_row.player1_masks = masks_to_dict(masks_p1)
-
-        masks_p2 = generate_masks(state.row_length, 2)
-        evaluate_n_in_a_row.player2_masks = masks_to_dict(masks_p2)
-
-    # Extract the lines in each direction: rows, columns, and diagonals
-    rows = state.board
-    columns = state.board.T
-    diagonals = [
-        diag
-        for d in range(-state.board.shape[0] + 1, state.board.shape[1])
-        for diag in (state.board.diagonal(d), np.fliplr(state.board).diagonal(d))
-    ]
-
-    player1_scores = []
-    player2_scores = []
-
-    for line_set in [rows, columns, diagonals]:
-        for line in line_set:
-            # Ensure the line is long enough to contain the pattern
-            if len(line) < state.row_length:
-                continue
-
-            max_mask_player1 = 0
-            max_mask_player2 = 0
-
-            for i in range(len(line) - state.row_length + 1):
-                # Go over the segments of the line
-                line_segment_str = "".join(str(int(e)) for e in line[i : i + state.row_length])
-
-                # Look up the score of the segment in the mask dictionaries
-                max_mask_player1 = max(
-                    evaluate_n_in_a_row.player1_masks.get(line_segment_str, 0), max_mask_player1
-                )
-                max_mask_player2 = max(
-                    evaluate_n_in_a_row.player2_masks.get(line_segment_str, 0), max_mask_player2
-                )
-
-            player1_scores.append(max_mask_player1)
-            player2_scores.append(max_mask_player2)
-
-    # Sort and take the top 3 scores
-    player1_scores.sort(reverse=True)
-    player2_scores.sort(reverse=True)
-
-    # The player to move has a disadvantage because they have 1 less piece on the board.
-    # Let's assume that the player to move will break the best line for the opponent.
-    if state.player == 1:
-        player2_score = sum(player2_scores[1:2])
-        player1_score = sum(player1_scores[:1])
-    else:
-        player1_score = sum(player1_scores[1:2])
-        player2_score = sum(player2_scores[:1])
-
-    # The score is player 1's score minus player 2's score from the perspective of the provided player
-    score = (player1_score - player2_score) if player == 1 else (player2_score - player1_score)
-    if norm:
-        return normalize(score, a)
-    return score
 
 
 # def evaluate_n_in_a_row(state: TicTacToeGameState, player: int, norm: bool = False, a=100):
@@ -380,10 +332,8 @@ def evaluate_n_in_a_row(state: TicTacToeGameState, player: int, norm: bool = Fal
 #         for diag in (state.board.diagonal(d), np.fliplr(state.board).diagonal(d))
 #     ]
 
-#     player1_score = 0
-#     player2_score = 0
-#     player1_max = 0
-#     player2_max = 0
+#     player1_scores = []
+#     player2_scores = []
 
 #     for line_set in [rows, columns, diagonals]:
 #         for line in line_set:
@@ -406,21 +356,98 @@ def evaluate_n_in_a_row(state: TicTacToeGameState, player: int, norm: bool = Fal
 #                     evaluate_n_in_a_row.player2_masks.get(line_segment_str, 0), max_mask_player2
 #                 )
 
-#             player1_score += max_mask_player1
-#             player2_score += max_mask_player2
+#             player1_scores.append(max_mask_player1)
+#             player2_scores.append(max_mask_player2)
 
-#             player1_max = max(player1_max, max_mask_player1)
-#             player2_max = max(player2_max, max_mask_player2)
-
-#     # The player to move has a disadvantage because they have 1 less piece on the board.
-#     # Lets assume that the player to move will break the best line for the opponent.
-#     if state.player == 1:
-#         player2_score -= player2_max
-#     else:
-#         player1_score -= player1_max
+#     # Sort and take the top 3 scores
+#     player1_scores.sort(reverse=True)
+#     player2_scores.sort(reverse=True)
+#     player2_score = sum(player2_scores[:3])
+#     player1_score = sum(player1_scores[:3])
 
 #     # The score is player 1's score minus player 2's score from the perspective of the provided player
 #     score = (player1_score - player2_score) if player == 1 else (player2_score - player1_score)
 #     if norm:
 #         return normalize(score, a)
 #     return score
+
+
+def evaluate_n_in_a_row(
+    state: TicTacToeGameState,
+    player: int,
+    m_bonus=1,
+    m_decay=0.95,
+    m_weights=(0.7, 0.2, 0.1),
+    m_top_k=3,
+    m_disc=0.9,
+    m_pow=4,
+    norm: bool = False,
+    a=100,
+):
+    if not hasattr(evaluate_n_in_a_row, "player_masks"):
+        evaluate_n_in_a_row.player_masks = {
+            1: masks_to_dict(generate_masks(state.row_length, 1, e=m_pow)),
+            2: masks_to_dict(generate_masks(state.row_length, 2, e=m_pow)),
+        }
+
+    # Extract the lines in each direction: rows, columns, and diagonals
+    rows = state.board
+    columns = state.board.T
+    diagonals = [
+        diag
+        for d in range(-state.board.shape[0] + 1, state.board.shape[1])
+        for diag in (state.board.diagonal(d), np.fliplr(state.board).diagonal(d))
+    ]
+
+    player_scores = {1: [], 2: []}
+    score_bonus = {1: 0, 2: 0}
+
+    decay = 1 / (1 + (m_decay * state.n_turns))
+    if state.n_turns > ((state.row_length - 2) * 2) - 1:
+        for line_set in [rows, columns, diagonals]:
+            for line in line_set:
+                # Ensure the line is long enough to contain the pattern
+                if len(line) < state.row_length:
+                    continue
+                for x in range(len(line) - state.row_length + 1):
+                    # Go over the segments of the line
+                    line_segment_str = "".join(str(int(e)) for e in line[x : x + state.row_length])
+
+                    # Look up the score of the segment in the mask dictionaries for each player
+                    for p in player_scores:
+                        max_mask_player = max(evaluate_n_in_a_row.player_masks[p].get(line_segment_str, 0), 0)
+                        player_scores[p].append(max_mask_player)
+
+    if decay > 0.1:
+        center = state.size // 2
+        non_zero_indices = np.nonzero(state.board)  # Returns a tuple of arrays, one for each dimension
+
+        for x, y in zip(*non_zero_indices):
+            # Go over the elements of the board
+            element = state.board[x, y]
+            # Add a bonus for player's marks close to the center
+            score_bonus[element] += (center - abs(x - center)) + (center - abs(y - center)) / center
+            # Add a bonus for player's marks close to other same player's marks
+
+            adjacent_moves = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
+
+            for i, j in adjacent_moves:
+                if 0 <= i < state.size and 0 <= j < state.size:
+                    if state.board[i, j] == element:
+                        score_bonus[element] += 1  # Note that the connection will be counted twice
+
+    # Sort and take the top k scores, weigh them
+    for p in player_scores:
+        player_scores[p].sort(reverse=True)
+        player_scores[p] = sum(s * w for s, w in zip(player_scores[p][:m_top_k], m_weights))
+
+    final_scores = {p: player_scores[p] + (decay * m_bonus * score_bonus[p]) for p in player_scores}
+
+    # The score is player 1's score minus player 2's score from the perspective of the provided player
+    score = (final_scores[1] - final_scores[2]) if player == 1 else (final_scores[2] - final_scores[1])
+    if m_disc > 0 and player != state.player:
+        score *= m_disc
+
+    if norm:
+        return normalize(score, a)
+    return score
