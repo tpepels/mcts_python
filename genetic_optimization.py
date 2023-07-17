@@ -20,7 +20,7 @@ import util
 import jsonschema
 from games.gamestate import draw, loss, win
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
-from util import format_time, log_exception_handler
+from util import ErrorLogger, format_time, log_exception_handler
 
 sheet: gspread.Worksheet = None
 csv_f: TextIOWrapper = None
@@ -355,7 +355,9 @@ def evaluate_fitness(
     p2_params = AIParams(player_name, eval_name, 2, ai_params2, eval_params2)
 
     game, player1, player2 = init_game_and_players(game_name, game_params, p1_params, p2_params)
-    game_result = play_game_until_terminal(game, player1, player2)
+
+    with ErrorLogger(play_game_until_terminal, log_dir="logs/game_errors"):
+        game_result = play_game_until_terminal(game, player1, player2, callback=callback)
 
     # Use game state constants for comparison
     if game_result == draw:
@@ -367,6 +369,17 @@ def evaluate_fitness(
     elif game_result == loss:
         # Individual2 wins
         return individual1, 0, individual2, 1
+
+
+def callback(player, action, game, time):
+    print(f"Player {player} chosen action: {action}. Current game state: \n {game.visualize()}")
+    if game.is_terminal():
+        if game.get_reward(1) == win:
+            print("Game Over. Winner: P1")
+        elif game.get_reward(1) == loss:
+            print("Game Over. Winner: P2")
+        else:
+            print("Game Over. Draw")
 
 
 def scale_fitnesses(fitnesses):

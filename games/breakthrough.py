@@ -462,10 +462,9 @@ def evaluate_breakthrough_lorenz(
     caps = 0
     opponent = 3 - player
 
-    pieces = np.where(state.board > 0)[0]  # get all pieces from the board
-    for position in pieces:
+    positions = np.where(state.board > 0)[0]  # get all pieces from the board
+    for position in positions:
         piece = state.board[position]
-
         # Player or opponent
         multiplier = 1 if piece == player else -1
         pieces += 1

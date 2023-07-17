@@ -98,6 +98,7 @@ class ErrorLogger:
     def __exit__(self, exc_type, exc_value, traceback_):
         sys.stdout = self.old_stdout
         if exc_type is not None:
+            os.makedirs(os.path.dirname(self.log_dir), exist_ok=True)
             log_file = os.path.join(
                 self.log_dir,
                 f"errors_{self.func.__name__}_{int(self.start_time)}.log",
