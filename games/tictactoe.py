@@ -90,7 +90,7 @@ class TicTacToeGameState(GameState):
         return list(zip(*np.where(self.board == 0)))
 
     def is_terminal(self):
-        return np.count_nonzero(self.board) == 0 or self.get_reward(1) != 0
+        return np.count_nonzero(self.board == 0) == 0 or self.get_reward(1) != 0
 
     def get_reward(self, player):
         if self.last_move is None:

@@ -142,7 +142,7 @@ def genetic_algorithm(
     tournament_size: int = 5,
     elite_count: int = 4,
     draw_score: float = 0.25,
-    debug: bool = False,
+    debug: bool = True,
 ):
     """
     Run the genetic algorithm to optimize the parameters of the AI and evaluation function.
