@@ -210,7 +210,7 @@ class AlphaBetaPlayer(AIPlayer):
                 )
 
             if interrupted or ((time.time() - start_time) + (search_times[-1]) >= self.max_time):
-                print(f"interrupted. {last_best_move=}, {last_best_v=}, {best_move=}, {v=}")
+                # print(f"interrupted. {last_best_move=}, {last_best_v=}, {best_move=}, {v=}")
                 break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
 
             v, best_move = value(
