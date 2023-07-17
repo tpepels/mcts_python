@@ -372,12 +372,30 @@ def masks_to_dict(masks):
 #     return score
 
 
+def calculate_weights(m_top_k, factor, scale=10):
+    """Calculates weights based on m_top_k and a configurable factor, using integers for intermediate calculations."""
+    # Calculate weights proportional to their rank
+    weights = [factor]
+    remaining_weight = 1 - factor
+    factor_scaled = int(factor * scale)
+
+    for i in range(1, m_top_k):
+        next_weight = remaining_weight * (factor_scaled - i) / (factor_scaled)
+        weights.append(next_weight)
+        remaining_weight -= next_weight
+
+    # Due to potential floating-point precision issues, adjust the last weight
+    weights[-1] = max(0, 1 - sum(weights[:-1]))
+
+    return tuple(weights)
+
+
 def evaluate_n_in_a_row(
     state: TicTacToeGameState,
     player: int,
     m_bonus=1,
     m_decay=0.95,
-    m_weights=(0.7, 0.2, 0.1),
+    m_w_factor=0.7,
     m_top_k=3,
     m_disc=0.9,
     m_pow=4,
@@ -389,6 +407,7 @@ def evaluate_n_in_a_row(
             1: masks_to_dict(generate_masks(state.row_length, 1, e=m_pow)),
             2: masks_to_dict(generate_masks(state.row_length, 2, e=m_pow)),
         }
+        evaluate_n_in_a_row.m_weights = calculate_weights(m_top_k, m_w_factor)
 
     # Extract the lines in each direction: rows, columns, and diagonals
     rows = state.board
@@ -436,14 +455,12 @@ def evaluate_n_in_a_row(
                     if state.board[i, j] == element:
                         score_bonus[element] += 1  # Note that the connection will be counted twice
 
-    try:
-        # Sort and take the top k scores, weigh them
-        for p in player_scores:
-            player_scores[p].sort(reverse=True)
-            player_scores[p] = sum(s * w for s, w in zip(player_scores[p][:m_top_k], m_weights))
-    except TypeError as e:
-        print(f"{m_bonus=}, {m_decay=}, {m_weights=}, {m_top_k=}, {m_disc=}, {m_pow=}")
-        raise e
+    # Sort and take the top k scores, weigh them
+    for p in player_scores:
+        player_scores[p].sort(reverse=True)
+        player_scores[p] = sum(
+            s * w for s, w in zip(player_scores[p][:m_top_k], evaluate_n_in_a_row.m_weights)
+        )
     final_scores = {p: player_scores[p] + (decay * m_bonus * score_bonus[p]) for p in player_scores}
 
     # The score is player 1's score minus player 2's score from the perspective of the provided player
