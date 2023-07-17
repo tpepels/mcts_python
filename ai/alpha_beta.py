@@ -71,10 +71,9 @@ class AlphaBetaPlayer(AIPlayer):
     def best_action(self, state: GameState):
         assert state.player == self.player, "Player to move in the game is not my assigned player"
         # Reset debug statistics
-        self.quiescence_searches = nodes_visited = cutoffs = evaluated = transpos = 0
+        self.quiescence_searches = nodes_visited = cutoffs = evaluated = 0
         max_depth_reached = null_moves_cutoff = total_moves_generated = best_move_order = 0
         # Keep track of search times per level
-        search_times = []
         start_time = time.time()
         iteration_count = 0
         interrupted = False
@@ -88,8 +87,8 @@ class AlphaBetaPlayer(AIPlayer):
             allow_null_move=True,
             root=False,
         ):
-            nonlocal evaluated, nodes_visited, cutoffs, max_depth_reached, transpos, start_time, interrupted
-            nonlocal total_moves_generated, null_moves_cutoff, search_times, iteration_count, time_limit, best_move_order
+            nonlocal evaluated, nodes_visited, cutoffs, start_time, interrupted
+            nonlocal total_moves_generated, null_moves_cutoff, iteration_count, time_limit, best_move_order
             is_max_player = state.player == self.player
 
             if state.is_terminal():
@@ -196,7 +195,8 @@ class AlphaBetaPlayer(AIPlayer):
                     )
 
         v, best_move = None, None
-        search_times = [0]  # Initialize with 0 for depth 0
+        search_times = [0.0]
+        best_values = []
         last_best_move = None
         last_best_v = 0
         for depth in range(2, self.max_depth + 1):  # Start depth from 2
@@ -208,11 +208,9 @@ class AlphaBetaPlayer(AIPlayer):
                     f"d={depth} t_r={(time_limit):.2f} l_t={search_times[-1]:.2f} *** ",
                     end="",
                 )
-
             if interrupted or ((time.time() - start_time) + (search_times[-1]) >= self.max_time):
                 # print(f"interrupted. {last_best_move=}, {last_best_v=}, {best_move=}, {v=}")
                 break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
-
             v, best_move = value(
                 state,
                 alpha=-float("inf"),
@@ -222,12 +220,12 @@ class AlphaBetaPlayer(AIPlayer):
                 allow_null_move=True,
                 root=True,
             )
-
             if not interrupted:
                 last_best_move = best_move
                 last_best_v = v
 
-            max_depth_reached = depth
+                best_values.append((depth, v, best_move))
+                max_depth_reached = depth
 
             # keep track of the time spent
             depth_time = time.time() - start_depth_time  # Time spent on this depth
@@ -261,11 +259,12 @@ class AlphaBetaPlayer(AIPlayer):
                 "depth_finished": max_depth_reached,
                 "depth": depth,
                 "search_time": (time.time() - start_time),
-                "search_times_p.d": search_times,
+                "search_times_p.d": search_times[1:],
                 "search_time_average": int(total_search_time[self.player] / n_moves[self.player]),
                 "search_tim_out": interrupted,
                 "best_value": best_value_labels.get(v, v),
                 "best_move": best_move,
+                "best_values": best_values,
             }
             if v == win:
                 stat_dict["best_value"] = "WIN"

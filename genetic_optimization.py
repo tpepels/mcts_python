@@ -195,18 +195,6 @@ def genetic_algorithm(
         for _ in range(population_size)
     ]
 
-    # Create a new sheet for this experiment
-    if game_params and "board_size" in game_params:
-        game_name_str = game_name + str(game_params["board_size"])
-    else:
-        game_name_str = game_name
-    sheet_name = (
-        f"{game_name_str}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    )
-
-    # This prepares the csv file and google sheet
-    setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
-
     best_overall_individual = None
     best_individuals = []
 
@@ -240,6 +228,17 @@ def genetic_algorithm(
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
+
+        if generation == 0:
+            # Create a new sheet for this experiment, do this after the first results so we don't create a lot of unused sheets
+            if game_params and "board_size" in game_params:
+                game_name_str = game_name + str(game_params["board_size"])
+            else:
+                game_name_str = game_name
+            sheet_name = f"{game_name_str}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            # This prepares the csv file and google sheet
+            setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
 
         # Calculate the number of wins for each individual as fitness values
         fitnesses = [0] * len(population)

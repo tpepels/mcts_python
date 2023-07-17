@@ -89,16 +89,16 @@
         "precision": 2
       },
       "m_decisive": {
-        "range": [0, 100],
+        "range": [-100, 100],
         "precision": 0
       },
       "m_antidecisive": {
-        "range": [-100, 0],
+        "range": [-100, 100],
         "precision": 0
       }
     },
     "ai_static_params": {
-      "max_time": 6
+      "max_time": 10
     },
     "eval_static_params": {},
     "debug": true

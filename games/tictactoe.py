@@ -77,19 +77,20 @@ class TicTacToeGameState(GameState):
         )
 
     def get_random_action(self):
-        return random.choice(self.get_legal_actions())
+        return next(self.yield_legal_actions(), None)
 
     def yield_legal_actions(self):
-        for i in range(self.size):
-            for j in range(self.size):
-                if self.board[i][j] == 0:
-                    yield (i, j)
+        non_zero_indices = np.transpose(np.nonzero(self.board)).tolist()  # Convert to list of pairs
+        random.shuffle(non_zero_indices)  # Shuffle the list
+
+        for i, j in non_zero_indices:
+            yield (i, j)
 
     def get_legal_actions(self):
         return list(zip(*np.where(self.board == 0)))
 
     def is_terminal(self):
-        return np.count_nonzero(self.board == 0) == 0 or self.get_reward(1) != 0
+        return np.count_nonzero(self.board) == 0 or self.get_reward(1) != 0
 
     def get_reward(self, player):
         if self.last_move is None:

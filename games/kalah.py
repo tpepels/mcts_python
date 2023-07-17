@@ -452,8 +452,12 @@ def evaluate_kalah_enhanced(
                 elif m_capture != 0 and is_capture(state.board, i, 3 - player):
                     opponent_capture_moves += 1
 
+    score = state.board[6] - state.board[-1]
+    if player == 2:
+        score = state.board[-1] - state.board[6]
+
     evaluation = (
-        m_score * evaluate_kalah_simple(state, player, m_opp_disc=1.0, norm=False)
+        m_score * score
         + m_seed_diff * (player_seeds - opponent_seeds)
         + m_empty * (empty_opponent_houses - empty_player_houses)
         + m_double * (player_double_moves - opponent_double_moves)
@@ -483,6 +487,9 @@ def is_capture(board, move, player):
         k=6 if player == 2 else 13,
         size=size,
     )
+    # TODO Hier was je gebleven, chatgpt is het er niet mee eens..
+    # opp_pit = 12 if player == 1 else 5
+    # passed_opp_pit = total_steps > opp_pit if move < opp_pit else total_steps > size + opp_pit
     opp = 12 - last_index
     passed_opp = total_steps > opp if move < opp else total_steps > size + opp
     rounds = seeds // 13
@@ -495,4 +502,5 @@ def is_capture(board, move, player):
         # Either the opposing side had a stone before, or we dropped one in it
         if board[opp] > 0 or passed_opp:
             return True
+
     return False

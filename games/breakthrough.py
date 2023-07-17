@@ -152,12 +152,10 @@ class BreakthroughGameState(GameState):
 
         legal_actions = []
         positions = np.where(self.board == self.player)[0]
-        random.shuffle(positions)  # Shuffle positions
         dr = -1 if self.player == 1 else 1
         dc_values = [-1, 0, 1]
         for position in positions:
             row, col = divmod(position, 8)
-            random.shuffle(dc_values)  # Shuffle dc_values for each position
             for dc in dc_values:
                 new_row, new_col = row + dr, col + dc
                 if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if the new position is within the board
@@ -212,20 +210,32 @@ class BreakthroughGameState(GameState):
             from_position, to_position = move
 
             # Player 1 views the lorenz_values in reverse
-            if self.player == 1:
-                to_position = 63 - to_position
-                from_position = 63 - from_position
+            if self.player == 2:
+                # Use lorentz_values for base_value
+                score = lorentz_values[to_position] - lorentz_values[from_position]
+            else:
+                # Use lorentz_values for base_value
+                score = lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
 
-            # Use lorentz_values for base_value
-            score = lorentz_values[to_position] - lorentz_values[from_position]
+            # Reward capturing
+            if self.is_capture(move):
+                score = (MAX_LORENZ + score) ** 2  # square score if it's a capture
+                # An antidecisive move
+                if self.player == 1 and from_position > 56:
+                    score += 1e6  # Add a very high score if the move is antidecisive
+                elif self.player == 2 and from_position < 8:
+                    score += 1e6
 
             # Reward safe positions
             if is_safe(move[1], self.player, self.board):
                 score *= 2  # Add base_value again if the position is safe
 
-            # Reward capturing
-            if self.is_capture(move):
-                score = (MAX_LORENZ + score) ** 2  # square score if it's a capture
+            # Reward decisive moves
+            # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
+            if self.player == 1 and (8 <= from_position <= 16):
+                score += 1e6  # Add a very high score if the move is decisive
+            elif self.player == 2 and (48 <= from_position <= 56):
+                score += 1e6  # Add a very high score if the move is decisive
 
             scores.append((move, score))
 
@@ -242,20 +252,32 @@ class BreakthroughGameState(GameState):
         from_position, to_position = move
 
         # Player 1 views the lorenz_values in reverse
-        if self.player == 1:
-            to_position = 63 - to_position
-            from_position = 63 - from_position
+        if self.player == 2:
+            # Use lorentz_values for base_value
+            score = lorentz_values[to_position] - lorentz_values[from_position]
+        else:
+            # Use lorentz_values for base_value
+            score = lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
 
-        # Use lorentz_values for base_value
-        score = lorentz_values[to_position] - lorentz_values[from_position]
+        # Reward capturing
+        if self.is_capture(move):
+            score = score**2  # square score if it's a capture
+            # An antidecisive move
+            if self.player == 1 and from_position > 56:
+                score += 1e6  # Add a very high score if the move is antidecisive
+            elif self.player == 2 and from_position < 8:
+                score += 1e6
 
         # Reward safe positions
         if is_safe(move[1], self.player, self.board):
             score *= 2  # Add base_value again if the position is safe
 
-        # Reward capturing
-        if self.is_capture(move):
-            score = (MAX_LORENZ + score) ** 2  # square score if it's a capture
+        # Reward decisive moves
+        # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
+        if self.player == 1 and (8 <= from_position <= 16):
+            score += 1e6  # Add a very high score if the move is decisive
+        elif self.player == 2 and (48 <= from_position <= 56):
+            score += 1e6  # Add a very high score if the move is decisive
 
         return score
 
@@ -408,7 +430,7 @@ def evaluate_breakthrough_lorenz(
     m_piece_diff: float = 1.0,
     m_opp_disc: float = 0.9,
     m_decisive: float = 100.0,
-    m_antidecisive: float = -100.0,
+    m_antidecisive: float = 100.0,
     a: int = 200,
     norm: bool = False,
 ):
@@ -465,20 +487,21 @@ def evaluate_breakthrough_lorenz(
     if m_endgame != 0 and pieces < 12:
         endgame_values = m_endgame * piece_diff
 
+    player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive = is_decisive(state)
+
     decisive_values = 0
     antidecisive_values = 0
 
-    # if player reaches opponent's home row, decisive condition is met
-    if any(x == player for x in state.board[0:8] if player == 2) or any(
-        x == player for x in state.board[56:64] if player == 1
-    ):
-        decisive_values = m_decisive
-
-    # if opponent is one move away from reaching home row, anti-decisive condition is met
-    if any(x == opponent for x in state.board[8:16] if player == 2) or any(
-        x == opponent for x in state.board[48:56] if player == 1
-    ):
-        antidecisive_values = m_antidecisive
+    if player == 1:
+        decisive_values = m_decisive if player_1_decisive else 0
+        decisive_values -= m_decisive if player_2_decisive else 0
+        antidecisive_values = m_antidecisive if player_1_antidecisive else 0
+        antidecisive_values -= m_antidecisive if player_2_antidecisive else 0
+    else:  # self.player == 2
+        decisive_values = m_decisive if player_2_decisive else 0
+        decisive_values -= m_decisive if player_1_decisive else 0
+        antidecisive_values = m_antidecisive if player_2_antidecisive else 0
+        antidecisive_values -= m_antidecisive if player_1_antidecisive else 0
 
     my_caps, my_cap_moves = count_capture_moves(state, player) if m_cap != 0 or m_cap_move != 0 else (0, 0)
     opp_caps, opp_cap_moves = (
@@ -502,6 +525,49 @@ def evaluate_breakthrough_lorenz(
         return normalize(eval_value, a)
     else:
         return eval_value
+
+
+penultimate_row_indices_player_2 = np.arange(48, 56)  # indices of the penultimate row for player 1
+penultimate_row_indices_player_1 = np.arange(8, 16)  # indices of the penultimate row for player 2
+
+
+def is_decisive(state):
+    player_1_decisive, player_2_decisive = False, False
+    player_1_antidecisive, player_2_antidecisive = False, False
+
+    # Check for player 1
+    player_positions = (
+        np.where(state.board[penultimate_row_indices_player_1] == 1)[0] + penultimate_row_indices_player_1[0]
+    )
+    for pos in player_positions:
+        if state.player == 1:
+            player_1_decisive = True
+            break
+        else:
+            if (pos % 8 > 0 and state.board[pos - 7] == 2) or (pos % 8 < 7 and state.board[pos - 9] == 2):
+                player_2_antidecisive = True
+                break
+            else:
+                player_1_decisive = True
+                break
+
+    # Check for player 2
+    player_positions = (
+        np.where(state.board[penultimate_row_indices_player_2] == 2)[0] + penultimate_row_indices_player_2[0]
+    )
+    for pos in player_positions:
+        if state.player == 2:
+            player_2_decisive = True
+            break
+        else:
+            if (pos % 8 > 0 and state.board[pos + 7] == 1) or (pos % 8 < 7 and state.board[pos + 9] == 1):
+                player_1_antidecisive = True
+                break
+            else:
+                player_2_decisive = True
+                break
+
+    return player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive
 
 
 BL_DIR = ((1, 0), (1, -1), (1, 1))

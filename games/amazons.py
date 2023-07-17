@@ -172,6 +172,8 @@ class AmazonsGameState(GameState):
         """
         Get a single random legal action for the current player.
         """
+        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
+
         # Select a random queen
         queens = self.white_queens if self.player == 1 else self.black_queens
         random_queen = random.choice(queens)
@@ -217,6 +219,7 @@ class AmazonsGameState(GameState):
         """
         Get a generator of legal actions for the current player.
         """
+        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
         queens = self.white_queens if self.player == 1 else self.black_queens
         random.shuffle(queens)
         for queen in queens:
@@ -227,46 +230,42 @@ class AmazonsGameState(GameState):
         """
         Get a list of legal actions for the current player.
         """
+        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
         queens = self.white_queens if self.player == 1 else self.black_queens
-        random.shuffle(queens)
         return [move for queen in queens for move in self.get_legal_moves_for_amazon(*queen)]
 
     def get_legal_moves_for_amazon(self, x, y):
         """
-        Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
+        Get a generator of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
         """
-        moves = []
-        assert self.board[x][y] > 0
-
+        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
         for dx, dy in DIRECTIONS:
             nx, ny = x + dx, y + dy  # the next cell in the direction
 
             while 0 <= nx < self.board_size and 0 <= ny < self.board_size:
-                if self.board[nx][ny] == 0:  # free cell
+                if self.board[nx, ny] == 0:  # free cell
                     # Find all legal arrow shots in the current direction.
-                    moves.extend(
-                        (x, y, nx, ny, a_nx, a_ny) for a_nx, a_ny in self.generate_arrow_shots(nx, ny, x, y)
-                    )
+                    for a_nx, a_ny in self.generate_arrow_shots(nx, ny, x, y):
+                        yield (x, y, nx, ny, a_nx, a_ny)
                     nx += dx
                     ny += dy  # keep exploring in the direction
 
                 else:  # blocked cell
                     break
 
-        return moves
-
     def generate_arrow_shots(self, nx, ny, x, y):
         """
         Generate all legal arrow shots from the position (nx, ny).
         """
+        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
         for adx, ady in DIRECTIONS:
             a_nx, a_ny = nx + adx, ny + ady  # the next cell in the direction
 
             while 0 <= a_nx < self.board_size and 0 <= a_ny < self.board_size:
-                if self.board[a_nx][a_ny] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
+                if self.board[a_nx, a_ny] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
                     yield a_nx, a_ny
 
-                elif self.board[a_nx][a_ny] != 0:  # blocked cell
+                elif self.board[a_nx, a_ny] != 0:  # blocked cell
                     break
 
                 a_nx += adx
@@ -285,10 +284,10 @@ class AmazonsGameState(GameState):
                 nx, ny = x + dx, y + dy  # the next cell in the direction
 
                 while 0 <= nx < self.board_size and 0 <= ny < self.board_size:
-                    if self.board[nx][ny] == 0:  # free cell
+                    if self.board[nx, ny] == 0:  # free cell
                         return True
 
-                    elif self.board[nx][ny] != 0:  # blocked cell
+                    elif self.board[nx, ny] != 0:  # blocked cell
                         break
 
                     nx += dx
