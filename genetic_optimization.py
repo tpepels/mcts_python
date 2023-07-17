@@ -301,12 +301,12 @@ def genetic_algorithm(
             remaining_generations = num_generations - (generation + 1)
             estimated_remaining_time = average_gen_time * remaining_generations
 
-            print(f"    Finished generation {generation}, took {int(gen_time)} seconds")
-            print(f"    Estimated remaining time: {int(estimated_remaining_time)} seconds")
+            print(f"    Finished generation {generation}, took {format_time(int(gen_time))}")
+            print(f"    Estimated remaining time: {format_time(int(estimated_remaining_time))}")
 
     if debug:
         print("--" * 40)
-        print(f"Finished all generations, took {int(time.time() - start_time)} seconds")
+        print(f"Finished all generations, took {format_time(int(time.time() - start_time))}")
 
     # At the end of all generations, write the best overall individual and its fitness
     report_final_results(best_overall_individual)

@@ -138,6 +138,8 @@ class TicTacToeGameState(GameState):
         :return: A list of scores for each move.
         """
         scores = []
+        # Calculate the Manhattan distance from the center
+        center = self.size // 2
         for move in moves:
             x, y = move
             adjacent_moves = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
@@ -149,11 +151,9 @@ class TicTacToeGameState(GameState):
                     if self.board[i][j] == self.player:
                         connectivity_score += 1
 
-            # Calculate the Manhattan distance from the center
-            center = self.size // 2
-            centrality_score = -abs(x - center) - abs(y - center)
+            centrality_score = ((center - abs(x - center)) + (center - abs(y - center))) / center
 
-            scores.append((move, connectivity_score * self.size + centrality_score))
+            scores.append((move, (2 * connectivity_score) + centrality_score))
         return scores
 
     def evaluate_move(self, move):
@@ -165,7 +165,8 @@ class TicTacToeGameState(GameState):
         """
         x, y = move
         adjacent_moves = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
-
+        # Calculate the Manhattan distance from the center
+        center = self.size // 2
         connectivity_score = 0
 
         for i, j in adjacent_moves:
@@ -173,8 +174,6 @@ class TicTacToeGameState(GameState):
                 if self.board[i][j] == self.player:
                     connectivity_score += 1
 
-        # Calculate the Manhattan distance from the center
-        center = self.size // 2
         centrality_score = ((center - abs(x - center)) + (center - abs(y - center))) / center
 
         return (2 * connectivity_score) + centrality_score
@@ -263,7 +262,6 @@ def evaluate_tictactoe(state, player, m_opp_disc: float = 1.0, m_score: float = 
 
 
 def generate_masks(length, player, e=3):
-    print("generating masks for p" + str(player))
     masks = []
     # Generate all possible masks with one missing entry
     for num_marks in range(3, length + 1):
@@ -313,63 +311,6 @@ def masks_to_dict(masks):
         key = "".join(map(str, mask.astype(int)))
         masks_dict[key] = score
     return masks_dict
-
-
-# def evaluate_n_in_a_row(state: TicTacToeGameState, player: int, norm: bool = False, a=100):
-#     if not hasattr(evaluate_n_in_a_row, "player1_masks"):
-#         masks_p1 = generate_masks(state.row_length, 1)
-#         evaluate_n_in_a_row.player1_masks = masks_to_dict(masks_p1)
-
-#         masks_p2 = generate_masks(state.row_length, 2)
-#         evaluate_n_in_a_row.player2_masks = masks_to_dict(masks_p2)
-
-#     # Extract the lines in each direction: rows, columns, and diagonals
-#     rows = state.board
-#     columns = state.board.T
-#     diagonals = [
-#         diag
-#         for d in range(-state.board.shape[0] + 1, state.board.shape[1])
-#         for diag in (state.board.diagonal(d), np.fliplr(state.board).diagonal(d))
-#     ]
-
-#     player1_scores = []
-#     player2_scores = []
-
-#     for line_set in [rows, columns, diagonals]:
-#         for line in line_set:
-#             # Ensure the line is long enough to contain the pattern
-#             if len(line) < state.row_length:
-#                 continue
-
-#             max_mask_player1 = 0
-#             max_mask_player2 = 0
-
-#             for i in range(len(line) - state.row_length + 1):
-#                 # Go over the segments of the line
-#                 line_segment_str = "".join(str(int(e)) for e in line[i : i + state.row_length])
-
-#                 # Look up the score of the segment in the mask dictionaries
-#                 max_mask_player1 = max(
-#                     evaluate_n_in_a_row.player1_masks.get(line_segment_str, 0), max_mask_player1
-#                 )
-#                 max_mask_player2 = max(
-#                     evaluate_n_in_a_row.player2_masks.get(line_segment_str, 0), max_mask_player2
-#                 )
-
-#             player1_scores.append(max_mask_player1)
-#             player2_scores.append(max_mask_player2)
-
-#     # Sort and take the top 3 scores
-#     player1_scores.sort(reverse=True)
-#     player2_scores.sort(reverse=True)
-#     player2_score = sum(player2_scores[:3])
-#     player1_score = sum(player1_scores[:3])
-
-#     # The score is player 1's score minus player 2's score from the perspective of the provided player
-#     score = (player1_score - player2_score) if player == 1 else (player2_score - player1_score)
-#     if norm:
-#         return normalize(score, a)
-#     return score
 
 
 def calculate_weights(m_top_k, factor, scale=10):

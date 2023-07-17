@@ -342,10 +342,10 @@ class AmazonsGameState(GameState):
             # Extract the start and end positions of the amazon and the arrow shot from the move
             _, _, end_x, end_y, arrow_x, arrow_y = move
             # Calculate score based on the distance of the Amazon's move from the center
-            score = abs(self.mid - end_x) + abs(self.mid - end_y)
+            score = (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
             # Add value to the score based on the distance of the arrow shot from the Amazon
             arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
-            score += arrow_distance
+            score += arrow_distance / 2
             scores.append((move, score))
         return scores
 
@@ -361,7 +361,7 @@ class AmazonsGameState(GameState):
         # Extract the start and end positions of the amazon and the arrow shot from the move
         _, _, end_x, end_y, arrow_x, arrow_y = move
         # Calculate score based on the distance of the Amazon's move from the center
-        score = abs(self.mid - end_x) + abs(self.mid - end_y)
+        score = (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
         # Add value to the score based on the distance of the arrow shot from the Amazon
         arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
         score += arrow_distance
