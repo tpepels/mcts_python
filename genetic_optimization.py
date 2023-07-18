@@ -137,6 +137,7 @@ def genetic_algorithm(
     game_params: Optional[Dict[str, Any]] = {},
     ai_static_params: Optional[Dict[str, Any]] = {},
     eval_static_params: Optional[Dict[str, Any]] = {},
+    games_per_gen: int = 5,
     n_procs: int = 8,
     convergence_generations: int = 5,
     tournament_size: int = 5,
@@ -218,9 +219,11 @@ def genetic_algorithm(
             print(f"Starting generation {generation}")
             gen_start_time = time.time()
 
+        pairs = []
         # Randomly pair up individuals in the population
-        random.shuffle(population)
-        pairs = [(population[i], population[i + 1]) for i in range(0, len(population), 2)]
+        for i in range(games_per_gen):
+            random.shuffle(population)
+            pairs += [(population[i], population[i + 1]) for i in range(0, len(population), 2)]
 
         if debug:
             print(f"Self-play between {len(pairs)} pairs")
@@ -358,17 +361,30 @@ def evaluate_fitness(
 
     with ErrorLogger(play_game_until_terminal, log_dir="logs/game_errors"):
         game_result = play_game_until_terminal(game, player1, player2, callback=callback)
+        game_result_sw = play_game_until_terminal(game, player2, player1, callback=callback)
 
-    # Use game state constants for comparison
+    res_1 = get_game_result(game_result, draw_score)
+    res_2 = get_game_result(game_result_sw, draw_score)
+
+    individual1_res = res_1[0] + res_2[1]
+    individual2_res = res_1[1] + res_2[0]
+
+    return individual1, individual1_res, individual2, individual2_res
+
+
+def get_game_result(game_result, draw_score: float) -> Tuple[float, float]:
     if game_result == draw:
         # Draw
-        return individual1, draw_score, individual2, draw_score
+        return draw_score, draw_score
     elif game_result == win:
         # Individual1 wins
-        return individual1, 1, individual2, 0
+        return 1.0, 0.0
     elif game_result == loss:
         # Individual2 wins
-        return individual1, 0, individual2, 1
+        return 0.0, 1.0
+    else:
+        assert False, f"Unexpected game result: {game_result}"
+        return 0.0, 0.0
 
 
 def callback(player, action, game, time):

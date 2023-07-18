@@ -74,7 +74,7 @@
       }
     },
     "ai_static_params": {
-      "max_time": 10
+      "max_time": 5
     },
     "eval_static_params": {},
     "debug": true

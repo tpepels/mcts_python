@@ -16,7 +16,7 @@
       "m_pow": { "range": [1, 10], "precision": 0 },
       "m_disc": { "range": [0, 2], "precision": 2 }
     },
-    "ai_static_params": { "max_time": 10 },
+    "ai_static_params": { "max_time": 5 },
     "eval_static_params": {},
     "debug": true
   },
@@ -39,7 +39,7 @@
       "m_decisive": { "range": [-2000, 2000], "precision": 0 },
       "m_antidecisive": { "range": [-2000, 2000], "precision": 0 }
     },
-    "ai_static_params": { "max_time": 10 },
+    "ai_static_params": { "max_time": 5 },
     "eval_static_params": {},
     "debug": true
   }

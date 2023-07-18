@@ -85,7 +85,7 @@ def d_to_s(d):
 
 def init_game_and_players(
     game_key: str, game_params: Optional[Dict[str, Any]], p1_params: AIParams, p2_params: AIParams
-) -> Tuple[Type[GameState], AIPlayer, AIPlayer]:
+) -> Tuple[GameState, AIPlayer, AIPlayer]:
     """Initialize game and players based on given parameters.
 
     Args:
@@ -105,7 +105,7 @@ def init_game_and_players(
     return game, p1, p2
 
 
-def init_game(game_key: str, game_params: Optional[Dict[str, Any]]) -> Type[GameState]:
+def init_game(game_key: str, game_params: Optional[Dict[str, Any]]) -> GameState:
     """Initialize the game based on given parameters.
 
     Args:
