@@ -77,10 +77,10 @@ def main():
         ai_key="alphabeta",
         eval_key="evaluate_n_in_a_row",
         max_player=2,
-        ai_params={"max_depth": 20, "max_time": 10, "debug": True},
+        ai_params={"max_depth": 20, "max_time": 5, "debug": True},
         transposition_table_size=game_state.transposition_table_size,
     )
-    ai = init_ai_player(ai_params, ai_player)
+    ai = init_ai_player(ai_params)
 
     while run:
         CLOCK.tick(60)

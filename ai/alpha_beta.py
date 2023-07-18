@@ -103,10 +103,10 @@ class AlphaBetaPlayer(AIPlayer):
 
             # This function checks if we are running out of time.
             # Don't do this for the first depth, in some games, even the lowest search depth takes a lot of time..
-            if not first_depth and iteration_count % 1000 == 0:  # Check every 1000 iterations
+            if not first_depth and iteration_count % 1000 == 0:  # Check every so many iterations
                 if (time.time() - start_time) > time_limit:
                     interrupted = True
-                    print("Interrupted ...")
+                    return 0, None
 
             if depth == 0 and allow_null_move and self.use_quiescence and not interrupted:
                 v = self.quiescence(state, alpha, beta)
