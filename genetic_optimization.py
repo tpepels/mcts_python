@@ -1,6 +1,8 @@
 import argparse
 import csv
 import datetime
+from itertools import combinations
+import itertools
 import json
 import multiprocessing
 import os
@@ -10,6 +12,7 @@ from functools import partial
 from io import TextIOWrapper
 from operator import itemgetter
 import traceback
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gspread
@@ -20,7 +23,7 @@ import util
 import jsonschema
 from games.gamestate import draw, loss, win
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
-from util import ErrorLogger, format_time, log_exception_handler
+from util import ErrorLogger, format_time, log_exception_handler, pretty_print_dict
 
 sheet: gspread.Worksheet = None
 csv_f: TextIOWrapper = None
@@ -34,22 +37,22 @@ def setup_reporting(
     game_name: str,
     ai_param_ranges: Dict[str, Tuple[float, float]],
     eval_param_ranges: Dict[str, Tuple[float, float]],
-) -> Tuple[Any, Any]:
+    no_google: bool = False,
+):
     csv_header = ["Generation"] + list(ai_param_ranges.keys()) + list(eval_param_ranges.keys()) + ["Fitness"]
-
+    global csv_f, csv_writer, sheet
     try:
-        # Use credentials to create a client to interact with the Google Drive API
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
-        client = gspread.authorize(creds)
-
-        global sheet, csv_f, csv_writer
-
-        sheet = client.create(sheet_name).sheet1
         config = util.read_config()
-        sheet.spreadsheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
-        # Append the header row to the Google Sheets file
-        sheet.append_row(csv_header)
+        if not no_google:
+            # Use credentials to create a client to interact with the Google Drive API
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
+            client = gspread.authorize(creds)
+            sheet = client.create(sheet_name).sheet1
+            sheet.spreadsheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+            # Append the header row to the Google Sheets file
+            sheet.append_row(csv_header)
+
     except gspread.exceptions.APIError as a_ex:
         print(f"An API error occurred while setting up reporting for {sheet_name}, {str(a_ex)}")
         print("results only stored in logfiles.")
@@ -57,6 +60,7 @@ def setup_reporting(
 
     path = f"results/genetic/{game_name}/"
     os.makedirs(path, exist_ok=True)
+    print(f"Writing to {path}{sheet_name}.csv")
     csv_f = open(path + f"{sheet_name}.csv", "w", newline="")
     csv_writer = csv.writer(csv_f)
     csv_writer.writerow(csv_header)
@@ -124,6 +128,58 @@ def generate_individual(param_ranges: Dict[str, Tuple[float, float]]) -> Dict[st
     }
 
 
+def create_pairs_from_population(population, games_per_pair, debug=False):
+    # Convert population of dictionaries into list of JSON strings
+    pop_as_json = [json.dumps(ind, sort_keys=True) for ind in population]
+    # Get unique individuals
+    # unique_individuals = [json.loads(ind) for ind in list(set(pop_as_json))]
+    unique_individuals = list(set(pop_as_json))
+    pairs = list(itertools.combinations(unique_individuals, 2))
+    total_games = games_per_pair * len(unique_individuals)
+
+    # Case 1: There are too few pairs, i.e. increase the number of games per pair while keeping the number of games played per pair the same
+    while len(pairs) < total_games:
+        if debug:
+            print(f"Adding games to pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals")
+        pairs = pairs + pairs
+
+    # Case 2: There are too many pairs. i.e. reduce the number of games per pair while keeping the number of games played per pair the same
+    while len(pairs) > total_games:
+        if debug:
+            print(
+                f"Removing games from pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals"
+            )
+        # remove 1 game per invididual from the set of pairs
+        removed = set()
+        next_pairs = pairs.copy()
+        random.shuffle(next_pairs)
+        i = 0
+        while len(removed) < len(unique_individuals):
+            pair = next_pairs[i]
+            if pair[0] not in removed and pair[1] not in removed:
+                next_pairs.remove(pair)
+                removed.add(pair[0])
+                removed.add(pair[1])
+            i += 1
+            if i >= len(next_pairs) or next_pairs == []:
+                break
+
+        if len(removed) == len(unique_individuals):
+            pairs = next_pairs.copy()
+
+    g_sums = [sum([pair.count(ind) for pair in pairs]) for ind in unique_individuals]
+    # Assert that all the elements of g_sums are equal
+    assert all([g_sums[0] == g_sum for g_sum in g_sums]), "Some individuals are not paired equally"
+
+    if debug:
+        print(
+            f"Self-play between {len(pairs)} pairs, {len(unique_individuals)} unique individuals (wanted {total_games} games)"
+        )
+    # Convert the json pairs back to dicts
+    pairs = [(json.loads(pair1), json.loads(pair2)) for pair1, pair2 in pairs]
+    return pairs
+
+
 @log_exception_handler
 def genetic_algorithm(
     population_size: int,
@@ -137,13 +193,14 @@ def genetic_algorithm(
     game_params: Optional[Dict[str, Any]] = {},
     ai_static_params: Optional[Dict[str, Any]] = {},
     eval_static_params: Optional[Dict[str, Any]] = {},
-    games_per_gen: int = 5,
+    games_per_pair: int = 5,
     n_procs: int = 8,
     convergence_generations: int = 5,
     tournament_size: int = 5,
     elite_count: int = 4,
     draw_score: float = 0.25,
     debug: bool = True,
+    no_google: bool = False,
 ):
     """
     Run the genetic algorithm to optimize the parameters of the AI and evaluation function.
@@ -187,6 +244,9 @@ def genetic_algorithm(
     if debug:
         start_time = time.time()
 
+    if population_size % 2 != 0:
+        raise ValueError("Population size must be even")
+
     # Initialize population with random parameters for AI and eval function
     population = [
         {
@@ -217,16 +277,9 @@ def genetic_algorithm(
         if debug:
             print("." * 60)
             print(f"Starting generation {generation}")
-            gen_start_time = time.time()
+        gen_start_time = time.time()
 
-        pairs = []
-        # Randomly pair up individuals in the population
-        for i in range(games_per_gen):
-            random.shuffle(population)
-            pairs += [(population[i], population[i + 1]) for i in range(0, len(population), 2)]
-
-        if debug:
-            print(f"Self-play between {len(pairs)} pairs")
+        pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
 
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
@@ -244,15 +297,22 @@ def genetic_algorithm(
             setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
 
         # Calculate the number of wins for each individual as fitness values
-        fitnesses = [0] * len(population)
+        fitnesses_dict = defaultdict(float)
         for individual1, fitness1, individual2, fitness2 in results:
-            fitnesses[population.index(individual1)] += fitness1
-            fitnesses[population.index(individual2)] += fitness2
+            fitnesses_dict[json.dumps(individual1, sort_keys=True)] += fitness1
+            fitnesses_dict[json.dumps(individual2, sort_keys=True)] += fitness2
+
+        if debug:
+            # print the fitnesses per individual:
+            pretty_print_dict(fitnesses_dict)
+
+        fitnesses = [fitnesses_dict[json.dumps(individual, sort_keys=True)] for individual in population]
+        scaled_fitnesses = scale_fitnesses(fitnesses)
 
         if debug:
             print(f"Finished fitness calculation, took {int(time.time() - gen_start_time)} seconds")
-
-        scaled_fitnesses = scale_fitnesses(fitnesses)
+            print(f"Fitnesses: {fitnesses}")
+            print(f"Scaled fitnesses: {scaled_fitnesses}")
 
         # Get the best individual and its fitness
         best_individual_index = fitnesses.index(max(fitnesses))
@@ -280,8 +340,24 @@ def genetic_algorithm(
 
         # Preserve the elites
         elites = sorted(zip(population, fitnesses), key=itemgetter(1), reverse=True)[:elite_count]
-        for i in range(elite_count):
-            population[i] = elites[i][0]
+        elite_individuals = [elite[0] for elite in elites]
+
+        # Create set and check if unique elites are even in number
+        unique_elites = list(set(map(json.dumps, elite_individuals)))
+
+        if len(unique_elites) % 2 != 0:
+            unique_elites = unique_elites[:-1]
+
+        # Add the unique elites to the population
+        population.extend(map(json.loads, unique_elites))
+
+        # To maintain the same population size, you can remove
+        # some individuals from the population. You can remove the least fit individuals,
+        # random individuals, or according to some other criteria.
+        if len(population) > population_size:
+            # Here, we remove the least fit individuals.
+            population = sorted(zip(population, fitnesses), key=itemgetter(1), reverse=True)[:population_size]
+
         # Convergence criterion
         if (
             len(best_individuals) > convergence_generations
@@ -353,14 +429,19 @@ def evaluate_fitness(
     ai_params2 = {**ai_static_params, **individual2["ai"]}
     eval_params2 = {**eval_static_params, **individual2["eval"]}
 
-    # Create AI players with given parameters
-    p1_params = AIParams(player_name, eval_name, 1, ai_params1, eval_params1)
-    p2_params = AIParams(player_name, eval_name, 2, ai_params2, eval_params2)
-
-    game, player1, player2 = init_game_and_players(game_name, game_params, p1_params, p2_params)
-
-    with ErrorLogger(play_game_until_terminal, log_dir="logs/game_errors"):
+    with ErrorLogger(play_game_until_terminal, log_dir="log/game_error/"):
+        # Create AI players with given parameters
+        ai1_params = AIParams(player_name, eval_name, 1, ai_params1, eval_params1)
+        ai2_params = AIParams(player_name, eval_name, 2, ai_params2, eval_params2)
+        game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         game_result = play_game_until_terminal(game, player1, player2, callback=callback)
+
+        # Create AI players with given parameters for the swapped seats game
+        ai1_params = AIParams(player_name, eval_name, 2, ai_params1, eval_params1)
+        ai2_params = AIParams(player_name, eval_name, 1, ai_params2, eval_params2)
+        # This method does not assign any order to the players, it just initializes them
+        game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
+        # For this function, order does matter, so we swap the players
         game_result_sw = play_game_until_terminal(game, player2, player1, callback=callback)
 
     res_1 = get_game_result(game_result, draw_score)
@@ -384,7 +465,6 @@ def get_game_result(game_result, draw_score: float) -> Tuple[float, float]:
         return 0.0, 1.0
     else:
         assert False, f"Unexpected game result: {game_result}"
-        return 0.0, 0.0
 
 
 def callback(player, action, game, time):

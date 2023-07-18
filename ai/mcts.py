@@ -68,24 +68,35 @@ class Node:
 
     def expand(self):
         # TODO Dit moet je nog checken
+        # If no generator exists, create it
+        if not hasattr(self, "action_generator"):
+            self.action_generator = self.state.yield_legal_actions()
+
         all_children_loss = True
-        for action in self.state.yield_legal_actions():
-            if action not in [child.action for child in self.children]:
-                child = Node(self.state.apply_action(action), action=action, tt=self.tt, c=self.c)
-                self.children.append(child)
-                if not child.solved or child.stats()[4] != self.player:  # This child is not a loss
-                    all_children_loss = False
-                elif child.stats()[4] == self.player:  # This child is a win
-                    self.solved = True
-                    self.tt.put(
-                        self.state.board_hash, is_expanded=True, solved=self.player, board=self.state.board
-                    )
-                    return child
+
+        for action in self.action_generator:
+            assert action not in [child.action for child in self.children]
+            child = Node(self.state.apply_action(action), action=action, tt=self.tt, c=self.c)
+            self.children.append(child)
+            if not child.solved or child.stats()[4] != self.player:  # This child is not a loss
+                all_children_loss = False
+            elif child.stats()[4] == self.player:  # This child is a win
+                self.solved = True
+                self.tt.put(
+                    key=self.state.board_hash,
+                    is_expanded=True,
+                    solved_player=self.player,
+                    board=self.state.board,
+                )
+                return child
 
         if all_children_loss:  # All children are loss
             self.solved = True
             self.tt.put(
-                self.state.board_hash, is_expanded=True, solved=3 - self.player, board=self.state.board
+                key=self.state.board_hash,
+                is_expanded=True,
+                solved_player=3 - self.player,
+                board=self.state.board,
             )
 
         # The node is fully expanded so we can switch to UTC selection

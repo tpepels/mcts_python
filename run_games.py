@@ -100,8 +100,8 @@ def init_game_and_players(
     game = init_game(game_key, game_params)
     p1_params.transposition_table_size = game.transposition_table_size
     p2_params.transposition_table_size = game.transposition_table_size
-    p1 = init_ai_player(p1_params, 1)
-    p2 = init_ai_player(p2_params, 2)
+    p1 = init_ai_player(p1_params)
+    p2 = init_ai_player(p2_params)
     return game, p1, p2
 
 
@@ -120,7 +120,7 @@ def init_game(game_key: str, game_params: Optional[Dict[str, Any]]) -> GameState
     return game
 
 
-def init_ai_player(params: AIParams, player: int) -> AIPlayer:
+def init_ai_player(params: AIParams) -> AIPlayer:
     """Initialize an AI player based on given parameters.
 
     Args:
@@ -136,7 +136,7 @@ def init_ai_player(params: AIParams, player: int) -> AIPlayer:
     if params.eval_params is not None:
         eval_function = partial(eval_function, **params.eval_params)
     player: AIPlayer = ai_class(
-        player=player,
+        player=params.max_player,
         evaluate=eval_function,
         transposition_table_size=params.transposition_table_size,
         **params.ai_params,

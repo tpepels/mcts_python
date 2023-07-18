@@ -95,17 +95,18 @@ class AlphaBetaPlayer(AIPlayer):
                 v = state.get_reward(self.player)  # evaluate in the view of the player to move
                 return v, None
 
-            # This function checks if we are running out of time.
-            # Don't do this for the first depth, in some games, even the lowest search depth takes a lot of time..
-            if not first_depth and iteration_count % 10000 == 0:  # Check every 1000 iterations
-                if (time.time() - start_time) > time_limit:
-                    interrupted = True
-
             if not interrupted:
                 # Do this increment after the check or the timeout error will only occur once instead of at each level
                 iteration_count += 1
             else:
                 return 0, None
+
+            # This function checks if we are running out of time.
+            # Don't do this for the first depth, in some games, even the lowest search depth takes a lot of time..
+            if not first_depth and iteration_count % 1000 == 0:  # Check every 1000 iterations
+                if (time.time() - start_time) > time_limit:
+                    interrupted = True
+                    print("Interrupted ...")
 
             if depth == 0 and allow_null_move and self.use_quiescence and not interrupted:
                 v = self.quiescence(state, alpha, beta)
@@ -201,6 +202,7 @@ class AlphaBetaPlayer(AIPlayer):
         last_best_move = None
         last_best_v = 0
         first_depth = True
+
         for depth in range(2, self.max_depth + 1):  # Start depth from 2
             start_depth_time = time.time()  # Time when this depth search starts
             # How much time can be spent searching this depth
@@ -209,6 +211,7 @@ class AlphaBetaPlayer(AIPlayer):
             if interrupted or ((time.time() - start_time) + (search_times[-1]) >= self.max_time):
                 # print(f"interrupted. {last_best_move=}, {last_best_v=}, {best_move=}, {v=}")
                 break  # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
+
             v, best_move = value(
                 state,
                 alpha=-float("inf"),
@@ -218,6 +221,7 @@ class AlphaBetaPlayer(AIPlayer):
                 allow_null_move=True,
                 root=True,
             )
+            # After the first search, we can interrupt the search
             first_depth = False
             if not interrupted:
                 last_best_move = best_move
