@@ -1,3 +1,7 @@
+import pyximport
+
+pyximport.install()
+
 import inspect
 import time
 from dataclasses import dataclass

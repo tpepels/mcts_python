@@ -18,7 +18,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def apply_action(self, action):
+    def apply_action(self, action) -> "GameState":
         """
         Apply an action to the current game state and return the resulting new state.
         The state of the instance is not altered in this method, i.e. the move is not applied to this gamestate
@@ -43,7 +43,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def get_legal_actions(self):
+    def get_legal_actions(self) -> list:
         """
         Get a list of legal actions for the current game state.
 
@@ -61,7 +61,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def get_reward(self, player):
+    def get_reward(self, player) -> float:
         """
         Return the reward of the terminal state in view of player
 
@@ -80,7 +80,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def evaluate_moves(self, moves):
+    def evaluate_moves(self, moves) -> list:
         """Evaluate a list of moves to use in move ordering
 
         Args:

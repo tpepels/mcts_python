@@ -32,7 +32,9 @@ class TranspositionTable:
         self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
-    def get(self, key: int, depth: int, player: str, max_d: int, board: Optional[str] = None):
+    def get(
+        self, key: int, depth: int, player: str, max_d: int, board: Optional[str] = None
+    ) -> Tuple[float, tuple]:
         """
         Retrieve a value from the transposition table for the given key, depth, and player.
         If a board is provided, it is also compared with the stored board for the same key.
@@ -78,7 +80,7 @@ class TranspositionTable:
     def put(
         self,
         key: int,
-        value: int,
+        value: float,
         depth: int,
         player: str,
         best_move: Tuple[int, int],

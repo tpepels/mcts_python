@@ -356,14 +356,14 @@ class AmazonsGameState(GameState):
             start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
 
             # Calculate score based on the distance of the Amazon's move from the center
-            # score += (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
+            score += (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
 
             # Add value to the score based on the distance of the arrow shot from the Amazon
             arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
             score += arrow_distance
 
             # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
-            # score -= n_moves_per_queen[(start_x, start_y)]
+            score -= n_moves_per_queen[(start_x, start_y)]
 
             # Add a bonus for ending in a position where the queen still has room to move
             # for dx, dy in DIRECTIONS:
@@ -417,7 +417,7 @@ class AmazonsGameState(GameState):
         return output
 
     def __repr__(self) -> str:
-        return f"amazons{self.board_size}"
+        return "amazons" + str(self.board_size)
 
 
 def evaluate_amazons(state: AmazonsGameState, player: int, m_opp_disc=0.9, a=1, norm=False):
