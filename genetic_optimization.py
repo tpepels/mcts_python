@@ -154,36 +154,27 @@ def create_pairs_from_population(population, games_per_pair, debug=False):
             print(f"Adding games to pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals")
         pairs = pairs + pairs
 
-    tries = 0
     # Case 2: There are too many pairs. i.e. reduce the number of games per pair while keeping the number of games played per pair the same
-    while len(pairs) > total_games and tries < 5:
+    if len(pairs) > total_games:
         if debug:
             print(
                 f"Removing games from pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals"
             )
-        # remove 1 game per invididual from the set of pairs
-        removed = set()
-        next_pairs = pairs.copy()
-        random.shuffle(next_pairs)
-        i = 0
-        while len(removed) < len(unique_individuals):
-            pair = next_pairs[i]
-            if pair[0] not in removed and pair[1] not in removed:
-                next_pairs.remove(pair)
-                removed.add(pair[0])
-                removed.add(pair[1])
-            i += 1
-            if i >= len(next_pairs) or next_pairs == []:
-                tries += 1
-                break
-
-        if len(removed) == len(unique_individuals):
-            pairs = next_pairs.copy()
-            tries -= 1
+        random.shuffle(pairs)
+        min_var = 10000
+        best_pairs = None
+        for _ in range(30):
+            random.shuffle(pairs)
+            new_pairs = pairs[:total_games]
+            new_var = np.var([sum([ind in pair for pair in new_pairs]) for ind in unique_individuals])
+            if new_var <= min_var:
+                min_var = new_var
+                best_pairs = new_pairs
+        pairs = best_pairs
 
     if debug:
         print(
-            f"Self-play between {len(pairs)} pairs, {len(unique_individuals)} unique individuals (wanted {total_games} games) in {tries} tries."
+            f"Self-play between {len(pairs)} pairs, {len(unique_individuals)} unique individuals (wanted {total_games} games)"
         )
         print(
             f"number of pairings per indiv.:{[sum([pair.count(ind) for pair in pairs]) for ind in unique_individuals]}"
