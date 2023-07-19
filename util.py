@@ -39,7 +39,7 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
             return v
 
     # Calculate longest key length for proper indentation
-    key_len_max = max(len(key) for key in d.keys()) + 1
+    key_len_max = max((len(key) for key in d.keys()), default=0) + 1
 
     if sort_keys:
         d = dict(sorted(d.items()))
@@ -156,7 +156,9 @@ def log_exception_handler(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            error_message = str(e) + "\n" + traceback.format_exc()
+            # add a timestamp to the error message
+            timestamp = f"Error timestamp: {time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())}\n"
+            error_message = "*-*-*-" * 80 + "\n" + timestamp + "\n" + str(e) + "\n" + traceback.format_exc()
             log_file = f"log/{func.__name__}_error.log"
             os.makedirs(os.path.dirname(log_file), exist_ok=True)
             with open(log_file, "a") as f:

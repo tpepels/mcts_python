@@ -129,26 +129,43 @@ def generate_individual(param_ranges: Dict[str, Tuple[float, float]]) -> Dict[st
 
 
 def create_pairs_from_population(population, games_per_pair, debug=False):
+    """
+    Create pairs of individuals from the population. Each individual will play the other individual in the pair.
+
+    Args:
+        population (_type_): The population of individuals.
+        games_per_pair (_type_): How many games each pair of individuals should play.
+        debug (bool, optional): Whether to print debug statements. Defaults to False.
+
+    Returns:
+        list[tuple]: The pairs of individuals.
+    """
     # Convert population of dictionaries into list of JSON strings
     pop_as_json = [json.dumps(ind, sort_keys=True) for ind in population]
     # Get unique individuals
     # unique_individuals = [json.loads(ind) for ind in list(set(pop_as_json))]
     unique_individuals = list(set(pop_as_json))
+
+    # Without an even number of unique individuals we cannot continue
+    assert (
+        len(unique_individuals) % 2 == 0
+    ), f"Number of unique individuals must be even uniques: {len(unique_individuals)}/len(population)"
+
     pairs = list(itertools.combinations(unique_individuals, 2))
     total_games = games_per_pair * len(unique_individuals)
 
     # Case 1: There are too few pairs, i.e. increase the number of games per pair while keeping the number of games played per pair the same
     while len(pairs) < total_games:
-        if debug:
-            print(f"Adding games to pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals")
+        # if debug:
+        # print(f"Adding games to pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals")
         pairs = pairs + pairs
 
     # Case 2: There are too many pairs. i.e. reduce the number of games per pair while keeping the number of games played per pair the same
     while len(pairs) > total_games:
-        if debug:
-            print(
-                f"Removing games from pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals"
-            )
+        # if debug:
+        #     print(
+        #         f"Removing games from pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals"
+        #     )
         # remove 1 game per invididual from the set of pairs
         removed = set()
         next_pairs = pairs.copy()
@@ -275,8 +292,9 @@ def genetic_algorithm(
 
     for generation in range(num_generations):
         if debug:
-            print("." * 60)
+            print("." * 30 + time.strftime("%H:%M:%S", time.localtime()) + "." * 30)
             print(f"Starting generation {generation}")
+
         gen_start_time = time.time()
 
         pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
@@ -285,34 +303,39 @@ def genetic_algorithm(
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
 
+        # Create a new sheet for this experiment, do this after the first results so we don't create a lot of unused sheets
         if generation == 0:
-            # Create a new sheet for this experiment, do this after the first results so we don't create a lot of unused sheets
             if game_params and "board_size" in game_params:
                 game_name_str = game_name + str(game_params["board_size"])
             else:
                 game_name_str = game_name
+
             sheet_name = f"{game_name_str}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
             # This prepares the csv file and google sheet
-            setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
+            setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges, no_google=no_google)
+        # TODO Hier was je gebleven. Het gaat nog steeds niet goed
+        # 1. De elite is niet de beste
+        # 2. De volgende generatie bevat telkens dubbele individuen
 
         # Calculate the number of wins for each individual as fitness values
-        fitnesses_dict = defaultdict(float)
+        fitnesses = [0.0] * len(population)  # Initialize the fitnesses list
         for individual1, fitness1, individual2, fitness2 in results:
-            fitnesses_dict[json.dumps(individual1, sort_keys=True)] += fitness1
-            fitnesses_dict[json.dumps(individual2, sort_keys=True)] += fitness2
+            # Find indices of the individuals
+            index1 = population.index(individual1)
+            index2 = population.index(individual2)
+
+            # Update fitnesses list in-place
+            fitnesses[index1] += fitness1
+            fitnesses[index2] += fitness2
 
         if debug:
             # print the fitnesses per individual:
-            pretty_print_dict(fitnesses_dict)
-
-        fitnesses = [fitnesses_dict[json.dumps(individual, sort_keys=True)] for individual in population]
-        scaled_fitnesses = scale_fitnesses(fitnesses)
+            for fitness in fitnesses:
+                print(f"fitness: {fitness}")
 
         if debug:
             print(f"Finished fitness calculation, took {int(time.time() - gen_start_time)} seconds")
-            print(f"Fitnesses: {fitnesses}")
-            print(f"Scaled fitnesses: {scaled_fitnesses}")
 
         # Get the best individual and its fitness
         best_individual_index = fitnesses.index(max(fitnesses))
@@ -328,35 +351,49 @@ def genetic_algorithm(
             best_overall_individual = (best_individual, fitnesses[best_individual_index])
 
         report_results(generation, best_individual, fitnesses[best_individual_index])
-
+        scaled_fitnesses = scale_fitnesses(fitnesses)
         # Select individuals to reproduce based on their fitness
-        # parents = select_parents(population, fitnesses)
         parents = select_parents_tournament(population, scaled_fitnesses, tournament_size)
+        if debug:
+            print(scaled_fitnesses)
+            print()
+            i = 1
+            for individual in parents:
+                print(f"parent {i}: {individual}")
+                i += 1
+
+        # Preserve the elites
+        potential_elites = sorted(zip(population, scaled_fitnesses), key=itemgetter(1), reverse=True)
+        potential_elite_individuals = [elite[0] for elite in potential_elites]
+
+        # Get the unique elites
+        unique_elites = get_unique_individuals(potential_elite_individuals)
+
         # Create the next generation through crossover and mutation
         population = create_next_generation(parents, mutation_rate, ai_param_ranges, eval_param_ranges)
 
+        # Make sure the number of elites are even
+        elite_count += 1 if elite_count % 2 != 0 else 0
+        assert len(unique_elites) >= elite_count, "Not enough unique elites to preserve"
+
         if debug:
-            print(f"Finished creating next generation, took {int(time.time() - gen_start_time)} seconds")
-
-        # Preserve the elites
-        elites = sorted(zip(population, fitnesses), key=itemgetter(1), reverse=True)[:elite_count]
-        elite_individuals = [elite[0] for elite in elites]
-
-        # Create set and check if unique elites are even in number
-        unique_elites = list(set(map(json.dumps, elite_individuals)))
-
-        if len(unique_elites) % 2 != 0:
-            unique_elites = unique_elites[:-1]
+            print(f"* Finished creating next generation, took {int(time.time() - gen_start_time)} seconds")
+            # print the population info
+            print(f"* Population size: {len(population)}")
+            print(f"* Number of unique individuals in previous population: {len(unique_elites)}")
+            print(f"* Inserted {elite_count} elites into the population.")
+            i = 1
+            for individual in population:
+                print(f"indiv {i}: {individual}")
+                i += 1
+            print(".." * 30)
+            i = 1
+            for individual in unique_elites[:elite_count]:
+                print(f"elite {i}: {individual}")
+                i += 1
 
         # Add the unique elites to the population
-        population.extend(map(json.loads, unique_elites))
-
-        # To maintain the same population size, you can remove
-        # some individuals from the population. You can remove the least fit individuals,
-        # random individuals, or according to some other criteria.
-        if len(population) > population_size:
-            # Here, we remove the least fit individuals.
-            population = sorted(zip(population, fitnesses), key=itemgetter(1), reverse=True)[:population_size]
+        population.extend(unique_elites[:elite_count])
 
         # Convergence criterion
         if (
@@ -388,6 +425,28 @@ def genetic_algorithm(
 
     # At the end of all generations, write the best overall individual and its fitness
     report_final_results(best_overall_individual)
+
+
+def get_unique_individuals(individuals: List[dict]) -> List[dict]:
+    """
+    Convert a list of individuals into a unique list of individuals.
+
+    Args:
+        individuals (List[dict]): The list of individuals.
+
+    Returns:
+        List[dict]: The list of unique individuals.
+    """
+    # Convert the list of individuals to JSON strings
+    individuals_as_json = [json.dumps(ind, sort_keys=True) for ind in individuals]
+
+    # Get the unique individuals as JSON strings
+    unique_individuals_as_json = list(set(individuals_as_json))
+
+    # Convert the unique individuals back to dictionaries
+    unique_individuals = [json.loads(ind) for ind in unique_individuals_as_json]
+
+    return unique_individuals
 
 
 def evaluate_fitness(
