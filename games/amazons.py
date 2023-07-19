@@ -351,18 +351,19 @@ class AmazonsGameState(GameState):
         scores = []
         n_moves_per_queen = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
         for move in moves:
+            score = 0
             # Extract the start and end positions of the amazon and the arrow shot from the move
             start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
 
             # Calculate score based on the distance of the Amazon's move from the center
-            score = (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
+            # score += (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
 
             # Add value to the score based on the distance of the arrow shot from the Amazon
-            # arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
-            # score += arrow_distance
+            arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
+            score += arrow_distance
 
             # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
-            # score = -1 * n_moves_per_queen[(start_x, start_y)]
+            # score -= n_moves_per_queen[(start_x, start_y)]
 
             # Add a bonus for ending in a position where the queen still has room to move
             # for dx, dy in DIRECTIONS:
