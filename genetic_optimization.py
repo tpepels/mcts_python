@@ -145,27 +145,22 @@ def create_pairs_from_population(population, games_per_pair, debug=False):
     # Get unique individuals
     # unique_individuals = [json.loads(ind) for ind in list(set(pop_as_json))]
     unique_individuals = list(set(pop_as_json))
-
-    # Without an even number of unique individuals we cannot continue
-    assert (
-        len(unique_individuals) % 2 == 0
-    ), f"Number of unique individuals must be even uniques: {len(unique_individuals)}/len(population)"
-
     pairs = list(itertools.combinations(unique_individuals, 2))
-    total_games = games_per_pair * len(unique_individuals)
+    total_games = games_per_pair * len(population)
 
     # Case 1: There are too few pairs, i.e. increase the number of games per pair while keeping the number of games played per pair the same
     while len(pairs) < total_games:
-        # if debug:
-        # print(f"Adding games to pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals")
+        if debug:
+            print(f"Adding games to pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals")
         pairs = pairs + pairs
 
+    tries = 0
     # Case 2: There are too many pairs. i.e. reduce the number of games per pair while keeping the number of games played per pair the same
-    while len(pairs) > total_games:
-        # if debug:
-        #     print(
-        #         f"Removing games from pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals"
-        #     )
+    while len(pairs) > total_games and tries < 5:
+        if debug:
+            print(
+                f"Removing games from pairs, {len(pairs)} pairs, {len(unique_individuals)} unique individuals"
+            )
         # remove 1 game per invididual from the set of pairs
         removed = set()
         next_pairs = pairs.copy()
@@ -179,18 +174,19 @@ def create_pairs_from_population(population, games_per_pair, debug=False):
                 removed.add(pair[1])
             i += 1
             if i >= len(next_pairs) or next_pairs == []:
+                tries += 1
                 break
 
         if len(removed) == len(unique_individuals):
             pairs = next_pairs.copy()
-
-    g_sums = [sum([pair.count(ind) for pair in pairs]) for ind in unique_individuals]
-    # Assert that all the elements of g_sums are equal
-    assert all([g_sums[0] == g_sum for g_sum in g_sums]), "Some individuals are not paired equally"
+            tries -= 1
 
     if debug:
         print(
-            f"Self-play between {len(pairs)} pairs, {len(unique_individuals)} unique individuals (wanted {total_games} games)"
+            f"Self-play between {len(pairs)} pairs, {len(unique_individuals)} unique individuals (wanted {total_games} games) in {tries} tries."
+        )
+        print(
+            f"number of pairings per indiv.:{[sum([pair.count(ind) for pair in pairs]) for ind in unique_individuals]}"
         )
     # Convert the json pairs back to dicts
     pairs = [(json.loads(pair1), json.loads(pair2)) for pair1, pair2 in pairs]
@@ -314,20 +310,26 @@ def genetic_algorithm(
 
             # This prepares the csv file and google sheet
             setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges, no_google=no_google)
-        # TODO Hier was je gebleven. Het gaat nog steeds niet goed
-        # 1. De elite is niet de beste
-        # 2. De volgende generatie bevat telkens dubbele individuen
 
         # Calculate the number of wins for each individual as fitness values
         fitnesses = [0.0] * len(population)  # Initialize the fitnesses list
+        n_games = [0.0] * len(population)
         for individual1, fitness1, individual2, fitness2 in results:
             # Find indices of the individuals
             index1 = population.index(individual1)
             index2 = population.index(individual2)
-
             # Update fitnesses list in-place
             fitnesses[index1] += fitness1
             fitnesses[index2] += fitness2
+            # * Allthough two games are played per pair, we only count one result per individual
+            n_games[index1] += 1
+            n_games[index2] += 1
+
+        # normalize the fitnesses to an average
+        for i in range(len(fitnesses)):
+            if n_games[i] != 0:
+                fitnesses[i] /= n_games[i]
+            fitnesses[i] = round(fitnesses[i], 2)
 
         if debug:
             # print the fitnesses per individual:
@@ -351,6 +353,8 @@ def genetic_algorithm(
             best_overall_individual = (best_individual, fitnesses[best_individual_index])
 
         report_results(generation, best_individual, fitnesses[best_individual_index])
+
+        # * Scaled fitness goes from best: 1 to worst: n
         scaled_fitnesses = scale_fitnesses(fitnesses)
         # Select individuals to reproduce based on their fitness
         parents = select_parents_tournament(population, scaled_fitnesses, tournament_size)
@@ -363,18 +367,11 @@ def genetic_algorithm(
                 i += 1
 
         # Preserve the elites
-        potential_elites = sorted(zip(population, scaled_fitnesses), key=itemgetter(1), reverse=True)
-        potential_elite_individuals = [elite[0] for elite in potential_elites]
-
-        # Get the unique elites
-        unique_elites = get_unique_individuals(potential_elite_individuals)
-
+        potential_elites = sorted(zip(population, scaled_fitnesses), key=itemgetter(1))
+        # Get the unique elites / this function preserves the order of the elites
+        unique_elites = get_unique_individuals([elite[0] for elite in potential_elites])
         # Create the next generation through crossover and mutation
         population = create_next_generation(parents, mutation_rate, ai_param_ranges, eval_param_ranges)
-
-        # Make sure the number of elites are even
-        elite_count += 1 if elite_count % 2 != 0 else 0
-        assert len(unique_elites) >= elite_count, "Not enough unique elites to preserve"
 
         if debug:
             print(f"* Finished creating next generation, took {int(time.time() - gen_start_time)} seconds")
@@ -392,8 +389,17 @@ def genetic_algorithm(
                 print(f"elite {i}: {individual}")
                 i += 1
 
-        # Add the unique elites to the population
-        population.extend(unique_elites[:elite_count])
+        # Draw elites (the resulting number can be lower than elite_count if there are not enough unique elites)
+        elites = unique_elites[:elite_count]
+        replace_indices = set()
+        # Get unique indices to be replaced
+        while len(replace_indices) < len(elites):
+            replace_index = random.randint(0, len(population) - 1)
+            replace_indices.add(replace_index)
+
+        # Replace individuals at selected indices with elites
+        for replace_index, elite in zip(replace_indices, unique_elites[:elite_count]):
+            population[replace_index] = elite
 
         # Convergence criterion
         if (
@@ -430,6 +436,7 @@ def genetic_algorithm(
 def get_unique_individuals(individuals: List[dict]) -> List[dict]:
     """
     Convert a list of individuals into a unique list of individuals.
+    This function preserves the order of the individuals.
 
     Args:
         individuals (List[dict]): The list of individuals.
@@ -440,8 +447,8 @@ def get_unique_individuals(individuals: List[dict]) -> List[dict]:
     # Convert the list of individuals to JSON strings
     individuals_as_json = [json.dumps(ind, sort_keys=True) for ind in individuals]
 
-    # Get the unique individuals as JSON strings
-    unique_individuals_as_json = list(set(individuals_as_json))
+    # Get the unique individuals as JSON strings using dict to maintain order
+    unique_individuals_as_json = list(dict.fromkeys(individuals_as_json))
 
     # Convert the unique individuals back to dictionaries
     unique_individuals = [json.loads(ind) for ind in unique_individuals_as_json]
@@ -560,7 +567,7 @@ def scale_fitnesses(fitnesses):
     return scaled_fitnesses.tolist()
 
 
-def select_parents_tournament(population, fitnesses, tournament_size):
+def select_parents_tournament(population, fitnesses_ranks, tournament_size):
     """
     Selects parents for the next generation using tournament selection.
 
@@ -581,12 +588,12 @@ def select_parents_tournament(population, fitnesses, tournament_size):
     """
     # Tournament selection
     parents = []
-    pop_fitness = list(zip(population, fitnesses))
+    pop_fitness = list(zip(population, fitnesses_ranks))
     for _ in range(len(population)):
         # Randomly select individuals for the tournament
         tournament_individuals = random.sample(pop_fitness, tournament_size)
-        # Select the best individual from the tournament
-        winner = max(tournament_individuals, key=itemgetter(1))
+        # Select the best individual from the tournament (i.e. with the lowest fitness rank)
+        winner = min(tournament_individuals, key=itemgetter(1))
         parents.append(winner[0])
     return parents
 
@@ -691,15 +698,28 @@ def crossover(parent1: dict, parent2: dict) -> Tuple[dict, dict]:
         >>> crossover(parent1, parent2)
         ({'ai': {'a': 1, 'b': 2}, 'eval': {'c': 7, 'd': 8}}, {'ai': {'a': 5, 'b': 6}, 'eval': {'c': 3, 'd': 4}})
     """
-    crossover_point = random.randint(1, len(parent1["ai"]) + len(parent1["eval"]) - 1)
+
+    if not all(key in parent for key in ["ai", "eval"] for parent in [parent1, parent2]):
+        raise ValueError("Both parents must have 'ai' and 'eval' keys.")
 
     child1 = {}
     child2 = {}
 
-    child1["ai"], child2["ai"] = crossover_dict(parent1["ai"], parent2["ai"], crossover_point)
-    child1["eval"], child2["eval"] = crossover_dict(
-        parent1["eval"], parent2["eval"], crossover_point - len(parent1["ai"])
-    )
+    if len(parent1["ai"]) > 0:
+        crossover_point_ai = random.randint(1, len(parent1["ai"]) - 1)
+        child1["ai"], child2["ai"] = crossover_dict(parent1["ai"], parent2["ai"], crossover_point_ai)
+    else:
+        child1["ai"] = parent1["ai"]
+        child2["ai"] = parent2["ai"]
+
+    if len(parent2["eval"]) > 0:
+        crossover_point_eval = random.randint(1, len(parent1["eval"]) - 1)
+        child1["eval"], child2["eval"] = crossover_dict(
+            parent1["eval"], parent2["eval"], crossover_point_eval
+        )
+    else:
+        child1["eval"] = parent1["eval"]
+        child2["eval"] = parent2["eval"]
 
     return child1, child2
 
@@ -811,25 +831,11 @@ def _mutate_param(
     Returns:
         float or tuple of float: The mutated parameter.
     """
-    return _mutate_value(param, param_info["range"], param_info["precision"])
 
+    mutation = np.random.normal(0, (param_info["range"][1] - param_info["range"][0]) / 10)
+    mutated_value = np.clip(param + mutation, param_info["range"][0], param_info["range"][1])
 
-def _mutate_value(value: float, value_range: Tuple[float, float], precision: int) -> Union[float, int]:
-    """
-    Mutates a value within a given range and precision.
-
-    Args:
-        value (float): The value to mutate.
-        value_range (tuple of float): The allowed range of the value.
-        precision (int): The number of decimal places to which to round the mutated value.
-
-    Returns:
-        Union[float, int]: The mutated value.
-    """
-    mutation = np.random.normal(0, (value_range[1] - value_range[0]) / 10)
-    mutated_value = np.clip(value + mutation, value_range[0], value_range[1])
-
-    return round(mutated_value, None if precision == 0 else precision)
+    return round(mutated_value, None if param_info["precision"] == 0 else param_info["precision"])
 
 
 def run_experiments_from_file(file_path: str):
