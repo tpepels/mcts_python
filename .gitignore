@@ -9,3 +9,4 @@ config.ini
 *.log
 results/**/*
 log/**/*
+profiler_results.out

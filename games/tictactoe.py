@@ -344,12 +344,25 @@ def evaluate_n_in_a_row(
     norm: bool = False,
     a=100,
 ):
-    if not hasattr(evaluate_n_in_a_row, "player_masks"):
-        evaluate_n_in_a_row.player_masks = {
-            1: masks_to_dict(generate_masks(state.row_length, 1, e=m_pow)),
-            2: masks_to_dict(generate_masks(state.row_length, 2, e=m_pow)),
+    # Create a unique key based on the function parameters and the player
+    key = (m_w_factor, m_top_k, m_pow)
+
+    if not hasattr(evaluate_n_in_a_row, "cache"):
+        evaluate_n_in_a_row.cache = {}
+
+    # If the results are not already cached, compute them
+    if key not in evaluate_n_in_a_row.cache:
+        evaluate_n_in_a_row.cache[key] = {
+            "player_masks": {
+                1: masks_to_dict(generate_masks(state.row_length, 1, e=m_pow)),
+                2: masks_to_dict(generate_masks(state.row_length, 2, e=m_pow)),
+            },
+            "m_weights": calculate_weights(m_top_k, m_w_factor),
         }
-        evaluate_n_in_a_row.m_weights = calculate_weights(m_top_k, m_w_factor)
+
+    # Use the cached results
+    player_masks = evaluate_n_in_a_row.cache[key]["player_masks"]
+    m_weights = evaluate_n_in_a_row.cache[key]["m_weights"]
 
     # Extract the lines in each direction: rows, columns, and diagonals
     rows = state.board
@@ -376,7 +389,7 @@ def evaluate_n_in_a_row(
 
                     # Look up the score of the segment in the mask dictionaries for each player
                     for p in player_scores:
-                        max_mask_player = max(evaluate_n_in_a_row.player_masks[p].get(line_segment_str, 0), 0)
+                        max_mask_player = max(player_masks[p].get(line_segment_str, 0), 0)
                         player_scores[p].append(max_mask_player)
 
     if decay > 0.1:
@@ -400,9 +413,7 @@ def evaluate_n_in_a_row(
     # Sort and take the top k scores, weigh them
     for p in player_scores:
         player_scores[p].sort(reverse=True)
-        player_scores[p] = sum(
-            s * w for s, w in zip(player_scores[p][:m_top_k], evaluate_n_in_a_row.m_weights)
-        )
+        player_scores[p] = sum(s * w for s, w in zip(player_scores[p][:m_top_k], m_weights))
     final_scores = {p: player_scores[p] + (decay * m_bonus * score_bonus[p]) for p in player_scores}
 
     # The score is player 1's score minus player 2's score from the perspective of the provided player

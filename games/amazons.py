@@ -40,6 +40,9 @@ class AmazonsGameState(GameState):
         self.board_hash = board_hash
         self.zobrist_table = self.zobrist_tables[self.board_size]
 
+        # We can update these whenever we generate moves. When we apply an action then the lists are invalid
+        self.n_moves_per_black_queen = {}
+        self.n_moves_per_white_queen = {}
         # Keep track of the queen positions so we can avoid having to scan the board for them
         if black_queens is None:
             self.black_queens = []
@@ -228,11 +231,19 @@ class AmazonsGameState(GameState):
 
     def get_legal_actions(self):
         """
-        Get a list of legal actions for the current player.
+        Get a list of legal actions for the current player and also updates the moves per queen.
         """
         assert self.player_has_legal_moves, "Getting or making a move should not be possible"
         queens = self.white_queens if self.player == 1 else self.black_queens
-        return [move for queen in queens for move in self.get_legal_moves_for_amazon(*queen)]
+        n_moves_per_queen = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
+
+        legal_actions = []
+        for queen in queens:
+            queen_moves = list(self.get_legal_moves_for_amazon(*queen))
+            legal_actions.extend(queen_moves)
+            n_moves_per_queen[queen] = len(queen_moves)
+
+        return legal_actions
 
     def get_legal_moves_for_amazon(self, x, y):
         """
@@ -332,19 +343,33 @@ class AmazonsGameState(GameState):
         Evaluate the given moves using a simple heuristic:
         Each move to a location closer to the center of the board is valued.
         If the move involves shooting an arrow that restricts the mobility of an opponent's Amazon, the value is increased.
+        Moves made by queens with fewer available moves are given higher scores.
 
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic values of the moves.
         """
         scores = []
+        n_moves_per_queen = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
         for move in moves:
             # Extract the start and end positions of the amazon and the arrow shot from the move
-            _, _, end_x, end_y, arrow_x, arrow_y = move
+            start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
+
             # Calculate score based on the distance of the Amazon's move from the center
             score = (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
+
             # Add value to the score based on the distance of the arrow shot from the Amazon
-            arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
-            score += arrow_distance / 2
+            # arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
+            # score += arrow_distance
+
+            # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
+            # score = -1 * n_moves_per_queen[(start_x, start_y)]
+
+            # Add a bonus for ending in a position where the queen still has room to move
+            # for dx, dy in DIRECTIONS:
+            #     nx, ny = end_x + dx, end_y + dy
+            #     if 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[nx, ny] == 0:
+            #         score += 2
+
             scores.append((move, score))
         return scores
 
@@ -357,13 +382,17 @@ class AmazonsGameState(GameState):
         :param move: The move to evaluate.
         :return: The heuristic value of the move.
         """
+        n_moves_per_queen = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
         # Extract the start and end positions of the amazon and the arrow shot from the move
-        _, _, end_x, end_y, arrow_x, arrow_y = move
+        start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
         # Calculate score based on the distance of the Amazon's move from the center
         score = (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
         # Add value to the score based on the distance of the arrow shot from the Amazon
         arrow_distance = abs(end_x - arrow_x) + abs(end_y - arrow_y)
         score += arrow_distance
+        # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
+        score -= n_moves_per_queen[(start_x, start_y)]
+
         return score
 
     def visualize(self):
@@ -401,6 +430,7 @@ def evaluate_amazons(state: AmazonsGameState, player: int, m_opp_disc=0.9, a=1, 
     # Variables for the heuristics
     player_controlled_squares = 0
     opponent_controlled_squares = 0
+
     # The queens to iterate over
     player_queens = state.white_queens if player == 1 else state.black_queens
     opp_queens = state.white_queens if player == 2 else state.black_queens
@@ -455,7 +485,7 @@ def evaluate_amazons_lieberum(
 
     :return: The evaluation score for the given player.
     """
-    max_depth = math.inf
+    max_depth = 3
 
     if state.n_moves < n_moves_cutoff:
         return evaluate_amazons(state, player, m_opp_disc=m_opp_disc, norm=norm)

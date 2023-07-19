@@ -203,7 +203,7 @@ class AlphaBetaPlayer(AIPlayer):
         last_best_v = 0
         first_depth = True
 
-        for depth in range(2, self.max_depth + 1):  # Start depth from 2
+        for depth in range(1, self.max_depth + 1):
             start_depth_time = time.time()  # Time when this depth search starts
             # How much time can be spent searching this depth
             time_limit = self.max_time - (start_depth_time - start_time)
