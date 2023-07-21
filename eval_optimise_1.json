@@ -3,6 +3,7 @@
     "population_size": 200,
     "num_generations": 50,
     "mutation_rate": 0.05,
+    "games_per_pair": 3,
     "game_name": "tictactoe",
     "game_params": { "board_size": 9, "row_length": 5 },
     "player_name": "alphabeta",
@@ -16,7 +17,7 @@
       "m_pow": { "range": [1, 10], "precision": 0 },
       "m_disc": { "range": [0, 2], "precision": 2 }
     },
-    "ai_static_params": { "max_time": 5 },
+    "ai_static_params": { "max_time": 5, "use_history": true },
     "eval_static_params": {},
     "debug": true
   },
@@ -39,7 +40,7 @@
       "m_decisive": { "range": [-2000, 2000], "precision": 0 },
       "m_antidecisive": { "range": [-2000, 2000], "precision": 0 }
     },
-    "ai_static_params": { "max_time": 5 },
+    "ai_static_params": { "max_time": 5, "use_history": true },
     "eval_static_params": {},
     "debug": true
   }
