@@ -1,5 +1,6 @@
 import itertools
 import random
+import cython
 
 import numpy as np
 from games.gamestate import GameState, win, loss, draw, normalize
@@ -335,12 +336,12 @@ def calculate_weights(m_top_k, factor, scale=10):
 def evaluate_n_in_a_row(
     state: TicTacToeGameState,
     player: int,
-    m_bonus=1,
-    m_decay=0.95,
-    m_w_factor=0.7,
-    m_top_k=3,
-    m_disc=0.9,
-    m_pow=4,
+    m_bonus=0.75,
+    m_decay=2.9,
+    m_w_factor=0.8,
+    m_top_k=4,
+    m_disc=1.49,
+    m_pow=7,
     norm: bool = False,
     a=100,
 ):

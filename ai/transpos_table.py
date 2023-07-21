@@ -1,14 +1,63 @@
-from collections import OrderedDict
-from typing import Tuple, Union, Optional
-import weakref
+# cython: language_level=3
 
+import collections
+from typing import DefaultDict
+import weakref
+from collections import OrderedDict
+
+import cython
 import numpy as np
+
+if cython.compiled:
+    print("Transpositions is compiled.")
+else:
+    print("Transpositions is just a lowly interpreted script.")
 
 
 class IncorrectBoardException(Exception):
     pass
 
 
+@cython.cclass
+class MoveHistory:
+    """
+    Class to manage a move history table for a game. The table records how many times
+    each move has led to alpha cutoffs in an alpha-beta search.
+
+    The table is implemented as a default dictionary, which allows for efficient updates
+    and retrieval of move histories.
+    """
+
+    table: DefaultDict  # The table itself
+
+    def __init__(self):
+        """
+        Initialize the move history table.
+        """
+        self.table = collections.defaultdict(int)
+
+    @cython.ccall
+    def get(self, move: cython.tuple) -> int:
+        """
+        Retrieve the history of a move from the move history table.
+
+        :param move: The move whose history is to be retrieved.
+        :return: The history of the move, or 0 if the move has no history.
+        """
+        return self.table[move]
+
+    @cython.ccall
+    def update(self, move: cython.tuple, increment: cython.int):
+        """
+        Update the history of a move in the move history table.
+
+        :param move: The move whose history is to be updated.
+        :param increment: The amount by which the move's history is to be increased.
+        """
+        self.table[move] += increment
+
+
+@cython.cclass
 class TranspositionTable:
     """
     Class to manage a transposition table for a game. The table stores previously computed values
@@ -19,6 +68,20 @@ class TranspositionTable:
 
     Collisions in the table are handled by storing and comparing board states when provided.
     """
+
+    size = cython.declare(
+        cython.uint, visibility="public"
+    )  # The maximum number of entries the table can hold
+    table: object
+    # Metrics for debugging and experimental purposes
+    c_cache_hits: cython.uint
+    c_cache_misses: cython.uint
+    c_collisions: cython.uint
+    c_cleanups: cython.uint
+    cache_hits: cython.uint
+    cache_misses: cython.uint
+    collisions: cython.uint
+    cleanups: cython.uint
 
     def __init__(self, size):
         """
@@ -32,9 +95,14 @@ class TranspositionTable:
         self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
+    @cython.ccall
     def get(
-        self, key: int, depth: int, player: str, max_d: int, board: Optional[str] = None
-    ) -> Tuple[float, tuple]:
+        self,
+        key: cnp.uint64_t,
+        depth: cython.uint,
+        player: cython.int,
+        board: cython.str = None,
+    ) -> tuple:
         """
         Retrieve a value from the transposition table for the given key, depth, and player.
         If a board is provided, it is also compared with the stored board for the same key.
@@ -53,21 +121,28 @@ class TranspositionTable:
             board = 'board_state'
             transposition_table.get(key, depth, player, board)
         """
+        dict_val: cython.tuple
         try:
-            value, stored_depth, stored_player, best_move, stored_max_d, stored_board = self.table[key]
-            if stored_board is not None and not np.array_equal(stored_board, board):
-                raise IncorrectBoardException(
-                    f"Stored: {stored_board} is not the same as {board} stored at {key}"
-                )
+            dict_val = self.table[key]
+            value: cython.float = dict_val[0]
+            stored_depth: cython.uint = dict_val[1]
+            stored_player: cython.int = dict_val[2]
+            best_move: cython.tuple = dict_val[3]
+            stored_board: cython.str = dict_val[4]
 
-            if stored_depth >= depth and stored_player == player and stored_max_d >= max_d:
+            # value, stored_depth, stored_player, best_move, stored_max_d, stored_board = self.table[key]
+            # if stored_board is not None and not np.array_equal(stored_board, board):
+            #     raise IncorrectBoardException(
+            #         f"Stored: {stored_board} is not the same as {board} stored at {key}"
+            #     )
+
+            if stored_depth >= depth and stored_player == player:
                 # Add the key to the LRU again so it it "refreshed"
                 self.table[key] = (
                     value,
                     stored_depth,
                     stored_player,
                     best_move,
-                    stored_max_d,
                     stored_board,
                 )
                 self.cache_hits += 1  # Increase the cache hits
@@ -77,15 +152,15 @@ class TranspositionTable:
             self.cache_misses += 1  # Increase the cache misses
         return None, None
 
+    @cython.ccall
     def put(
         self,
-        key: int,
-        value: float,
-        depth: int,
-        player: str,
-        best_move: Tuple[int, int],
-        max_d: int,
-        board: Optional[str] = None,
+        key: cython.ulong,
+        value: cython.float,
+        depth: cython.uint,
+        player: cython.int,
+        best_move: cython.tuple,
+        board: cython.str = None,
     ):
         """
         Insert a value into the transposition table for the given key, depth, and player.
@@ -114,22 +189,24 @@ class TranspositionTable:
                 stored_depth,
                 _,
                 _,
-                stored_max_d,
                 _,
             ) = self.table[key]
-            if stored_depth > depth and stored_max_d >= max_d:
-                return  # The stored value is from a deeper depth, don't overwrite it.
+
+            self.collisions += 1  # Increase the collisions
+
+            if stored_depth > depth:
+                return  # The stored value is from a deeper depth, don't remove it.
             else:
                 self.table.pop(key)
-                self.collisions += 1  # Increase the collisions
 
         except KeyError:
             if len(self.table) == self.size:
                 self.table.popitem(last=False)
                 self.cleanups += 1
 
-        self.table[key] = (value, depth, player, best_move, max_d, board)
+        self.table[key] = (value, depth, player, best_move, board)
 
+    @cython.ccall
     def reset_metrics(self):
         # Keep some cumulative statistics
         self.c_cache_hits += self.cache_hits
@@ -142,6 +219,7 @@ class TranspositionTable:
         self.collisions = 0
         self.cleanups = 0
 
+    @cython.ccall
     def get_metrics(self):
         """
         Get the metrics for debugging and experimental purposes.
@@ -155,6 +233,7 @@ class TranspositionTable:
             "tt_cleanups": self.cleanups,
         }
 
+    @cython.ccall
     def get_cumulative_metrics(self):
         return {
             "tt_total_cache_hits": self.c_cache_hits,
@@ -163,16 +242,6 @@ class TranspositionTable:
             "tt_total_cleanups": self.c_cleanups,
             "tt_size": self.size,
         }
-
-
-from collections import OrderedDict
-from typing import Tuple, Union, Optional
-
-import numpy as np
-
-
-class IncorrectBoardException(Exception):
-    pass
 
 
 class TranspositionTableMCTS:

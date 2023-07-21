@@ -10,3 +10,6 @@ config.ini
 results/**/*
 log/**/*
 profiler_results.out
+*.c
+*.so
+*.out
