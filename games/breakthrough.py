@@ -5,7 +5,7 @@ import cython
 import numpy as np
 from cython.cimports import numpy as cnp
 
-# TODO Hier was je gebleven, je bent dit bestand aan het cythonizen
+# TODO Hier was je gebleven, je bent dit bestand aan het cythonizen, hij speelt voor geen kut
 cnp.import_array()
 
 from games.gamestate import GameState, normalize, win, loss, draw

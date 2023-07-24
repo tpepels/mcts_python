@@ -2561,6 +2561,8 @@ static const char __pyx_k_max_depth[] = "max_depth";
 static const char __pyx_k_pyx_state[] = "__pyx_state";
 static const char __pyx_k_reduce_ex[] = "__reduce_ex__";
 static const char __pyx_k_skip_turn[] = "skip_turn";
+static const char __pyx_k_T_evals_ps[] = "T_evals_ps";
+static const char __pyx_k_T_nodes_ps[] = "T_nodes_ps";
 static const char __pyx_k_ValueError[] = "ValueError";
 static const char __pyx_k_best_value[] = "best_value";
 static const char __pyx_k_board_hash[] = "board_hash";
@@ -2591,7 +2593,6 @@ static const char __pyx_k_use_setstate[] = "use_setstate";
 static const char __pyx_k_ai_alpha_beta[] = "ai.alpha_beta";
 static const char __pyx_k_count_tim_out[] = "count_tim_out";
 static const char __pyx_k_depth_average[] = "depth_average";
-static const char __pyx_k_evals_per_sec[] = "evals_per_sec";
 static const char __pyx_k_nodes_per_sec[] = "nodes_per_sec";
 static const char __pyx_k_nodes_visited[] = "nodes_visited";
 static const char __pyx_k_reduce_cython[] = "__reduce_cython__";
@@ -2600,6 +2601,7 @@ static const char __pyx_k_search_interr[] = "search_interr";
 static const char __pyx_k_total_killers[] = "total_killers";
 static const char __pyx_k_AssertionError[] = "AssertionError";
 static const char __pyx_k_AttributeError[] = "AttributeError";
+static const char __pyx_k_T_nodes_gen_ps[] = "T_nodes_gen_ps";
 static const char __pyx_k_count_searches[] = "count_searches";
 static const char __pyx_k_depth_finished[] = "depth_finished";
 static const char __pyx_k_evaluate_moves[] = "evaluate_moves";
@@ -2620,7 +2622,6 @@ static const char __pyx_k_ai_alpha_beta_pyx[] = "ai/alpha_beta.pyx";
 static const char __pyx_k_ai_transpos_table[] = "ai.transpos_table";
 static const char __pyx_k_get_legal_actions[] = "get_legal_actions";
 static const char __pyx_k_nodes_avg_br_fact[] = "nodes_avg_br_fact";
-static const char __pyx_k_nodes_gen_per_sec[] = "nodes_gen_per_sec";
 static const char __pyx_k_null_moves_cutoff[] = "null_moves_cutoff";
 static const char __pyx_k_pretty_print_dict[] = "pretty_print_dict";
 static const char __pyx_k_total_search_time[] = "total_search_time";
@@ -2743,6 +2744,9 @@ typedef struct {
   PyObject *__pyx_kp_u_Player_to_move_in_the_game_is_no;
   PyObject *__pyx_kp_u_Search_was_interrupted_at_depth;
   PyObject *__pyx_kp_u_So_I_saw;
+  PyObject *__pyx_n_u_T_evals_ps;
+  PyObject *__pyx_n_u_T_nodes_gen_ps;
+  PyObject *__pyx_n_u_T_nodes_ps;
   PyObject *__pyx_kp_u_Time_spent_on_this_depth_reached;
   PyObject *__pyx_n_s_TranspositionTable;
   PyObject *__pyx_n_u_True;
@@ -2796,7 +2800,6 @@ typedef struct {
   PyObject *__pyx_kp_u_enable;
   PyObject *__pyx_n_s_end;
   PyObject *__pyx_kp_u_eval;
-  PyObject *__pyx_n_u_evals_per_sec;
   PyObject *__pyx_n_s_evaluate;
   PyObject *__pyx_n_s_evaluate_moves;
   PyObject *__pyx_n_s_func;
@@ -2834,7 +2837,6 @@ typedef struct {
   PyObject *__pyx_n_u_nodes_best_move_order;
   PyObject *__pyx_n_u_nodes_cutoff;
   PyObject *__pyx_n_u_nodes_evaluated;
-  PyObject *__pyx_n_u_nodes_gen_per_sec;
   PyObject *__pyx_n_u_nodes_generated;
   PyObject *__pyx_n_u_nodes_per_sec;
   PyObject *__pyx_n_u_nodes_visited;
@@ -3000,6 +3002,9 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_kp_u_Player_to_move_in_the_game_is_no);
   Py_CLEAR(clear_module_state->__pyx_kp_u_Search_was_interrupted_at_depth);
   Py_CLEAR(clear_module_state->__pyx_kp_u_So_I_saw);
+  Py_CLEAR(clear_module_state->__pyx_n_u_T_evals_ps);
+  Py_CLEAR(clear_module_state->__pyx_n_u_T_nodes_gen_ps);
+  Py_CLEAR(clear_module_state->__pyx_n_u_T_nodes_ps);
   Py_CLEAR(clear_module_state->__pyx_kp_u_Time_spent_on_this_depth_reached);
   Py_CLEAR(clear_module_state->__pyx_n_s_TranspositionTable);
   Py_CLEAR(clear_module_state->__pyx_n_u_True);
@@ -3053,7 +3058,6 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_kp_u_enable);
   Py_CLEAR(clear_module_state->__pyx_n_s_end);
   Py_CLEAR(clear_module_state->__pyx_kp_u_eval);
-  Py_CLEAR(clear_module_state->__pyx_n_u_evals_per_sec);
   Py_CLEAR(clear_module_state->__pyx_n_s_evaluate);
   Py_CLEAR(clear_module_state->__pyx_n_s_evaluate_moves);
   Py_CLEAR(clear_module_state->__pyx_n_s_func);
@@ -3091,7 +3095,6 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_n_u_nodes_best_move_order);
   Py_CLEAR(clear_module_state->__pyx_n_u_nodes_cutoff);
   Py_CLEAR(clear_module_state->__pyx_n_u_nodes_evaluated);
-  Py_CLEAR(clear_module_state->__pyx_n_u_nodes_gen_per_sec);
   Py_CLEAR(clear_module_state->__pyx_n_u_nodes_generated);
   Py_CLEAR(clear_module_state->__pyx_n_u_nodes_per_sec);
   Py_CLEAR(clear_module_state->__pyx_n_u_nodes_visited);
@@ -3235,6 +3238,9 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_kp_u_Player_to_move_in_the_game_is_no);
   Py_VISIT(traverse_module_state->__pyx_kp_u_Search_was_interrupted_at_depth);
   Py_VISIT(traverse_module_state->__pyx_kp_u_So_I_saw);
+  Py_VISIT(traverse_module_state->__pyx_n_u_T_evals_ps);
+  Py_VISIT(traverse_module_state->__pyx_n_u_T_nodes_gen_ps);
+  Py_VISIT(traverse_module_state->__pyx_n_u_T_nodes_ps);
   Py_VISIT(traverse_module_state->__pyx_kp_u_Time_spent_on_this_depth_reached);
   Py_VISIT(traverse_module_state->__pyx_n_s_TranspositionTable);
   Py_VISIT(traverse_module_state->__pyx_n_u_True);
@@ -3288,7 +3294,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_kp_u_enable);
   Py_VISIT(traverse_module_state->__pyx_n_s_end);
   Py_VISIT(traverse_module_state->__pyx_kp_u_eval);
-  Py_VISIT(traverse_module_state->__pyx_n_u_evals_per_sec);
   Py_VISIT(traverse_module_state->__pyx_n_s_evaluate);
   Py_VISIT(traverse_module_state->__pyx_n_s_evaluate_moves);
   Py_VISIT(traverse_module_state->__pyx_n_s_func);
@@ -3326,7 +3331,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_n_u_nodes_best_move_order);
   Py_VISIT(traverse_module_state->__pyx_n_u_nodes_cutoff);
   Py_VISIT(traverse_module_state->__pyx_n_u_nodes_evaluated);
-  Py_VISIT(traverse_module_state->__pyx_n_u_nodes_gen_per_sec);
   Py_VISIT(traverse_module_state->__pyx_n_u_nodes_generated);
   Py_VISIT(traverse_module_state->__pyx_n_u_nodes_per_sec);
   Py_VISIT(traverse_module_state->__pyx_n_u_nodes_visited);
@@ -3486,6 +3490,9 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_kp_u_Player_to_move_in_the_game_is_no __pyx_mstate_global->__pyx_kp_u_Player_to_move_in_the_game_is_no
 #define __pyx_kp_u_Search_was_interrupted_at_depth __pyx_mstate_global->__pyx_kp_u_Search_was_interrupted_at_depth
 #define __pyx_kp_u_So_I_saw __pyx_mstate_global->__pyx_kp_u_So_I_saw
+#define __pyx_n_u_T_evals_ps __pyx_mstate_global->__pyx_n_u_T_evals_ps
+#define __pyx_n_u_T_nodes_gen_ps __pyx_mstate_global->__pyx_n_u_T_nodes_gen_ps
+#define __pyx_n_u_T_nodes_ps __pyx_mstate_global->__pyx_n_u_T_nodes_ps
 #define __pyx_kp_u_Time_spent_on_this_depth_reached __pyx_mstate_global->__pyx_kp_u_Time_spent_on_this_depth_reached
 #define __pyx_n_s_TranspositionTable __pyx_mstate_global->__pyx_n_s_TranspositionTable
 #define __pyx_n_u_True __pyx_mstate_global->__pyx_n_u_True
@@ -3539,7 +3546,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_kp_u_enable __pyx_mstate_global->__pyx_kp_u_enable
 #define __pyx_n_s_end __pyx_mstate_global->__pyx_n_s_end
 #define __pyx_kp_u_eval __pyx_mstate_global->__pyx_kp_u_eval
-#define __pyx_n_u_evals_per_sec __pyx_mstate_global->__pyx_n_u_evals_per_sec
 #define __pyx_n_s_evaluate __pyx_mstate_global->__pyx_n_s_evaluate
 #define __pyx_n_s_evaluate_moves __pyx_mstate_global->__pyx_n_s_evaluate_moves
 #define __pyx_n_s_func __pyx_mstate_global->__pyx_n_s_func
@@ -3577,7 +3583,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_u_nodes_best_move_order __pyx_mstate_global->__pyx_n_u_nodes_best_move_order
 #define __pyx_n_u_nodes_cutoff __pyx_mstate_global->__pyx_n_u_nodes_cutoff
 #define __pyx_n_u_nodes_evaluated __pyx_mstate_global->__pyx_n_u_nodes_evaluated
-#define __pyx_n_u_nodes_gen_per_sec __pyx_mstate_global->__pyx_n_u_nodes_gen_per_sec
 #define __pyx_n_u_nodes_generated __pyx_mstate_global->__pyx_n_u_nodes_generated
 #define __pyx_n_u_nodes_per_sec __pyx_mstate_global->__pyx_n_u_nodes_per_sec
 #define __pyx_n_u_nodes_visited __pyx_mstate_global->__pyx_n_u_nodes_visited
@@ -8630,7 +8635,7 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
  *                     "nodes_best_move_order": stat_tt_orders,
  *                     "nodes_visited": stat_visited,             # <<<<<<<<<<<<<<
  *                     "nodes_evaluated": stat_n_eval,
- *                     "nodes_per_sec": int(stat_visited / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_ps": int(stat_visited / max(1, (curr_time() - start_time))),
  */
       __pyx_t_2 = __Pyx_PyInt_From_unsigned_int(__pyx_v_2ai_10alpha_beta_stat_visited); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 536, __pyx_L6_error)
       __Pyx_GOTREF(__pyx_t_2);
@@ -8641,8 +8646,8 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
  *                     "nodes_best_move_order": stat_tt_orders,
  *                     "nodes_visited": stat_visited,
  *                     "nodes_evaluated": stat_n_eval,             # <<<<<<<<<<<<<<
- *                     "nodes_per_sec": int(stat_visited / max(1, (curr_time() - start_time))),
- *                     "evals_per_sec": int(stat_n_eval / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_ps": int(stat_visited / max(1, (curr_time() - start_time))),
+ *                     "T_evals_ps": int(stat_n_eval / max(1, (curr_time() - start_time))),
  */
       __pyx_t_2 = __Pyx_PyInt_From_unsigned_int(__pyx_v_2ai_10alpha_beta_stat_n_eval); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 537, __pyx_L6_error)
       __Pyx_GOTREF(__pyx_t_2);
@@ -8652,9 +8657,9 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
       /* "ai/alpha_beta.pyx":538
  *                     "nodes_visited": stat_visited,
  *                     "nodes_evaluated": stat_n_eval,
- *                     "nodes_per_sec": int(stat_visited / max(1, (curr_time() - start_time))),             # <<<<<<<<<<<<<<
- *                     "evals_per_sec": int(stat_n_eval / max(1, (curr_time() - start_time))),
- *                     "nodes_gen_per_sec": int(stat_moves_gen / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_ps": int(stat_visited / max(1, (curr_time() - start_time))),             # <<<<<<<<<<<<<<
+ *                     "T_evals_ps": int(stat_n_eval / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_gen_ps": int(stat_moves_gen / max(1, (curr_time() - start_time))),
  */
       __pyx_t_18 = __pyx_f_2ai_10alpha_beta_curr_time(); if (unlikely(__pyx_t_18 == ((double)-1) && PyErr_Occurred())) __PYX_ERR(0, 538, __pyx_L6_error)
       __pyx_t_10 = (__pyx_t_18 - __pyx_v_2ai_10alpha_beta_start_time);
@@ -8671,14 +8676,14 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
       }
       __pyx_t_2 = __Pyx_PyInt_FromDouble((((double)__pyx_v_2ai_10alpha_beta_stat_visited) / __pyx_t_10)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 538, __pyx_L6_error)
       __Pyx_GOTREF(__pyx_t_2);
-      if (PyDict_SetItem(__pyx_t_1, __pyx_n_u_nodes_per_sec, __pyx_t_2) < 0) __PYX_ERR(0, 534, __pyx_L6_error)
+      if (PyDict_SetItem(__pyx_t_1, __pyx_n_u_T_nodes_ps, __pyx_t_2) < 0) __PYX_ERR(0, 534, __pyx_L6_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
       /* "ai/alpha_beta.pyx":539
  *                     "nodes_evaluated": stat_n_eval,
- *                     "nodes_per_sec": int(stat_visited / max(1, (curr_time() - start_time))),
- *                     "evals_per_sec": int(stat_n_eval / max(1, (curr_time() - start_time))),             # <<<<<<<<<<<<<<
- *                     "nodes_gen_per_sec": int(stat_moves_gen / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_ps": int(stat_visited / max(1, (curr_time() - start_time))),
+ *                     "T_evals_ps": int(stat_n_eval / max(1, (curr_time() - start_time))),             # <<<<<<<<<<<<<<
+ *                     "T_nodes_gen_ps": int(stat_moves_gen / max(1, (curr_time() - start_time))),
  *                     "nodes_cutoff": stat_cutoffs,
  */
       __pyx_t_10 = __pyx_f_2ai_10alpha_beta_curr_time(); if (unlikely(__pyx_t_10 == ((double)-1) && PyErr_Occurred())) __PYX_ERR(0, 539, __pyx_L6_error)
@@ -8696,13 +8701,13 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
       }
       __pyx_t_2 = __Pyx_PyInt_FromDouble((((double)__pyx_v_2ai_10alpha_beta_stat_n_eval) / __pyx_t_18)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 539, __pyx_L6_error)
       __Pyx_GOTREF(__pyx_t_2);
-      if (PyDict_SetItem(__pyx_t_1, __pyx_n_u_evals_per_sec, __pyx_t_2) < 0) __PYX_ERR(0, 534, __pyx_L6_error)
+      if (PyDict_SetItem(__pyx_t_1, __pyx_n_u_T_evals_ps, __pyx_t_2) < 0) __PYX_ERR(0, 534, __pyx_L6_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
       /* "ai/alpha_beta.pyx":540
- *                     "nodes_per_sec": int(stat_visited / max(1, (curr_time() - start_time))),
- *                     "evals_per_sec": int(stat_n_eval / max(1, (curr_time() - start_time))),
- *                     "nodes_gen_per_sec": int(stat_moves_gen / max(1, (curr_time() - start_time))),             # <<<<<<<<<<<<<<
+ *                     "T_nodes_ps": int(stat_visited / max(1, (curr_time() - start_time))),
+ *                     "T_evals_ps": int(stat_n_eval / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_gen_ps": int(stat_moves_gen / max(1, (curr_time() - start_time))),             # <<<<<<<<<<<<<<
  *                     "nodes_cutoff": stat_cutoffs,
  *                     "nodes_avg_br_fact": int(round(stat_moves_gen / max(1, stat_visited), 0)),
  */
@@ -8721,12 +8726,12 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
       }
       __pyx_t_2 = __Pyx_PyInt_FromDouble((((double)__pyx_v_2ai_10alpha_beta_stat_moves_gen) / __pyx_t_10)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 540, __pyx_L6_error)
       __Pyx_GOTREF(__pyx_t_2);
-      if (PyDict_SetItem(__pyx_t_1, __pyx_n_u_nodes_gen_per_sec, __pyx_t_2) < 0) __PYX_ERR(0, 534, __pyx_L6_error)
+      if (PyDict_SetItem(__pyx_t_1, __pyx_n_u_T_nodes_gen_ps, __pyx_t_2) < 0) __PYX_ERR(0, 534, __pyx_L6_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
       /* "ai/alpha_beta.pyx":541
- *                     "evals_per_sec": int(stat_n_eval / max(1, (curr_time() - start_time))),
- *                     "nodes_gen_per_sec": int(stat_moves_gen / max(1, (curr_time() - start_time))),
+ *                     "T_evals_ps": int(stat_n_eval / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_gen_ps": int(stat_moves_gen / max(1, (curr_time() - start_time))),
  *                     "nodes_cutoff": stat_cutoffs,             # <<<<<<<<<<<<<<
  *                     "nodes_avg_br_fact": int(round(stat_moves_gen / max(1, stat_visited), 0)),
  *                     "nodes_generated": stat_moves_gen,
@@ -8737,7 +8742,7 @@ static PyObject *__pyx_f_2ai_10alpha_beta_15AlphaBetaPlayer_best_action(struct _
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
       /* "ai/alpha_beta.pyx":542
- *                     "nodes_gen_per_sec": int(stat_moves_gen / max(1, (curr_time() - start_time))),
+ *                     "T_nodes_gen_ps": int(stat_moves_gen / max(1, (curr_time() - start_time))),
  *                     "nodes_cutoff": stat_cutoffs,
  *                     "nodes_avg_br_fact": int(round(stat_moves_gen / max(1, stat_visited), 0)),             # <<<<<<<<<<<<<<
  *                     "nodes_generated": stat_moves_gen,
@@ -12362,6 +12367,9 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_kp_u_Player_to_move_in_the_game_is_no, __pyx_k_Player_to_move_in_the_game_is_no, sizeof(__pyx_k_Player_to_move_in_the_game_is_no), 0, 1, 0, 0},
     {&__pyx_kp_u_Search_was_interrupted_at_depth, __pyx_k_Search_was_interrupted_at_depth, sizeof(__pyx_k_Search_was_interrupted_at_depth), 0, 1, 0, 0},
     {&__pyx_kp_u_So_I_saw, __pyx_k_So_I_saw, sizeof(__pyx_k_So_I_saw), 0, 1, 0, 0},
+    {&__pyx_n_u_T_evals_ps, __pyx_k_T_evals_ps, sizeof(__pyx_k_T_evals_ps), 0, 1, 0, 1},
+    {&__pyx_n_u_T_nodes_gen_ps, __pyx_k_T_nodes_gen_ps, sizeof(__pyx_k_T_nodes_gen_ps), 0, 1, 0, 1},
+    {&__pyx_n_u_T_nodes_ps, __pyx_k_T_nodes_ps, sizeof(__pyx_k_T_nodes_ps), 0, 1, 0, 1},
     {&__pyx_kp_u_Time_spent_on_this_depth_reached, __pyx_k_Time_spent_on_this_depth_reached, sizeof(__pyx_k_Time_spent_on_this_depth_reached), 0, 1, 0, 0},
     {&__pyx_n_s_TranspositionTable, __pyx_k_TranspositionTable, sizeof(__pyx_k_TranspositionTable), 0, 0, 1, 1},
     {&__pyx_n_u_True, __pyx_k_True, sizeof(__pyx_k_True), 0, 1, 0, 1},
@@ -12415,7 +12423,6 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_kp_u_enable, __pyx_k_enable, sizeof(__pyx_k_enable), 0, 1, 0, 0},
     {&__pyx_n_s_end, __pyx_k_end, sizeof(__pyx_k_end), 0, 0, 1, 1},
     {&__pyx_kp_u_eval, __pyx_k_eval, sizeof(__pyx_k_eval), 0, 1, 0, 0},
-    {&__pyx_n_u_evals_per_sec, __pyx_k_evals_per_sec, sizeof(__pyx_k_evals_per_sec), 0, 1, 0, 1},
     {&__pyx_n_s_evaluate, __pyx_k_evaluate, sizeof(__pyx_k_evaluate), 0, 0, 1, 1},
     {&__pyx_n_s_evaluate_moves, __pyx_k_evaluate_moves, sizeof(__pyx_k_evaluate_moves), 0, 0, 1, 1},
     {&__pyx_n_s_func, __pyx_k_func, sizeof(__pyx_k_func), 0, 0, 1, 1},
@@ -12453,7 +12460,6 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_n_u_nodes_best_move_order, __pyx_k_nodes_best_move_order, sizeof(__pyx_k_nodes_best_move_order), 0, 1, 0, 1},
     {&__pyx_n_u_nodes_cutoff, __pyx_k_nodes_cutoff, sizeof(__pyx_k_nodes_cutoff), 0, 1, 0, 1},
     {&__pyx_n_u_nodes_evaluated, __pyx_k_nodes_evaluated, sizeof(__pyx_k_nodes_evaluated), 0, 1, 0, 1},
-    {&__pyx_n_u_nodes_gen_per_sec, __pyx_k_nodes_gen_per_sec, sizeof(__pyx_k_nodes_gen_per_sec), 0, 1, 0, 1},
     {&__pyx_n_u_nodes_generated, __pyx_k_nodes_generated, sizeof(__pyx_k_nodes_generated), 0, 1, 0, 1},
     {&__pyx_n_u_nodes_per_sec, __pyx_k_nodes_per_sec, sizeof(__pyx_k_nodes_per_sec), 0, 1, 0, 1},
     {&__pyx_n_u_nodes_visited, __pyx_k_nodes_visited, sizeof(__pyx_k_nodes_visited), 0, 1, 0, 1},
