@@ -18,7 +18,12 @@ from games.breakthrough import (
 )
 from games.gamestate import GameState, loss, win
 from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_enhanced
-from games.tictactoe import TicTacToeGameState, evaluate_tictactoe, evaluate_n_in_a_row
+from games.tictactoe import (
+    TicTacToeGameState,
+    evaluate_tictactoe,
+    evaluate_n_in_a_row,
+    ninarow_simple_evaluation,
+)
 from util import log_exception_handler
 
 # Contains all possible evaluation functions for use in factory
@@ -32,6 +37,7 @@ eval_dict = {
     evaluate_kalah_simple.__name__: evaluate_kalah_simple,
     evaluate_kalah_enhanced.__name__: evaluate_kalah_enhanced,
     evaluate_blokus.__name__: evaluate_blokus,
+    ninarow_simple_evaluation.__name__: ninarow_simple_evaluation,
 }
 
 # Contains all possible games for use in factory
@@ -197,12 +203,13 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
                 print("Game Over. Draw")
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
-    reward = play_game_until_terminal(game, p1, p2, callback=callback)
-
-    p1.print_cumulative_statistics()
-    p2.print_cumulative_statistics()
-
-    return reward
+    try:
+        reward = play_game_until_terminal(game, p1, p2, callback=callback)
+        return reward
+    finally:
+        # Make sure that the statistics are printed even if an exception is raised (i.e. if the game is interrupted)
+        p1.print_cumulative_statistics()
+        p2.print_cumulative_statistics()
 
 
 @log_exception_handler

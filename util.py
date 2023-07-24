@@ -64,6 +64,11 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
 
 
 def format_time(seconds):
+    negative = False
+    if seconds < 0:
+        negative = True
+        seconds = -seconds  # make it positive for calculation
+
     hours, remainder = divmod(seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     time_str = ""
@@ -73,6 +78,9 @@ def format_time(seconds):
     if minutes:
         time_str += f"{int(minutes)} minutes, "
     time_str += f"{seconds:.2f} seconds"
+
+    if negative:
+        time_str = "-" + time_str
 
     return time_str
 

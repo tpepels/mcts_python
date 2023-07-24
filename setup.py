@@ -6,8 +6,18 @@ import numpy
 
 ext_modules = [
     Extension(
-        "games.amazons",  # Your .pyx file's name
+        "games.amazons",
         ["games/amazons.py"],
+        include_dirs=[numpy.get_include()],  # Include directory for numpy
+    ),
+    Extension(
+        "games.tictactoe",
+        ["games/tictactoe.py"],
+        include_dirs=[numpy.get_include()],  # Include directory for numpy
+    ),
+    Extension(
+        "games.breakthrough",
+        ["games/breakthrough.py"],
         include_dirs=[numpy.get_include()],  # Include directory for numpy
     ),
     Extension("ai.alpha_beta", ["ai/alpha_beta.pyx"]),

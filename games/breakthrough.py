@@ -1,7 +1,20 @@
-from typing import Tuple
+# cython: language_level=3
+# cython: infer_types=True
+
+import cython
 import numpy as np
+from cython.cimports import numpy as cnp
+
+# TODO Hier was je gebleven, je bent dit bestand aan het cythonizen
+cnp.import_array()
+
 from games.gamestate import GameState, normalize, win, loss, draw
 import random
+
+if cython.compiled:
+    print("Breakthrough is compiled.")
+else:
+    print("Breakthrough is just a lowly interpreted script.")
 
 
 class BreakthroughGameState(GameState):
@@ -207,38 +220,7 @@ class BreakthroughGameState(GameState):
         """
         scores = []
         for move in moves:
-            from_position, to_position = move
-
-            # Player 1 views the lorenz_values in reverse
-            if self.player == 2:
-                # Use lorentz_values for base_value
-                score = lorentz_values[to_position] - lorentz_values[from_position]
-            else:
-                # Use lorentz_values for base_value
-                score = lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
-
-            # Reward capturing
-            if self.is_capture(move):
-                score = (MAX_LORENZ + score) ** 2  # square score if it's a capture
-                # An antidecisive move
-                if self.player == 1 and from_position > 56:
-                    score += 1e6  # Add a very high score if the move is antidecisive
-                elif self.player == 2 and from_position < 8:
-                    score += 1e6
-
-            # Reward safe positions
-            if is_safe(move[1], self.player, self.board):
-                score *= 2  # Add base_value again if the position is safe
-
-            # Reward decisive moves
-            # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
-            if self.player == 1 and (8 <= from_position <= 16):
-                score += 1e6  # Add a very high score if the move is decisive
-            elif self.player == 2 and (48 <= from_position <= 56):
-                score += 1e6  # Add a very high score if the move is decisive
-
-            scores.append((move, score))
-
+            scores.append((move, evaluate_move(self.board, move, self.player)))
         return scores
 
     def evaluate_move(self, move):
@@ -249,37 +231,8 @@ class BreakthroughGameState(GameState):
         :param move: The move to evaluate.
         :return: The heuristic value of the move.
         """
-        from_position, to_position = move
 
-        # Player 1 views the lorenz_values in reverse
-        if self.player == 2:
-            # Use lorentz_values for base_value
-            score = lorentz_values[to_position] - lorentz_values[from_position]
-        else:
-            # Use lorentz_values for base_value
-            score = lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
-
-        # Reward capturing
-        if self.is_capture(move):
-            score = score**2  # square score if it's a capture
-            # An antidecisive move
-            if self.player == 1 and from_position > 56:
-                score += 1e6  # Add a very high score if the move is antidecisive
-            elif self.player == 2 and from_position < 8:
-                score += 1e6
-
-        # Reward safe positions
-        if is_safe(move[1], self.player, self.board):
-            score *= 2  # Add base_value again if the position is safe
-
-        # Reward decisive moves
-        # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
-        if self.player == 1 and (8 <= from_position <= 16):
-            score += 1e6  # Add a very high score if the move is decisive
-        elif self.player == 2 and (48 <= from_position <= 56):
-            score += 1e6  # Add a very high score if the move is decisive
-
-        return score
+        return evaluate_move(self.board, move, self.player)
 
     def visualize(self):
         """
@@ -321,12 +274,51 @@ class BreakthroughGameState(GameState):
         return "breakthrough"
 
 
+@cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def evaluate_move(board: cnp.ndarray, move: cython.tuple, player: cython.int):
+    from_position: cython.int = move[0]
+    to_position: cython.int = move[1]
+    score: cython.int = 0
+
+    # Player 1 views the lorenz_values in reverse
+    if player == 2:
+        # Use lorentz_values for base_value
+        score = lorentz_values[to_position] - lorentz_values[from_position]
+    else:
+        # Use lorentz_values for base_value
+        score = lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
+
+    # Reward capturing
+    if board[to_position] == 3 - player:
+        score = int(score**2)  # square score if it's a capture
+        # An antidecisive move
+        if (player == 1 and from_position > 56) or (player == 2 and from_position < 8):
+            score += 1000000  # Add a very high score if the move is antidecisive
+
+    # Reward safe positions
+    if is_safe(to_position, player, board):
+        score *= 2  # Add base_value again if the position is safe
+
+    # Reward decisive moves
+    # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
+    if (player == 1 and (8 <= from_position <= 16)) or (player == 2 and (48 <= from_position <= 56)):
+        score += 1000000  # Add a very high score if the move is decisive
+
+    return score
+
+
 def to_chess_notation(index):
     """Transform a board index into chess notation."""
     row, col = divmod(index, 8)
     return f"{chr(col + 65)}{row + 1}"
 
 
+@cython.ccall
+@cython.infer_types(True)
 def evaluate_breakthrough(
     state: BreakthroughGameState,
     player: int,
@@ -417,9 +409,11 @@ def evaluate_breakthrough(
         return eval_value
 
 
+@cython.ccall
+@cython.infer_types(True)
 def evaluate_breakthrough_lorenz(
     state: BreakthroughGameState,
-    player: int,
+    player: cython.int,
     m_lorenz: float = 1.0,
     m_mobility: float = 1.0,
     m_safe: float = 1.0,
@@ -431,7 +425,7 @@ def evaluate_breakthrough_lorenz(
     m_antidecisive: float = 100.0,
     a: int = 200,
     norm: bool = False,
-):
+) -> cython.double:
     """
     Evaluates the current game state using an enhanced Lorenz evaluation function,
     which takes into account the positioning of pieces, their mobility, the safety of their positions,
@@ -451,33 +445,43 @@ def evaluate_breakthrough_lorenz(
 
     :return: The evaluation score for the given player.
     """
-    board_values = 0
-    mobility_values = 0
-    safety_values = 0
-    endgame_values = 0
-    piece_diff = 0
-    pieces = 0
-    decisive_values = 0
-    antidecisive_values = 0
-    caps = 0
-    opponent = 3 - player
+    board_values: cython.float = 0
+    mobility_values: cython.float = 0
+    safety_values: cython.float = 0
+    endgame_values: cython.float = 0
+    piece_diff: cython.float = 0
+    pieces: cython.int = 0
+    decisive_values: cython.float = 0
+    antidecisive_values: cython.float = 0
+    caps: cython.float = 0
+    opponent: cython.int = 3 - player
+    board: cnp.ndarray = state.board
+    positions: cnp.ndarray = np.where(board > 0)[0]  # get all pieces from the board
+    multiplier: cython.float
+    global lorentz_values
 
-    positions = np.where(state.board > 0)[0]  # get all pieces from the board
-    for position in positions:
-        piece = state.board[position]
+    for i in range(positions.shape[0]):
+        piece = board[i]
         # Player or opponent
-        multiplier = 1 if piece == player else -1
+        if piece == player:
+            multiplier = 1.0
+        else:
+            multiplier = -1.0
+
         pieces += 1
         piece_diff += multiplier
+        if piece == 2:
+            piece_value = lorentz_values[positions[i]]
+        else:
+            piece_value = lorentz_values[63 - positions[i]]
 
-        piece_value = lorentz_values[position] if piece == 2 else lorentz_values[63 - position]
         board_values += multiplier * piece_value
 
         if m_mobility != 0:
-            mob_val = piece_mobility(position, piece, state.board)
+            mob_val = piece_mobility(positions[i], piece, board)
             mobility_values += multiplier * mob_val * (1 + piece_value)
 
-        if m_safe != 0 and is_safe(position, piece, state.board):
+        if m_safe != 0 and is_safe(positions[i], piece, board):
             safety_values += multiplier * piece_value
 
     if m_endgame != 0 and pieces < 12:
@@ -502,7 +506,7 @@ def evaluate_breakthrough_lorenz(
     if m_cap >= 0:
         caps = count_capture_moves(state, player) - count_capture_moves(state, opponent)
 
-    eval_value = (
+    eval_value: cython.double = (
         decisive_values
         + antidecisive_values
         + endgame_values
@@ -511,7 +515,10 @@ def evaluate_breakthrough_lorenz(
         + m_safe * safety_values
         + m_piece_diff * piece_diff
         + m_cap * caps
-    ) * (m_opp_disc if state.player == opponent else 1)
+    )
+
+    if state.player == opponent:
+        eval_value += m_opp_disc
 
     if norm:
         return normalize(eval_value, a)
@@ -519,10 +526,16 @@ def evaluate_breakthrough_lorenz(
         return eval_value
 
 
-penultimate_row_indices_player_2 = np.arange(48, 56)  # indices of the penultimate row for player 1
-penultimate_row_indices_player_1 = np.arange(8, 16)  # indices of the penultimate row for player 2
+penultimate_row_indices_player_2: cnp.ndarray = np.arange(
+    48, 56
+)  # indices of the penultimate row for player 1
+penultimate_row_indices_player_1: cnp.ndarray = np.arange(
+    8, 16
+)  # indices of the penultimate row for player 2
 
 
+@cython.ccall
+@cython.infer_types(True)
 def is_decisive(state):
     player_1_decisive, player_2_decisive = False, False
     player_1_antidecisive, player_2_antidecisive = False, False
@@ -562,10 +575,12 @@ def is_decisive(state):
     return player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive
 
 
-BL_DIR = ((1, 0), (1, -1), (1, 1))
-WH_DIR = ((-1, 0), (-1, -1), (-1, 1))
+BL_DIR: cython.tuple = ((1, 0), (1, -1), (1, 1))
+WH_DIR: cython.tuple = ((-1, 0), (-1, -1), (-1, 1))
 
 
+@cython.ccall
+@cython.infer_types(True)
 def piece_mobility(position, player, board):
     """
     Calculates the mobility of a piece at the given position.
@@ -597,7 +612,8 @@ def piece_mobility(position, player, board):
     return mobility
 
 
-def is_safe(position, player, board):
+@cython.cfunc
+def is_safe(position, player, board) -> cython.bint:
     """
     Determines if a piece at a given position is safe from being captured.
 
@@ -657,7 +673,9 @@ def is_safe(position, player, board):
     return attackers <= defenders
 
 
-def count_capture_moves(game_state: BreakthroughGameState, player: int) -> int:
+@cython.ccall
+@cython.infer_types(True)
+def count_capture_moves(game_state: cython.object, player: cython.int) -> int:
     """Count the number of pieces that can capture and the total number of possible capture moves for a given player.
 
     :param game_state: The game state instance.
@@ -689,11 +707,11 @@ def count_capture_moves(game_state: BreakthroughGameState, player: int) -> int:
                     )
         total_capture_moves += piece_capture_moves
 
-    return total_capture_moves
+    return int(total_capture_moves)
 
 
 # List of values representing the importance of each square on the board. In view of player 2.
-lorentz_values = np.array(
+lorentz_values: cnp.ndarray = np.array(
     [
         5,
         15,
@@ -762,6 +780,7 @@ lorentz_values = np.array(
     ],
     dtype=int,
 )
+
 MAX_LORENZ = 10
 # Normalize the lorenz values so it requires less tuning to combine with other heuristics
 lorentz_values = (

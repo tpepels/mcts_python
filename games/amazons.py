@@ -1,6 +1,11 @@
 # cython: language_level=3
 
 import cython
+
+from cython.cimports import numpy as cnp
+
+cnp.import_array()
+
 import math
 
 import random
@@ -404,6 +409,10 @@ class AmazonsGameState(GameState):
 
 @cython.ccall
 @cython.infer_types(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+@cython.cdivision(True)
 def evaluate_move(n_moves_per_queen: cython.dict, move: cython.tuple, mid: cython.uint) -> cython.int:
     """
     Evaluate the given move using a simple heuristic:
@@ -708,7 +717,7 @@ def territory_compare(ours, theirs):
 @cython.boundscheck(False)
 @cython.infer_types(True)
 @cython.initializedcheck(False)
-def count_reachable_squares(board, x, y):
+def count_reachable_squares(board: cnp.ndarray, x: cython.int, y: cython.int):
     """
     Count the number of squares reachable by the piece at the given position (x, y) in the game state.
 
@@ -717,11 +726,20 @@ def count_reachable_squares(board, x, y):
     :param y: The y-coordinate of the piece.
     :return: The number of reachable squares.
     """
-    reachable = 0
-    size = len(board)
+    reachable: cython.int = 0
+    size: cython.int = board.shape[0]
+    direct: cython.int
+    dx: cython.int
+    dy: cython.int
+    ny: cython.int
+    nx: cython.int
+    x_limit: cython.int
+    y_limit: cython.int
 
-    for direction in DIRECTIONS:
-        dx, dy = direction
+    for direct in range(8):
+        dx = DIRECTIONS[direct][0]
+        dy = DIRECTIONS[direct][1]
+
         nx, ny = x + dx, y + dy
 
         # Precompute the limits based on the direction

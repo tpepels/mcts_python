@@ -1,9 +1,9 @@
 # cython: language_level=3
 
 import collections
-from typing import DefaultDict
 import weakref
 from collections import OrderedDict
+from typing import DefaultDict
 
 import cython
 import numpy as np
@@ -96,9 +96,10 @@ class TranspositionTable:
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
     @cython.ccall
+    @cython.infer_types(True)
     def get(
         self,
-        key: cnp.uint64_t,
+        key: cython.ulong,
         depth: cython.uint,
         player: cython.int,
         board: cython.str = None,
@@ -150,9 +151,10 @@ class TranspositionTable:
 
         except KeyError:
             self.cache_misses += 1  # Increase the cache misses
-        return None, None
+        return 0.0, ()
 
     @cython.ccall
+    @cython.infer_types(True)
     def put(
         self,
         key: cython.ulong,

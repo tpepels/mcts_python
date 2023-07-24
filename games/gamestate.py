@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
-win = 1e6
-loss = -1e6
-draw = 0
+win: int = 1e6
+loss: int = -1e6
+draw: int = 0
 
 
 class GameState(ABC):
