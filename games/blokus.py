@@ -1,24 +1,39 @@
+# cython: language_level=3
+
 import copy
 import random
 from typing import Generator, List, Tuple
+
+import cython
+from cython.cimports import numpy as cnp
+
+cnp.import_array()
 import numpy as np
 from termcolor import colored
 
-from games.gamestate import GameState, normalize, win, loss, draw
+from games.gamestate import GameState, draw, loss, normalize, win
 
-PLAYER_COUNT = 2
-BOARD_SIZE = 20
+if cython.compiled:
+    print("Blokus is compiled.")
+else:
+    print("Blokus is just a lowly interpreted script.")
 
-PASS_MOVE = (-1, -1, -1, -1)
+PLAYER_COUNT: cython.int = 2
+BOARD_SIZE: cython.int = 20
+
+PASS_MOVE: cython.tuple = (-1, -1, -1, -1)
 
 # Define offsets for orthogonally adjacent cells (up, down, left, right)
-ORTHOGONAL_NEIGHBORS = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-CORNERS = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
-# We create a constant player board as it's just used for comparing against the actual board
-PLAYER_BOARD = [np.full((BOARD_SIZE, BOARD_SIZE), 1), np.full((BOARD_SIZE, BOARD_SIZE), 2)]
-NEIGHBORS = (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
+ORTHOGONAL_NEIGHBORS: cython.list = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+CORNERS: cython.list = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
 
-BOARD_CORNERS = [
+# We create a constant player board as it's just used for comparing against the actual board
+PLAYER_BOARD: cnp.ndarray = np.array(
+    [np.full((BOARD_SIZE, BOARD_SIZE), 1), np.full((BOARD_SIZE, BOARD_SIZE), 2)]
+)
+NEIGHBORS: cython.tuple = (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
+
+BOARD_CORNERS: cython.list = [
     (0, 0),
     (0, BOARD_SIZE - 1),
     (BOARD_SIZE - 1, 0),
@@ -26,44 +41,52 @@ BOARD_CORNERS = [
 ]
 
 
-pieces = [
-    np.array([[1]]),  # monomino
+pieces: cython.list = [
+    np.array([[1]], dtype=np.int32),  # monomino
     # --
-    np.array([[1, 1]]),  # domino
+    np.array([[1, 1]], dtype=np.int32),  # domino
     # --
-    np.array([[1, 1, 1]]),  # tromino_I
-    np.array([[1, 0], [1, 1]]),  # tromino_L
+    np.array([[1, 1, 1]], dtype=np.int32),  # tromino_I
+    np.array([[1, 0], [1, 1]], dtype=np.int32),  # tromino_L
     # --
-    np.array([[1, 1, 1, 1]]),  # tetromino_I
-    np.array([[1, 0], [1, 0], [1, 1]]),  # tetromino_L
-    np.array([[1, 1, 1], [0, 1, 0]]),  # tetromino_T
-    np.array([[1, 1, 0], [0, 1, 1]]),  # tetromino_S
-    np.array([[1, 1], [1, 1]]),  # tetromino_O
+    np.array([[1, 1, 1, 1]], dtype=np.int32),  # tetromino_I
+    np.array([[1, 0], [1, 0], [1, 1]], dtype=np.int32),  # tetromino_L
+    np.array([[1, 1, 1], [0, 1, 0]], dtype=np.int32),  # tetromino_T
+    np.array([[1, 1, 0], [0, 1, 1]], dtype=np.int32),  # tetromino_S
+    np.array([[1, 1], [1, 1]], dtype=np.int32),  # tetromino_O
     # --
-    np.array([[1, 0, 0], [1, 0, 0], [1, 1, 1]]),  # pentomino_V
-    np.array([[0, 1, 1], [1, 1, 0], [0, 1, 0]]),  # pentomino_F
+    np.array([[1, 0, 0], [1, 0, 0], [1, 1, 1]], dtype=np.int32),  # pentomino_V
+    np.array([[0, 1, 1], [1, 1, 0], [0, 1, 0]], dtype=np.int32),  # pentomino_F
     np.array([[1, 1, 1, 1, 1]]),  # pentomino_I
-    np.array([[1, 0], [1, 0], [1, 0], [1, 1]]),  # pentomino_L
-    np.array([[1, 0, 0], [1, 1, 1], [0, 0, 1]]),  # pentomino_N
-    np.array([[1, 1], [1, 1], [1, 0]]),  # pentomino_P
-    np.array([[1, 1], [1, 0], [1, 1]]),  # pentomino_U
-    np.array([[1, 0], [1, 0], [1, 1], [0, 1]]),  # pentomino_J
-    np.array([[1, 1, 1], [0, 1, 0], [0, 1, 0]]),  # pentomino_T
-    np.array([[1, 0, 0], [1, 1, 0], [0, 1, 1]]),  # pentomino_W
-    np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]),  # pentomino_X
-    np.array([[1, 0], [1, 1], [1, 0], [1, 0]]),  # pentomino_Y
+    np.array([[1, 0], [1, 0], [1, 0], [1, 1]], dtype=np.int32),  # pentomino_L
+    np.array([[1, 0, 0], [1, 1, 1], [0, 0, 1]], dtype=np.int32),  # pentomino_N
+    np.array([[1, 1], [1, 1], [1, 0]], dtype=np.int32),  # pentomino_P
+    np.array([[1, 1], [1, 0], [1, 1]], dtype=np.int32),  # pentomino_U
+    np.array([[1, 0], [1, 0], [1, 1], [0, 1]], dtype=np.int32),  # pentomino_J
+    np.array([[1, 1, 1], [0, 1, 0], [0, 1, 0]], dtype=np.int32),  # pentomino_T
+    np.array([[1, 0, 0], [1, 1, 0], [0, 1, 1]], dtype=np.int32),  # pentomino_W
+    np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.int32),  # pentomino_X
+    np.array([[1, 0], [1, 1], [1, 0], [1, 0]], dtype=np.int32),  # pentomino_Y
 ]
 # Calculate the total size of the pieces
-total_ones = 0
+total_ones: cython.int = 0
 # Pre-compute the number of 1's in each piece
-piece_sizes = {}
+piece_sizes: cython.dict = {}
+piece_index: cython.int
+piece: cnp.ndarray
+
 for piece_index, piece in enumerate(pieces):
     piece_sizes[piece_index] = np.sum(piece)
     total_ones += np.sum(piece)
 
 
-unique_rotations = {}
-for i, piece in enumerate(pieces):
+unique_rotations: cython.dict = {}
+rotations: cython.list
+flips: cython.list
+unique: cython.list
+rotated: cnp.ndarray
+u: cnp.ndarray
+for piece_index, piece in enumerate(pieces):
     rotations = [np.rot90(piece, rotation) for rotation in range(4)]
     # Add flipped versions of the piece and its rotations.
     flips = [np.flip(piece), np.flip(piece, 0), np.flip(piece, 1)]
@@ -73,26 +96,32 @@ for i, piece in enumerate(pieces):
 
     for rotated in rotations:
         if not any(np.array_equal(rotated, np.array(u)) for u in unique):
-            unique.append(rotated.tolist())
+            unique.append(rotated)
 
-    unique_rotations[i] = len(unique)
+    unique_rotations[piece_index] = len(unique)
 
-# Pre-compute rotated and flipped pieces
-piece_masks = {}
-rotated_pieces = {}
+# Pre-compute masks for all rotated and flipped pieces
+piece_masks: cython.dict = {}
+rotated_pieces: cython.dict = {}
+
 for piece_index, piece in enumerate(pieces):
     rotations = [np.rot90(piece, rotation) for rotation in range(unique_rotations[piece_index])]
     # Add flipped versions of the piece and its rotations.
     flips = [np.flip(piece), np.flip(piece, 0), np.flip(piece, 1)]
     rotations += flips
 
-    rotated_pieces[piece_index] = rotations
+    rotated_pieces[piece_index] = [np.array(rotation).astype(np.int32) for rotation in rotations]
     piece_masks[piece_index] = [rotation.astype(bool) for rotation in rotated_pieces[piece_index]]
 
-MAX_PIECE_COUNT = total_ones * 2
+MAX_PIECE_COUNT: cython.int = total_ones * 2
 
 
+@cython.cclass
 class BlokusPieces:
+    rem_pieces = cython.declare(cython.dict)
+    pieces_count = cython.declare(cython.dict)
+    pieces_size = cython.declare(cython.dict)
+
     def __init__(self, init_state=False):
         if init_state:
             self.rem_pieces = {(color, i): True for color in [1, 2, 3, 4] for i in range(len(pieces))}
@@ -104,6 +133,8 @@ class BlokusPieces:
     def copy(self):
         return copy.deepcopy(self)
 
+    @cython.ccall
+    @cython.locals(piece_index=cython.int, color=cython.int, key=cython.tuple)
     def play_piece(self, piece_index, color):
         key = (color, piece_index)
         if self.rem_pieces[key]:
@@ -113,21 +144,29 @@ class BlokusPieces:
         else:
             raise ValueError(f"Player {color} doesn't have piece {piece_index} available.")
 
-    def avail_pieces_for_color(self, color):
+    @cython.ccall
+    @cython.locals(piece_index=cython.int, color=cython.int, color_i=cython.int, piece_i=cython.int)
+    def avail_pieces_for_color(self, color) -> cython.list:
         return [
             piece_i for (color_i, piece_i), is_av in self.rem_pieces.items() if is_av and color_i == color
         ]
 
-    def pieces_left_for_color(self, color):
+    @cython.ccall
+    @cython.locals(color=cython.int)
+    def pieces_left_for_color(self, color) -> cython.int:
         return self.pieces_count[color]
 
-    def pieces_left_for_player(self, player):
+    @cython.ccall
+    @cython.locals(player=cython.int)
+    def pieces_left_for_player(self, player) -> cython.int:
         if player == 1:
             return self.pieces_count[1] + self.pieces_count[3]
         else:
             return self.pieces_count[2] + self.pieces_count[4]
 
-    def sum_piece_size(self, player):
+    @cython.ccall
+    @cython.locals(player=cython.int)
+    def sum_piece_size(self, player) -> cython.int:
         if player == 1:
             return self.pieces_size[1] + self.pieces_count[3]
         else:
@@ -137,16 +176,16 @@ class BlokusPieces:
         return f"BlokusPieces:\n Pieces count: {self.pieces_count}"
 
 
-class BlokusGameState(GameState):
+class BlokusGameState:
     # Changed zobrist_table size to include 4 players
     zobrist_table = np.random.randint(
         low=0,
-        high=np.iinfo(np.uint64).max,
+        high=np.iinfo(np.uint32).max,
         size=(BOARD_SIZE, BOARD_SIZE, 5),  # 4 players + 1 for empty state
-        dtype=np.uint64,
+        dtype=np.uint32,
     )
 
-    def __init__(self, board=None, pieces=None, player=1, n_turns=0, passed=None, perimeters=None):
+    def __init__(self, board=None, pieces=None, player=1, n_turns=0, passed=None):
         if passed is None:
             passed = {1: False, 2: False, 3: False, 4: False}
 
@@ -159,17 +198,9 @@ class BlokusGameState(GameState):
 
         if board is not None:
             self.board = board
-            self.perimeters = perimeters
         else:
-            self.board = np.zeros((BOARD_SIZE, BOARD_SIZE))
+            self.board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=np.int32)
             self.board_hash = self._calculate_board_hash()
-            # Initialize the perimeters as a dictionary with player numbers as keys
-            self.perimeters = {
-                1: set(BOARD_CORNERS.copy()),
-                2: set(BOARD_CORNERS.copy()),
-                3: set(BOARD_CORNERS.copy()),
-                4: set(BOARD_CORNERS.copy()),
-            }
 
         self.n_turns = n_turns
         self.color = (n_turns % 4) + 1
@@ -177,7 +208,7 @@ class BlokusGameState(GameState):
         self.positions_checked = 0
 
     def _calculate_board_hash(self):
-        board_hash = np.uint64(0)
+        board_hash = np.uint32(0)
         for x in range(BOARD_SIZE):
             for y in range(BOARD_SIZE):
                 player = int(self.board[x, y])
@@ -192,74 +223,24 @@ class BlokusGameState(GameState):
             player=3 - self.player,
             n_turns=self.n_turns + 1,
             passed=self.passed.copy(),
-            perimeters=copy.deepcopy(self.perimeters),
         )
         new_state.board_hash = new_state._calculate_board_hash()
         return new_state
 
-    def apply_action(self, action: Tuple[int, int, int, int]) -> "BlokusGameState":
+    def apply_action(self, action: Tuple[int, int, int, int]) -> BlokusGameState:
         new_state = BlokusGameState(
             board=np.copy(self.board),
             pieces=self.pieces.copy(),
             player=self.player,
             n_turns=self.n_turns,
             passed=self.passed.copy(),
-            perimeters=copy.deepcopy(self.perimeters),
         )
 
         if action == PASS_MOVE:
             new_state.passed[self.color] = True
         else:
             x, y, piece_index, rotation = action
-            piece = rotated_pieces[piece_index][rotation]
-            piece_width, piece_height = piece.shape
-            player_piece = np.where(piece, self.color, 0)
-
-            board_mask = new_state.board[x : x + piece_width, y : y + piece_height].astype(bool)
-            update_mask = np.logical_or(board_mask, piece)
-
-            updated_board_segment = np.where(
-                update_mask, player_piece, new_state.board[x : x + piece_width, y : y + piece_height]
-            )
-
-            new_state.board[x : x + piece_width, y : y + piece_height] = updated_board_segment
-
-            piece_mask = piece_masks[piece_index][rotation]
-            idxs = np.nonzero(piece_mask)
-
-            new_state.perimeters[self.color] -= set((x + dx, y + dy) for dx, dy in zip(*idxs))
-
-            orthogonal_cells = set(
-                (x + dx + ddx, y + dy + ddy) for dx, dy in zip(*idxs) for ddx, ddy in ORTHOGONAL_NEIGHBORS
-            )
-            orthogonal_cells = set(
-                (dx, dy) for dx, dy in orthogonal_cells if 0 <= dx < BOARD_SIZE and 0 <= dy < BOARD_SIZE
-            )
-
-            new_state.perimeters[self.color] -= orthogonal_cells
-            for color in new_state.perimeters:
-                if color != self.color:
-                    new_state.perimeters[color] -= orthogonal_cells
-                    new_state.perimeters[color] -= set((x + dx, y + dy) for dx, dy in zip(*idxs))
-
-            neighboring_cells = set(
-                (x + dx + ddx, y + dy + ddy) for dx, dy in zip(*idxs) for ddx, ddy in NEIGHBORS
-            )
-            neighboring_cells = set(
-                (dx, dy) for dx, dy in neighboring_cells if 0 <= dx < BOARD_SIZE and 0 <= dy < BOARD_SIZE
-            )
-            neighboring_cells = set(
-                (dx, dy)
-                for dx, dy in neighboring_cells
-                if new_state.board[dx, dy] == 0
-                and all(
-                    new_state.board[dx + ddx, dy + ddy] == 0
-                    for ddx, ddy in ORTHOGONAL_NEIGHBORS
-                    if 0 <= dx + ddx < BOARD_SIZE and 0 <= dy + ddy < BOARD_SIZE
-                )
-            )
-
-            new_state.perimeters[self.color].update(neighboring_cells)
+            update_state(new_state.board, x, y, piece_index, rotation, self.color)
             new_state.pieces.play_piece(piece_index, self.color)
 
         new_state.n_turns += 1
@@ -318,8 +299,6 @@ class BlokusGameState(GameState):
         # All possible actions have been tried and are illegal, return a PASS_MOVE
         return PASS_MOVE
 
-    import random
-
     def yield_legal_actions(self) -> Generator[Tuple[int, int, int, int], None, None]:
         if self.passed[self.color]:
             yield PASS_MOVE
@@ -372,95 +351,13 @@ class BlokusGameState(GameState):
         # If we haven't yielded any actions, then it's a PASS_MOVE
         yield PASS_MOVE
 
-    def get_legal_actions(self) -> List[Tuple[int, int, int, int]]:
+    def get_legal_actions(self) -> list:
         if self.passed[self.color]:
             return [PASS_MOVE]
 
-        self.positions_checked = 0
-        legal_actions = []
-        checked_actions = set()
-        perimeter_points = set(self.perimeters[self.color])
-
-        avail_pieces = self.pieces.avail_pieces_for_color(self.color)
-
-        for px, py in perimeter_points:
-            # The first 4 moves must be played in the corners
-            if self.n_turns <= 3 and (px, py) not in BOARD_CORNERS:
-                continue
-
-            for piece_index in avail_pieces:
-                for rotation in range(unique_rotations[piece_index]):  # Use pre-computed rotations
-                    piece = rotated_pieces[piece_index][rotation]
-                    piece_width, piece_height = piece.shape
-
-                    for dx in range(max(-piece_width + 1, -px), min(piece_width, BOARD_SIZE - px)):
-                        for dy in range(max(-piece_height + 1, -py), min(piece_height, BOARD_SIZE - py)):
-                            x, y = px + dx, py + dy
-                            # Check if piece can be physically placed, considering its shape
-                            if not (
-                                0 <= x + piece_width - 1 < BOARD_SIZE
-                                and 0 <= y + piece_height - 1 < BOARD_SIZE
-                            ):
-                                continue
-
-                            action = (x, y, piece_index, rotation)
-                            if action in checked_actions:
-                                continue
-
-                            checked_actions.add(action)
-                            if self.is_legal_action(x, y, piece, piece_masks[piece_index][rotation]):
-                                legal_actions.append(action)
-
-        if not legal_actions:  # If legal_actions list is empty, then it's a PASS_MOVE
-            return [PASS_MOVE]
-
-        return legal_actions
-
-    def is_legal_action(self, x, y, piece, piece_mask) -> bool:
-        self.positions_checked += 1
-        piece_width, piece_height = piece.shape
-
-        board_mask = self.board[x : x + piece_width, y : y + piece_height].astype(bool)
-
-        # Verify if it's the first piece and if it's on the corner
-        if self.n_turns <= 3 and self.is_on_board_corner(x, y, piece):
-            return not np.any(
-                np.logical_and(piece_mask, board_mask)
-            )  # Piece should not overlap with an existing piece
-
-        elif self.n_turns <= 3:
-            return False
-
-        # Piece should not overlap with an existing piece or opponent's piece
-        if np.any(np.logical_and(piece_mask, board_mask)):
-            return False
-
-        corner_touch = False
-        for dx, dy in np.argwhere(piece_mask):
-            # Only check a corner touch once
-            if not corner_touch and ((x + dx, y + dy) in self.perimeters[self.color]):
-                corner_touch = True  # At least one cell of the piece is on the player's perimeter
-
-            for dx2, dy2 in ORTHOGONAL_NEIGHBORS:
-                if (
-                    0 <= x + dx + dx2 < BOARD_SIZE
-                    and 0 <= y + dy + dy2 < BOARD_SIZE
-                    and self.board[x + dx + dx2, y + dy + dy2] == self.color
-                ):
-                    return False  # Some cell of the piece is orthogonally touching a cell of an existing piece of the player
-
-        return corner_touch
-
-    def is_on_board_corner(self, x: int, y: int, piece: np.array) -> bool:
-        piece_width, piece_height = piece.shape
-        # Check if any part of the piece coincides with any of the board's corners
-        for i in range(piece_width):
-            for j in range(piece_height):
-                if piece[i, j]:  # If this part of the piece array contains the piece
-                    piece_position = (x + i, y + j)
-                    if piece_position in BOARD_CORNERS:
-                        return True
-        return False
+        return get_legal_actions(
+            self.board, self.color, self.n_turns, self.pieces.avail_pieces_for_color(self.color)
+        )
 
     def evaluate_moves(self, moves):
         """
@@ -524,6 +421,10 @@ class BlokusGameState(GameState):
         colors = ["green", "red", "blue", "yellow"]
         visual_board = []
 
+        perimeters = {}
+        for i in range(4):
+            perimeters[i] = find_corners_for_color(self.board, i + 1)
+
         # Add a border to the top
         border_row = ["#" for _ in range(len(self.board[0]) + 2)]
         visual_board.append(border_row)
@@ -533,13 +434,13 @@ class BlokusGameState(GameState):
             for j, cell in enumerate(row):
                 if int(cell) > 0:
                     visual_row.append(colored("■", colors[int(cell) - 1]))
-                elif (i, j) in self.perimeters[1]:
+                elif (i, j) in perimeters[0]:
                     visual_row.append(colored("○", colors[0]))
-                elif (i, j) in self.perimeters[2]:
+                elif (i, j) in perimeters[1]:
                     visual_row.append(colored("○", colors[1]))
-                elif (i, j) in self.perimeters[3]:
+                elif (i, j) in perimeters[2]:
                     visual_row.append(colored("○", colors[2]))
-                elif (i, j) in self.perimeters[4]:
+                elif (i, j) in perimeters[3]:
                     visual_row.append(colored("○", colors[3]))
                 else:
                     visual_row.append(" ")
@@ -550,19 +451,7 @@ class BlokusGameState(GameState):
         # Add a border to the bottom
         visual_board.append(border_row)
 
-        return "\n".join(" ".join(cell for cell in row) for row in visual_board)
-
-    def check_perimeter_overlap(self, i: int, j: int) -> bool:
-        # Check if there is a piece on the board at the given coordinates
-        if self.board[i][j] == 0:
-            return False
-
-        # Check if the coordinates are in the perimeter of any player
-        for perimeter in self.perimeters.values():
-            if (i, j) in perimeter:
-                return True
-
-        return False
+        return "\n".join(" ".join(cell for cell in row) for row in visual_board) + "\n"
 
     def __repr__(self) -> str:
         return "blokus"
@@ -572,48 +461,319 @@ class BlokusGameState(GameState):
         return 2 ** (BOARD_SIZE)
 
 
+@cython.ccall
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def update_state(
+    board: cython.int[:, :],
+    x: cython.int,
+    y: cython.int,
+    piece_index: cython.int,
+    rotation: cython.int,
+    color: cython.int,
+):
+    piece: cython.int[:, :] = rotated_pieces[piece_index][rotation]
+    indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
+    i: cython.int
+    dx: cython.int
+    dy: cython.int
+
+    for i in range(indices.shape[0]):
+        dx = indices[i, 0]
+        dy = indices[i, 1]
+        board[x + dx, y + dy] = color
+
+
+@cython.ccall
+@cython.locals(
+    px=cython.int,
+    py=cython.int,
+    piece=cython.int[:, :],
+    piece_index=cython.int,
+    rotation=cython.int,
+    piece_width=cython.int,
+    piece_height=cython.int,
+    dx=cython.int,
+    dy=cython.int,
+    x=cython.int,
+    y=cython.int,
+    p=cython.int,
+)
+def get_legal_actions(
+    board: cython.int[:, :],
+    color: cython.int,
+    n_turns: cython.int,
+    avail_pieces: cython.list,
+) -> cython.list:
+    legal_actions: cython.list = []
+    checked_actions: cython.set = set()
+    # Get a set of points around which to look, preventing us from checking the entire board for each piece
+    if n_turns > 3:
+        perimeter_points = find_corners_for_color(board, color)
+    else:
+        perimeter_points = BOARD_CORNERS
+
+    for px, py in perimeter_points:
+        for p in range(len(avail_pieces)):
+            piece_index = avail_pieces[p]
+            for rotation in range(unique_rotations[piece_index]):  # Use pre-computed rotations
+                piece = rotated_pieces[piece_index][rotation]
+                piece_width = piece.shape[0]
+                piece_height = piece.shape[1]
+
+                for dx in range(max(-piece_width + 1, -px), min(piece_width, 20 - px)):
+                    for dy in range(max(-piece_height + 1, -py), min(piece_height, 20 - py)):
+                        x, y = px + dx, py + dy
+                        # Check if piece can be physically placed, considering its shape
+                        if not (0 <= x + piece_width - 1 < 20 and 0 <= y + piece_height - 1 < 20):
+                            continue
+
+                        action = (x, y, piece_index, rotation)
+
+                        if action in checked_actions:
+                            continue
+                        checked_actions.add(action)
+
+                        if is_legal_action(x, y, piece, n_turns, color, board):
+                            legal_actions.append(action)
+
+    if not legal_actions:  # If legal_actions list is empty, then it's a PASS_MOVE
+        return [PASS_MOVE]
+
+    return legal_actions
+
+
+@cython.ccall
+@cython.locals(
+    x=cython.int,
+    y=cython.int,
+    i=cython.int,
+    j=cython.int,
+    dx=cython.int,
+    dy=cython.int,
+    corner_touch=cython.bint,
+    n_turns=cython.int,
+    color=cython.int,
+    board=cython.int[:, :],
+    piece=cython.int[:, :],
+    new_x=cython.int,
+    new_y=cython.int,
+)
+def is_legal_action(
+    x: cython.int,
+    y: cython.int,
+    piece: cython.int[:, :],
+    n_turns: cython.int,
+    color: cython.int,
+    board: cython.int[:, :],
+) -> cython.bint:
+    # Verify if it's the first piece and if it's on the corner
+    if n_turns <= 3 and is_on_board_corner(x, y, piece):
+        return no_overlap(piece, board, x, y)
+    elif n_turns <= 3:
+        return False
+
+    # Piece should not overlap with an existing piece or opponent's piece
+    if not no_overlap(piece, board, x, y):
+        return False
+
+    corner_touch: cython.bint = 0
+    indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
+
+    for k in range(indices.shape[0]):
+        dx = indices[k, 0]
+        dy = indices[k, 1]
+        # We only have to find one point where the piece touches a corner
+        if not corner_touch:
+            # Check diagonals
+            for i in range(-1, 2, 2):
+                for j in range(-1, 2, 2):
+                    # If the new position is within the board
+                    if 0 <= x + dx + i < board.shape[0] and 0 <= y + dy + j < board.shape[1]:
+                        # If there's a piece on the diagonal
+                        if board[x + dx + i, y + dy + j] == color:
+                            corner_touch = 1
+                            break
+                if corner_touch:
+                    break
+
+        # Check orthogonals
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                if abs(i) != abs(j) and (
+                    0 <= x + dx + i < board.shape[0]
+                    and 0 <= y + dy + j < board.shape[1]
+                    and board[x + dx + i, y + dy + j] == color
+                ):
+                    return False  # Some cell of the piece is orthogonally touching a cell of an existing piece of the player
+
+    return corner_touch
+
+
+@cython.cfunc
+@cython.locals(
+    piece=cython.int[:, :], board=cython.int[:, :], x=cython.int, y=cython.int, i=cython.int, j=cython.int
+)
+def no_overlap(piece, board, x, y) -> cython.bint:
+    for i in range(piece.shape[0]):
+        for j in range(piece.shape[1]):
+            if piece[i, j] != 0 and board[x + i, y + j] != 0:  # Equivalent of np.logical_and
+                return 0  # Found overlap, so return False
+    return 1  # No overlap was found, so return True
+
+
+@cython.cfunc
+@cython.locals(
+    piece_x=cython.int,
+    piece_y=cython.int,
+    i=cython.int,
+    j=cython.int,
+    piece_width=cython.int,
+    piece_height=cython.int,
+)
+def is_on_board_corner(x: cython.int, y: cython.int, piece: cython.int[:, :]) -> cython.bint:
+    piece_width = piece.shape[0]
+    piece_height = piece.shape[1]
+    # Check if any part of the piece coincides with any of the board's corners
+    for i in range(piece_width):
+        for j in range(piece_height):
+            if piece[i, j]:  # If this part of the piece array contains the piece
+                piece_x = x + i
+                piece_y = y + j
+                # Check if the piece is at any of the board's corners
+                if (piece_x == 0 or piece_x == 19) and (piece_y == 0 or piece_y == 19):
+                    return True
+    return False
+
+
+@cython.ccall
+@cython.locals(
+    board=cython.int[:, :],
+    color=cython.int,
+    i=cython.int,
+    j=cython.int,
+    dx=cython.int,
+    dy=cython.int,
+    new_i=cython.int,
+    new_j=cython.int,
+    orthogonal_touch=cython.bint,
+    ortho_i=cython.int,
+    ortho_j=cython.int,
+)
+def find_corners_for_color(board, color) -> cython.set:
+    corner_points = set()
+
+    # Iterate over the board
+    for i in range(board.shape[0]):
+        for j in range(board.shape[1]):
+            # Check if the current cell is of the given color
+            if board[i, j] == color:
+                # Check diagonals
+                for dx in range(-1, 2, 2):
+                    for dy in range(-1, 2, 2):
+                        new_i, new_j = i + dx, j + dy
+                        # If the diagonal cell is inside the board and is empty
+                        if (
+                            0 <= new_i < board.shape[0]
+                            and 0 <= new_j < board.shape[1]
+                            and board[new_i, new_j] == 0
+                        ):
+                            # Check orthogonals
+                            orthogonal_touch = 0
+                            for di in range(-1, 2):
+                                for dj in range(-1, 2):
+                                    if abs(di) != abs(dj):
+                                        ortho_i, ortho_j = new_i + di, new_j + dj
+                                        # If the orthogonal cell is inside the board and has the given color
+                                        if (
+                                            0 <= ortho_i < board.shape[0]
+                                            and 0 <= ortho_j < board.shape[1]
+                                            and board[ortho_i, ortho_j] == color
+                                        ):
+                                            orthogonal_touch = 1
+                                            break
+
+                                if orthogonal_touch:
+                                    break
+
+                            # if the point we found is not orthoginally connected, add it to the corner points
+                            if not orthogonal_touch:
+                                corner_points.add((new_i, new_j))
+
+    return corner_points
+
+
+@cython.ccall
+@cython.locals(
+    game_state=cython.object,
+    m_piece_diff=cython.double,
+    m_corn_diff=cython.double,
+    m_piece_size=cython.double,
+    m_turn=cython.double,
+    a=cython.int,
+    norm=cython.bint,
+    player=cython.int,
+    opponent=cython.int,
+    p_color1=cython.int,
+    p_color2=cython.int,
+    o_color1=cython.int,
+    o_color2=cython.int,
+    player_pieces=cython.int,
+    opponent_pieces=cython.int,
+    player_corners=cython.int,
+    opponent_corners=cython.int,
+    piece_diff=cython.int,
+    corner_diff=cython.int,
+    player_pieces_sizes=cython.int,
+    opponent_pieces_sizes=cython.int,
+    piece_size_diff=cython.int,
+    score=cython.double,
+)
 def evaluate_blokus(
-    game_state: BlokusGameState,
+    game_state,
     m_piece_diff=0.33,
     m_corn_diff=0.33,
     m_piece_size=0.33,
     m_turn=0.9,
     a=50,
-    norm=False,
-):
+    norm=0,
+) -> cython.double:
     player = game_state.player
     opponent = 3 - player
+    board: cython.int[:, :] = game_state.board
+    state_pieces: BlokusPieces = game_state.pieces
 
-    p_colors = (1, 3) if player == 1 else (2, 4)
-    o_colors = (2, 4) if player == 1 else (1, 3)
-    # The available pieces for current player and the opponent.
-    player_pieces = game_state.pieces.pieces_left_for_player(player)
-    opponent_pieces = game_state.pieces.pieces_left_for_player(opponent)
+    if player == 1:
+        p_color1 = 1
+        p_color2 = 3
+        o_color1 = 2
+        o_color2 = 4
+    else:
+        p_color1 = 2
+        p_color2 = 4
+        o_color1 = 1
+        o_color2 = 3
 
-    # print(f"Player pieces left: {player_pieces}, Opponent pieces left: {opponent_pieces}")
+    player_pieces = state_pieces.pieces_left_for_player(player)
+    opponent_pieces = state_pieces.pieces_left_for_player(opponent)
 
-    # The available corners for current player and the opponent.
-    player_corners = len(game_state.perimeters[p_colors[0]]) + len(game_state.perimeters[p_colors[1]])
-    opponent_corners = len(game_state.perimeters[o_colors[0]]) + len(game_state.perimeters[o_colors[1]])
-    # print(f"Player corners available: {player_corners}, Opponent corners available: {opponent_corners}")
+    player_corners = len(find_corners_for_color(board, p_color1)) + len(
+        find_corners_for_color(board, p_color2)
+    )
+    opponent_corners = len(find_corners_for_color(board, o_color1)) + len(
+        find_corners_for_color(board, o_color2)
+    )
 
-    # The difference in pieces and corners can be used as a simple evaluation.
-    piece_diff = opponent_pieces - player_pieces  # Having less pieces is beneficial
-    corner_diff = player_corners - opponent_corners  # Having more corners is desired
-    # print(f"Piece difference: {piece_diff}, Corner difference: {corner_diff}")
+    piece_diff = opponent_pieces - player_pieces
+    corner_diff = player_corners - opponent_corners
 
-    # This method can reference player (it already takes care of summing the colors)
-    player_pieces_sizes = game_state.pieces.sum_piece_size(player)
-    opponent_pieces_sizes = game_state.pieces.sum_piece_size(opponent)
-    # print(f"{player_pieces_sizes=}, {opponent_pieces_sizes=}")
+    player_pieces_sizes = state_pieces.sum_piece_size(player)
+    opponent_pieces_sizes = state_pieces.sum_piece_size(opponent)
+
     piece_size_diff = opponent_pieces_sizes - player_pieces_sizes
-    # print(f"Piece size difference: {piece_size_diff}")
 
-    # A simple linear combination can be a good evaluation.
     score = m_piece_diff * piece_diff + m_corn_diff * corner_diff + m_piece_size * piece_size_diff
-    # print(f"Score: {score}")
 
-    # If I am to move I will by definition be a bit behind the opponent as they will have one more piece on the board
     score = score if game_state.player == player else m_turn * score
 
     if norm:

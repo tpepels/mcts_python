@@ -1,8 +1,11 @@
+# cython: language_level=3
+
+import cython
 from abc import ABC, abstractmethod
 
-win: int = 1e6
-loss: int = -1e6
-draw: int = 0
+win: cython.int = 9999999
+loss: cython.int = -9999999
+draw: cython.int = 0
 
 
 class GameState(ABC):

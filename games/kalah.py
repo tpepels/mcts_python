@@ -1,6 +1,12 @@
+# cython: language_level=3
+import cython
 from games.gamestate import GameState, normalize, win, loss, draw
 import random
 
+if cython.compiled:
+    print("Kalah is compiled.")
+else:
+    print("Kalah is just a lowly interpreted script.")
 
 MAX_SEEDS = 72  # maximum number of seeds in one position, it's 72 as it's the total seeds in the game
 
@@ -45,9 +51,7 @@ class KalahGameState(GameState):
         :param action: The action to apply, represented as the index of the house to pick up seeds from.
         :return: The resulting new game state after applying the action.
         """
-        if not self._is_valid_move(action):
-            raise ValueError("Invalid move")
-
+        action = action[0]
         new_board, next_player, last_index = self._sow_seeds(action)
 
         # Capture opponent's seeds if the last seed is sown in an empty house on the player's side and the opposite house has seeds.
@@ -162,7 +166,7 @@ class KalahGameState(GameState):
         random.shuffle(actions)  # Shuffle actions for randomness
 
         for action in actions:
-            yield action
+            yield (action,)
 
     def get_legal_actions(self):
         """
@@ -172,7 +176,7 @@ class KalahGameState(GameState):
         """
         start = 0 if self.player == 1 else self.num_houses + 1
         end = self.num_houses if self.player == 1 else len(self.board) - 1
-        return [i for i in range(start, end) if self.board[i] > 0]
+        return [(i,) for i in range(start, end) if self.board[i] > 0]
 
     def is_terminal(self):
         """
@@ -205,21 +209,6 @@ class KalahGameState(GameState):
         else:
             return draw
 
-    def _is_valid_move(self, index):
-        """
-        Check if the given move is valid for the current player.
-
-        :param index: The index of the house to pick up seeds from.
-        :return: True if the move is valid, False otherwise.
-        """
-
-        if self.is_terminal():  # Stop moving in a terminal state
-            return False
-
-        return (self.player == 1 and 0 <= index <= 5 and self.board[index] > 0) or (
-            self.player == 2 and 7 <= index <= 12 and self.board[index] > 0
-        )
-
     def is_capture(self, move):
         """
         Check if the given move results in a capture.
@@ -227,29 +216,30 @@ class KalahGameState(GameState):
         :param move: The move to check, represented as the index of the house to pick up seeds from.
         :return: True if the move results in a capture, False otherwise.
         """
-        seeds = self.board[move]
+        return is_capture(self.board, move, self.player)
+        # seeds = self.board[move]
 
-        # Calculate how often the opponent's pit is passed
-        size = len(self.board)
-        last_index, total_steps = calc_last_index_total_steps(
-            seeds=seeds,
-            move=move,
-            k=6 if self.player == 2 else 13,
-            size=size,
-        )
-        opp = 12 - last_index
-        passed_opp = total_steps > opp if move < opp else total_steps > size + opp
-        rounds = seeds // 13
-        # if we end up where we started, that means that we are in a house with 0 seeds, but the board still
-        # has the seeds in it.
-        if ((self.board[last_index] == 0 and rounds == 0) or last_index == move) and (
-            (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12)
-        ):
-            # Either the opposing side had a stone before, or we dropped one in it
-            if self.board[opp] > 0 or passed_opp:
-                return True
+        # # Calculate how often the opponent's pit is passed
+        # size = len(self.board)
+        # last_index, total_steps = calc_last_index_total_steps(
+        #     seeds=seeds,
+        #     move=move,
+        #     k=6 if self.player == 2 else 13,
+        #     size=size,
+        # )
+        # opp = 12 - last_index
+        # passed_opp = total_steps > opp if move < opp else total_steps > size + opp
+        # rounds = seeds // 13
+        # # if we end up where we started, that means that we are in a house with 0 seeds, but the board still
+        # # has the seeds in it.
+        # if ((self.board[last_index] == 0 and rounds == 0) or last_index == move) and (
+        #     (self.player == 1 and 0 <= last_index <= 5) or (self.player == 2 and 7 <= last_index <= 12)
+        # ):
+        #     # Either the opposing side had a stone before, or we dropped one in it
+        #     if self.board[opp] > 0 or passed_opp:
+        #         return True
 
-        return False
+        # return False
 
     def evaluate_moves(self, moves):
         """
@@ -260,26 +250,7 @@ class KalahGameState(GameState):
         """
         scores = []
         for move in moves:
-            # Initialize score to 0
-            score = 0
-
-            # Check if the move results in a capture and assign a positive score
-            if self.is_capture(move):
-                last_index, _ = calc_last_index_total_steps(
-                    seeds=self.board[move],
-                    move=move,
-                    k=6 if self.player == 2 else 13,
-                    size=len(self.board),
-                )
-                score += self.board[12 - last_index] * 4
-
-            # Check if the move results in another move for the current player and assign a positive score
-            last_index, _ = calc_last_index_total_steps(self.board[move], move, 13 if self.player == 1 else 6)
-            if (self.player == 1 and last_index == 6) or (self.player == 2 and last_index == 6):
-                score += 1
-
-            scores.append((move, score))
-
+            scores.append((move, evaluate_move(self.board, move[0], self.player)))
         return scores
 
     def evaluate_move(self, move):
@@ -289,20 +260,7 @@ class KalahGameState(GameState):
         :param move: The move to evaluate.
         :return: The heuristic score for the move.
         """
-
-        # Initialize score to 0
-        score = 0
-
-        # Check if the move results in a capture and assign a positive score
-        if self.is_capture(move):
-            score += self.board[move] + 1
-
-        # Check if the move results in another move for the current player and assign a positive score
-        last_index, _ = calc_last_index_total_steps(self.board[move], move, 13 if self.player == 1 else 6)
-        if (self.player == 1 and last_index == 6) or (self.player == 2 and last_index == 6):
-            score += 1
-
-        return score
+        return evaluate_move(self.board, move[0], self.player)
 
     def visualize(self):
         """
@@ -311,17 +269,14 @@ class KalahGameState(GameState):
         top_row = " ".join(
             [str(self.board[i]).rjust(2) + f" ({i})" for i in range(self.num_houses - 1, -1, -1)]
         )
-
         bottom_row = " ".join(
             [
                 str(self.board[i]).rjust(2) + f" ({i})"
                 for i in range(self.num_houses + 1, 2 * self.num_houses + 1)
             ]
         )
-
         player2_store = str(self.board[-1]).rjust(2)
         player1_store = str(self.board[self.num_houses]).rjust(2)
-
         return (
             f"Player 1's store: {player1_store}\n"
             f"{top_row}\n"
@@ -333,37 +288,75 @@ class KalahGameState(GameState):
     @property
     def transposition_table_size(self):
         # return an appropriate size based on the game characteristics
-        return 2**21
+        return 2**17
 
     def __repr__(self) -> str:
         return "kalah"
 
 
+@cython.ccall
+@cython.locals(move=cython.int, score=cython.int, last_index=cython.int, board=cython.list, player=cython.int)
+def evaluate_move(board, move, player):
+    """
+    Evaluates the given move using a heuristic based on the potential benefits of the move.
+
+    :param move: The move to evaluate.
+    :return: The heuristic score for the move.
+    """
+
+    # Initialize score to 0
+    score = 0
+
+    # Check if the move results in a capture and assign a positive score
+    if is_capture(board, move, player):
+        last_index, _ = calc_last_index_total_steps(
+            seeds=board[move],
+            move=move,
+            k=6 if player == 2 else 13,
+            size=len(board),
+        )
+        score += board[12 - last_index] * 4
+
+    # Check if the move results in another move for the current player and assign a positive score
+    last_index, _ = calc_last_index_total_steps(board[move], move, 13 if player == 1 else 6)
+    if (player == 1 and last_index == 6) or (player == 2 and last_index == 6):
+        score += 1
+
+    return score
+
+
+@cython.ccall
+@cython.locals(
+    seeds=cython.int,
+    move=cython.int,
+    k=cython.int,
+    size=cython.int,
+    passes=cython.int,
+    remaining_steps=cython.int,
+    total_steps=cython.int,
+)
 def calc_last_index_total_steps(seeds, move, k, size=13):
     passes = seeds // size
     remaining_steps = seeds % size
 
     if remaining_steps + move >= size + k:
         passes += 1
-    # passes = count_passes(
-    #     seeds=seeds,
-    #     move=move,
-    #     k=k,
-    #     size=size,
-    # )
 
     # Calculate total steps considering the opponent's store
     total_steps = move + seeds + passes
     return total_steps % (13 + passes), total_steps
 
 
-def evaluate_kalah_simple(
-    state: KalahGameState,
-    player: int,
-    m_opp_disc: float = 0.9,
-    a: int = 20,
-    norm: bool = False,
-) -> float:
+@cython.ccall
+@cython.locals(
+    state=cython.object,
+    player=cython.int,
+    m_opp_disc=cython.double,
+    a=cython.int,
+    norm=cython.bint,
+    score=cython.double,
+)
+def evaluate_kalah_simple(state, player, m_opp_disc=0.9, a=20, norm=0):
     score = 0
     if player == 1:
         score = state.board[6] - state.board[-1] * (m_opp_disc if state.player == 3 - player else 1)
@@ -375,32 +368,45 @@ def evaluate_kalah_simple(
         return score
 
 
+@cython.ccall
+@cython.locals(
+    state=cython.object,
+    player=cython.int,
+    m_score=cython.double,
+    m_seed_diff=cython.double,
+    m_empty=cython.double,
+    m_double=cython.double,
+    m_capture=cython.double,
+    m_opp_disc=cython.double,
+    a=cython.int,
+    norm=cython.bint,
+    player_store=cython.int,
+    opponent_store=cython.int,
+    player_seeds=cython.int,
+    opponent_seeds=cython.int,
+    player_double_moves=cython.int,
+    opponent_double_moves=cython.int,
+    player_capture_moves=cython.int,
+    opponent_capture_moves=cython.int,
+    empty_opponent_houses=cython.int,
+    empty_player_houses=cython.int,
+    i=cython.int,
+    seeds=cython.int,
+    score=cython.double,
+    evaluation=cython.double,
+)
 def evaluate_kalah_enhanced(
-    state: KalahGameState,
-    player: int,
-    m_score: float = 10.0,
-    m_seed_diff: float = 2,
-    m_empty: float = 1,
-    m_double: float = 2,
-    m_capture: float = 4,
-    m_opp_disc: float = 0.99,
-    a: int = 5,
-    norm: bool = False,
-) -> float:
-    """
-    Evaluate a given state of a Kalah game from the perspective of the specified player.
-
-    :param state: The game state to evaluate.
-    :param player: The player for whom the evaluation is being done.
-    :param m_simple_eval: The weight for the simple evaluation function.
-    :param m_seed_diff: The weight for the difference in seeds between the players.
-    :param m_empty_houses_diff: The weight for the difference in empty houses between the players.
-    :param m_double_moves_diff: The weight for the difference in potential double moves between the players.
-    :param m_capture_moves_diff: The weight for the difference in potential capture moves between the players.
-    :param a: A parameter used in normalization.
-    :param norm: A boolean indicating whether to normalize the evaluation.
-    :return: A score representing the player's advantage in the game state.
-    """
+    state,
+    player,
+    m_score=10.0,
+    m_seed_diff=2,
+    m_empty=1,
+    m_double=2,
+    m_capture=4,
+    m_opp_disc=0.99,
+    a=5,
+    norm=False,
+):
     player_store = 6 if player == 1 else 13
     opponent_store = 13 if player == 2 else 6
 
@@ -408,12 +414,12 @@ def evaluate_kalah_enhanced(
     player_double_moves = opponent_double_moves = 0
     player_capture_moves = opponent_capture_moves = 0
     empty_opponent_houses = empty_player_houses = 0
-
+    board: cython.list = state.board
     for i in range(0, 13):  # go through all houses (excluding p2 store)
         if i == 6 or i == 13:  # Skip p1/p2 store
             continue
 
-        seeds = state.board[i]
+        seeds = board[i]
         # Check if the house belongs to the player or the opponent
         if (player == 1 and 0 <= i <= 5) or (player == 2 and 7 <= i <= 12):
             player_seeds += seeds
@@ -422,7 +428,7 @@ def evaluate_kalah_enhanced(
             else:
                 if m_double != 0 and calc_last_index_total_steps(seeds, i, opponent_store)[0] == player_store:
                     player_double_moves += 1
-                elif m_capture != 0 and is_capture(state.board, i, player):
+                elif m_capture != 0 and is_capture(board, i, player):
                     player_capture_moves += 1
 
         elif (player == 2 and 0 <= i <= 5) or (player == 1 and 7 <= i <= 12):
@@ -435,7 +441,7 @@ def evaluate_kalah_enhanced(
                 elif m_capture != 0 and is_capture(state.board, i, 3 - player):
                     opponent_capture_moves += 1
 
-    score = state.board[player_store] - state.board[opponent_store]
+    score = board[player_store] - board[opponent_store]
 
     evaluation = (
         m_score * score
@@ -451,13 +457,20 @@ def evaluate_kalah_enhanced(
         return evaluation
 
 
+@cython.ccall
+@cython.locals(
+    board=cython.list,
+    move=cython.int,
+    player=cython.int,
+    seeds=cython.int,
+    size=cython.int,
+    last_index=cython.int,
+    total_steps=cython.int,
+    opp=cython.int,
+    passed_opp=cython.bint,
+    rounds=cython.int,
+)
 def is_capture(board, move, player):
-    """
-    Check if the given move results in a capture.
-
-    :param move: The move to check, represented as the index of the house to pick up seeds from.
-    :return: True if the move results in a capture, False otherwise.
-    """
     seeds = board[move]
 
     # Calculate how often the opponent's pit is passed

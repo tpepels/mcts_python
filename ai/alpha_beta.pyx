@@ -530,8 +530,13 @@ cdef class AlphaBetaPlayer:
                 n_moves[self.player] += 1
                 depth_reached[self.player] += stat_depth_reached
 
+                try:
+                    eval_name = self.evaluate.__name__
+                except AttributeError:
+                    eval_name = self.evaluate.func.__name__
                 stat_dict = {
                     f"{self.player}_max_player": self.player,
+                    f"{self.player}_eval_func": eval_name,
                     "nodes_best_move_order": stat_tt_orders,
                     "nodes_visited": stat_visited,
                     "nodes_evaluated": stat_n_eval,
@@ -595,7 +600,7 @@ cdef class AlphaBetaPlayer:
             self.reset_globals()
 
     def print_cumulative_statistics(self):
-        if not self.debug:
+        if not self.debug or self.c_stats["count_searches"] == 0:
             return
 
         # Compute the average at the end of the game(s):

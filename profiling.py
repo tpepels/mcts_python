@@ -6,21 +6,21 @@ from run_games import run_game, AIParams
 
 p1_params = AIParams(
     ai_key="alphabeta",
-    eval_key="evaluate_breakthrough_lorenz",
+    eval_key="evaluate_blokus",
     max_player=1,
     ai_params={"max_time": 10, "debug": True, "use_kill_moves": True, "use_history": True},
     eval_params={},
 )
 p2_params = AIParams(
     ai_key="alphabeta",
-    eval_key="evaluate_breakthrough_lorenz",
+    eval_key="evaluate_blokus",
     max_player=2,
     ai_params={"max_time": 10, "debug": True, "use_history": True, "use_kill_moves": True},
     eval_params={},
 )
 
 run_game(
-    game_key="breakthrough",
+    game_key="blokus",
     game_params={},
     p1_params=p1_params,
     p2_params=p2_params,
@@ -29,7 +29,7 @@ run_game(
 # try:
 #     # Use cProfile to run the function and save the profiling results to a file
 #     cProfile.run(
-#         'run_game(game_key="ninarow",game_params={"board_size": 9, "row_length": 5},p1_params=p1_params,p2_params=p2_params)',
+#         'run_game(game_key="blokus",game_params={},p1_params=p1_params,p2_params=p2_params)',
 #         "profiler_results.out",
 #     )
 # except KeyboardInterrupt:

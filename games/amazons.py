@@ -91,7 +91,7 @@ class AmazonsGameState(GameState):
         self.black_queens = []
 
         # Use numpy arrays for the board
-        board = np.zeros((self.board_size, self.board_size), dtype=int)
+        board = np.zeros((self.board_size, self.board_size), dtype=np.int32)
         mid = self.board_size // 2
 
         # Place the black queens
@@ -240,6 +240,7 @@ class AmazonsGameState(GameState):
         queens = self.white_queens if self.player == 1 else self.black_queens
         random.shuffle(queens)
         for queen in queens:
+            # TODO It might be faster to just use the cython function here instead of the generator...
             for move in self.get_legal_moves_for_amazon(*queen):
                 yield move
 
@@ -253,7 +254,7 @@ class AmazonsGameState(GameState):
 
         legal_actions = []
         for queen in queens:
-            queen_moves = list(self.get_legal_moves_for_amazon(*queen))
+            queen_moves = list(get_legal_moves_for_amazon(queen[0], queen[1], self.board))
             legal_actions.extend(queen_moves)
             n_moves_per_queen[queen] = len(queen_moves)
 
@@ -324,7 +325,7 @@ class AmazonsGameState(GameState):
     @property
     def transposition_table_size(self):
         # return an appropriate size based on the game characteristics
-        return 2**21
+        return 2**17
 
     def is_terminal(self):
         """
@@ -408,6 +409,68 @@ class AmazonsGameState(GameState):
 
 
 @cython.ccall
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int)
+def get_legal_moves_for_amazon(x: cython.int, y: cython.int, board: cython.int[:, :]) -> cython.list:
+    """
+    Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
+    """
+    moves: cython.list = []
+    arrow_shots: cython.list
+    for dx in range(-1, 2):
+        for dy in range(-1, 2):
+            if dx == 0 and dy == 0:
+                continue
+            nx, ny = x + dx, y + dy  # the next cell in the direction
+
+            while 0 <= nx < board.shape[0] and 0 <= ny < board.shape[1]:
+                if board[nx, ny] == 0:  # free cell
+                    # Find all legal arrow shots in the current direction.
+                    arrow_shots = generate_arrow_shots(nx, ny, x, y, board)
+                    for i in range(len(arrow_shots)):
+                        moves.append((x, y, nx, ny, arrow_shots[i][0], arrow_shots[i][1]))
+                    nx += dx
+                    ny += dy  # keep exploring in the direction
+
+                else:  # blocked cell
+                    break
+    return moves
+
+
+@cython.ccall
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.locals(adx=cython.int, ady=cython.int, a_nx=cython.int, a_ny=cython.int)
+def generate_arrow_shots(
+    nx: cython.int, ny: cython.int, x: cython.int, y: cython.int, board: cython.int[:, :]
+) -> cython.list:
+    """
+    Generate all legal arrow shots from the position (nx, ny).
+    """
+    arrow_shots: cython.list = []
+    for adx in range(-1, 2):
+        for ady in range(-1, 2):
+            if adx == 0 and ady == 0:
+                continue
+            a_nx, a_ny = nx + adx, ny + ady  # the next cell in the direction
+
+            while 0 <= a_nx < board.shape[0] and 0 <= a_ny < board.shape[1]:
+                if board[a_nx, a_ny] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
+                    arrow_shots.append((a_nx, a_ny))
+
+                elif board[a_nx, a_ny] != 0:  # blocked cell
+                    break
+
+                a_nx += adx
+                a_ny += ady
+
+    return arrow_shots
+
+
+@cython.ccall
 @cython.infer_types(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -424,12 +487,12 @@ def evaluate_move(n_moves_per_queen: cython.dict, move: cython.tuple, mid: cytho
     """
     score: cython.int = 0
 
-    start_x: cython.uint
-    start_y: cython.uint
-    end_x: cython.uint
-    end_y: cython.uint
-    arrow_x: cython.uint
-    arrow_y: cython.uint
+    start_x: cython.int
+    start_y: cython.int
+    end_x: cython.int
+    end_y: cython.int
+    arrow_x: cython.int
+    arrow_y: cython.int
 
     # Extract the start and end positions of the amazon and the arrow shot from the move
     start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
@@ -463,7 +526,7 @@ def evaluate_amazons(
     m_opp_disc: cython.float = 0.9,
     a: cython.int = 1,
     norm: cython.bint = 0,
-) -> cython.float:
+) -> cython.double:
     """
     Evaluate the given game state from the perspective of the specified player.
 
@@ -472,29 +535,32 @@ def evaluate_amazons(
     :return: A score representing the player's advantage in the game state.
     """
     # Variables for the heuristics
-    player_controlled_squares: cython.float = 0
-    opponent_controlled_squares: cython.float = 0
+    player_controlled_squares: cython.double = 0
+    opponent_controlled_squares: cython.double = 0
+    board: cnp.ndarray = state.board
 
     # The queens to iterate over
-    player_queens: cython.list = state.white_queens if player == 1 else state.black_queens
-    opp_queens: cython.list = state.white_queens if player == 2 else state.black_queens
+    player_queens: cython.list = state.white_queens
+    if player == 2:
+        player_queens = state.black_queens
+
+    opp_queens: cython.list = state.black_queens
+    if player == 2:
+        opp_queens = state.white_queens
+
     i: cython.int
+
     # Iterate through the queens and collect information about player's and opponent's moves and controlled squares.
     for i in range(4):
-        player_controlled_squares += count_reachable_squares(
-            state.board, player_queens[i][0], player_queens[i][1]
-        )
-    # print(f"{player_controlled_squares=}")
-
+        player_controlled_squares += count_reachable_squares(board, player_queens[i][0], player_queens[i][1])
     for i in range(4):
-        opponent_controlled_squares += count_reachable_squares(
-            state.board, opp_queens[i][0], opp_queens[i][1]
-        )
-    # print(f"{opponent_controlled_squares=}")
+        opponent_controlled_squares += count_reachable_squares(board, opp_queens[i][0], opp_queens[i][1])
+
     # Calculate the differences between player's and opponent's moves and controlled squares.
-    controlled_squares_difference = player_controlled_squares - opponent_controlled_squares * (
-        m_opp_disc if state.player == 3 - player else 1
-    )
+    controlled_squares_difference: cython.double = player_controlled_squares - opponent_controlled_squares
+
+    if state.player == 3 - player:
+        controlled_squares_difference *= m_opp_disc
 
     # Return a weighted combination of the differences as the evaluation score.
     if norm:
@@ -504,18 +570,32 @@ def evaluate_amazons(
 
 
 @cython.ccall
+@cython.cdivision(True)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.overflowcheck(False)
+@cython.locals(
+    max_depth=cython.uint,
+    player_queens=cython.list,
+    opp_queens=cython.list,
+    terr=cython.float,
+    kill_save=cython.float,
+    imm_mob=cython.float,
+    mob_heur=cython.float,
+    utility=cython.double,
+)
 def evaluate_amazons_lieberum(
     state: AmazonsGameState,
     player: cython.int,
-    n_moves_cutoff: cython.uint = 15,
+    n_moves_cutoff: cython.int = 15,
     m_ter: cython.float = 0.25,
     m_kill_s: cython.float = 0.25,
     m_imm: cython.float = 0.25,
     m_mob: cython.float = 0.25,
     m_opp_disc: cython.float = 0.9,
     a: cython.uint = 50,
-    norm: cython.bint = False,
-):
+    norm: cython.bint = 0,
+) -> cython.double:
     """
     Evaluates the current game state for Game of the Amazons using Lieberum's evaluation function,
     which takes into account territory control, the potential to capture or save queens, mobility of queens,
@@ -535,7 +615,7 @@ def evaluate_amazons_lieberum(
     :return: The evaluation score for the given player.
     """
     max_depth: cython.uint = 3
-
+    board: cnp.ndarray = state.board
     if state.n_moves < n_moves_cutoff:
         return evaluate_amazons(state, player, m_opp_disc=m_opp_disc, norm=norm)
     # The queens to iterate over
@@ -543,24 +623,25 @@ def evaluate_amazons_lieberum(
     opp_queens = state.white_queens if player == 2 else state.black_queens
 
     if m_ter > 0:
-        terr = territory_heuristic(opp_queens, player_queens, state.board, max_depth=max_depth)
+        terr = territory_heuristic(opp_queens, player_queens, board, max_depth=max_depth)
     else:
         terr = 0
 
     if m_kill_s > 0 or m_imm > 0:
-        kill_save, imm_mob = kill_save_queens_immediate_moves(opp_queens, player_queens, state.board)
+        kill_save, imm_mob = kill_save_queens_immediate_moves(opp_queens, player_queens, board)
     else:
         kill_save = imm_mob = 0
 
     if m_mob > 0:
-        mob_heur = mobility_heuristic(opp_queens, player_queens, state.board)
+        mob_heur = mobility_heuristic(opp_queens, player_queens, board)
     else:
         mob_heur = 0
 
     # Calculate the utility of the current board state using a combination of heuristics.
-    utility = (m_ter * terr + m_kill_s * kill_save + m_imm * imm_mob + m_mob * mob_heur) * (
-        m_opp_disc if state.player == 3 - player else 1
-    )
+    utility: cython.double = m_ter * terr + m_kill_s * kill_save + m_imm * imm_mob + m_mob * mob_heur
+
+    if state.player == 3 - player:
+        utility *= m_opp_disc
 
     if norm:
         return normalize(utility, a)
@@ -568,7 +649,21 @@ def evaluate_amazons_lieberum(
         return utility
 
 
-@cython.ccall
+@cython.cfunc
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.locals(
+    i=cython.int,
+    x=cython.int,
+    y=cython.int,
+    count=cython.int,
+    kill_save=cython.int,
+    imm_moves=cython.int,
+    their_queen_positions=cython.list,
+    my_queen_positions=cython.list,
+    board=cnp.ndarray,
+)
 def kill_save_queens_immediate_moves(
     their_queen_positions: cython.list, my_queen_positions: cython.list, board
 ) -> tuple:
@@ -579,16 +674,21 @@ def kill_save_queens_immediate_moves(
     Calculate the immediate moves heuristic, which is the difference between the number of the player's legal
     immediate moves and the number of the opponent's legal immediate moves.
     """
-    kill_save = 0
-    imm_moves = 0
+    kill_save: cython.int = 0
+    imm_moves: cython.int = 0
+
     for i in range(4):
-        count = count_reachable_squares(board, my_queen_positions[i][0], my_queen_positions[i][0])
+        x = my_queen_positions[i][0]
+        y = my_queen_positions[i][1]
+        count = count_reachable_squares(board, x, y)
         imm_moves += count
         if count > 0:
             kill_save += 1
 
     for i in range(4):
-        count = count_reachable_squares(board, their_queen_positions[i][0], their_queen_positions[i][1])
+        x = their_queen_positions[i][0]
+        y = their_queen_positions[i][1]
+        count = count_reachable_squares(board, x, y)
         imm_moves -= count
         if count > 0:
             kill_save -= 1
@@ -596,9 +696,12 @@ def kill_save_queens_immediate_moves(
     return kill_save, imm_moves
 
 
-@cython.ccall
+@cython.cfunc
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 def mobility_heuristic(
-    their_queen_positions: cython.list, my_queen_positions: cython.list, board
+    their_queen_positions: cython.list, my_queen_positions: cython.list, board: cnp.ndarray
 ) -> cython.int:
     """
     Calculate the mobility heuristic, which is the difference between the number of reachable squares for
@@ -606,107 +709,147 @@ def mobility_heuristic(
     """
     my_score: cython.int = 0
     their_score: cython.int = 0
+    x: cython.int
+    y: cython.int
 
     for i in range(4):
-        my_score += flood_fill(board, my_queen_positions[i])
+        x = my_queen_positions[i][0]
+        y = my_queen_positions[i][1]
+        my_score += flood_fill(board, x, y)
     for i in range(4):
-        their_score += flood_fill(board, their_queen_positions[i])
+        x = their_queen_positions[i][0]
+        y = their_queen_positions[i][1]
+        their_score += flood_fill(board, x, y)
 
     return my_score - their_score
 
 
-@cython.ccall
-def flood_fill(board, pos):
-    stack = [pos]
+@cython.cfunc
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.locals(
+    x=cython.int,
+    y=cython.int,
+    new_x=cython.int,
+    new_y=cython.int,
+    size=cython.int,
+    dr=cython.int,
+    dc=cython.int,
+    stack=cython.list,
+)
+def flood_fill(board: cython.int[:, :], x: cython.int, y: cython.int) -> cython.int:
+    stack = [(x, y)]
     visited = set()
-    size = len(board)
+    size = board.shape[0]
     while stack:
         x, y = stack.pop()
         visited.add((x, y))
 
-        for direction in DIRECTIONS:
-            new_x, new_y = x + direction[0], y + direction[1]
+        for dr in range(-1, 2):
+            for dc in range(-1, 2):
+                if dr == dc == 0:
+                    continue
+                new_x, new_y = x + dr, y + dc
 
-            if (
-                0 <= new_x < size
-                and 0 <= new_y < size
-                and board[new_x, new_y] == 0
-                and (new_x, new_y) not in visited
-            ):
-                stack.append((new_x, new_y))
+                if (
+                    0 <= new_x < size
+                    and 0 <= new_y < size
+                    and board[new_x, new_y] == 0
+                    and (new_x, new_y) not in visited
+                ):
+                    stack.append((new_x, new_y))
 
     return len(visited) - 1
 
 
-@cython.ccall
+@cython.cfunc
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.boundscheck(False)
+@cython.initializedcheck(False)
 def territory_heuristic(
     their_queen_positions: cython.list,
     my_queen_positions: cython.list,
-    board,
+    board: cnp.ndarray,
     max_depth: cython.uint,
-):
+) -> cython.int:
     """
     Calculate the territory heuristic, which is the difference between the number of squares controlled by
     the player's queens and the number of squares controlled by the opponent's queens.
 
     Note that this is an expensive method
     """
-    assert isinstance(board, np.ndarray), f"Expected board to be a numpy array, but got {type(board)}"
 
-    size = len(board)
+    size: cython.int = board.shape[0]
 
-    my_territory = np.full((size, size), np.finfo(np.float64).max)
-    their_territory = np.full((size, size), np.finfo(np.float64).max)
+    my_territory: cython.double[:, :] = np.full((size, size), np.finfo(np.float64).max)
+    their_territory: cython.double[:, :] = np.full((size, size), np.finfo(np.float64).max)
 
-    for queen in my_queen_positions:
-        territory_helper(queen, board, my_territory, max_depth)
+    for i in range(4):
+        territory_helper(my_queen_positions[i], board, my_territory, max_depth)
 
-    for queen in their_queen_positions:
-        territory_helper(queen, board, their_territory, max_depth)
+    for i in range(4):
+        territory_helper(their_queen_positions[i], board, their_territory, max_depth)
 
     return territory_compare(my_territory, their_territory)
 
 
 @cython.cfunc
-def territory_helper(queen_position: cython.tuple, board, out: cython.list, max_depth: cython.uint):
-    assert isinstance(board, np.ndarray), f"Expected board to be a numpy array, but got {type(board)}"
-
-    out[queen_position[0], queen_position[1]] = 0
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.boundscheck(False)
+@cython.initializedcheck(False)
+@cython.locals(
+    direction=cython.tuple,
+    curr_pos=cython.tuple,
+    x=cython.int,
+    y=cython.int,
+    size=cython.int,
+    new_x=cython.int,
+    new_y=cython.int,
+    dc=cython.int,
+    dr=cython.int,
+    move_count=cython.int,
+)
+def territory_helper(
+    queen_position: cython.tuple, board: cython.int[:, :], out: cython.double[:, :], max_depth: cython.uint
+):
+    x = queen_position[0]
+    y = queen_position[1]
+    out[x, y] = 0
     queue = deque()
+    size = board.shape[0]
 
-    for direction in DIRECTIONS:
-        new_pos = np.add(queen_position, direction)
-        if (
-            0 <= new_pos[0] < len(board)
-            and 0 <= new_pos[1] < len(board)
-            and board[new_pos[0], new_pos[1]] == 0
-        ):
-            queue.append((direction, 1, new_pos))
-
+    for dr in range(-1, 2):
+        for dc in range(-1, 2):
+            if dr == dc == 0:
+                continue
+            new_x, new_y = x + dr, y + dc
+            if 0 <= new_x < size and 0 <= new_y < size and board[new_x, new_y] == 0:
+                queue.append(((dr, dc), 1, (new_x, new_y)))
     while queue:
         direction, move_count, curr_pos = queue.pop()
-
-        if move_count >= max_depth or out[curr_pos[0], curr_pos[1]] <= move_count:
+        x = curr_pos[0]
+        y = curr_pos[1]
+        if move_count >= max_depth or out[x, y] <= move_count:
             continue
-
-        out[curr_pos[0], curr_pos[1]] = move_count
-
-        for next_direction in DIRECTIONS:
-            new_pos = np.add(curr_pos, next_direction)
-            if (
-                0 <= new_pos[0] < len(board)
-                and 0 <= new_pos[1] < len(board)
-                and board[new_pos[0], new_pos[1]] == 0
-            ):
-                if next_direction == direction:
-                    queue.append((next_direction, move_count, new_pos))
-                else:
-                    queue.append((next_direction, move_count + 1, new_pos))
+        out[x, y] = move_count
+        for dr in range(-1, 2):
+            for dc in range(-1, 2):
+                if dr == dc == 0:
+                    continue
+                new_x, new_y = x + dr, y + dc
+                if 0 <= new_x < size and 0 <= new_y < size and board[new_x, new_y] == 0:
+                    if dr == direction[0] and dc == direction[1]:
+                        queue.append(((dr, dc), move_count, (new_x, new_y)))
+                    else:
+                        queue.append(((dr, dc), move_count + 1, (new_x, new_y)))
 
 
 @cython.cfunc
-def territory_compare(ours, theirs):
-    diff_matrix = np.subtract(ours, theirs)
+def territory_compare(ours: cython.double[:, :], theirs: cython.double[:, :]) -> cython.int:
+    diff_matrix: cnp.ndarray = np.subtract(ours, theirs)
     return np.count_nonzero(diff_matrix < 0) - np.count_nonzero(diff_matrix > 0)
 
 
@@ -717,7 +860,7 @@ def territory_compare(ours, theirs):
 @cython.boundscheck(False)
 @cython.infer_types(True)
 @cython.initializedcheck(False)
-def count_reachable_squares(board: cnp.ndarray, x: cython.int, y: cython.int):
+def count_reachable_squares(board: cython.int[:, :], x: cython.int, y: cython.int) -> cython.int:
     """
     Count the number of squares reachable by the piece at the given position (x, y) in the game state.
 
@@ -728,7 +871,7 @@ def count_reachable_squares(board: cnp.ndarray, x: cython.int, y: cython.int):
     """
     reachable: cython.int = 0
     size: cython.int = board.shape[0]
-    direct: cython.int
+
     dx: cython.int
     dy: cython.int
     ny: cython.int
@@ -736,30 +879,31 @@ def count_reachable_squares(board: cnp.ndarray, x: cython.int, y: cython.int):
     x_limit: cython.int
     y_limit: cython.int
 
-    for direct in range(8):
-        dx = DIRECTIONS[direct][0]
-        dy = DIRECTIONS[direct][1]
+    for dx in range(-1, 2):
+        for dy in range(-1, 2):
+            if dx == dy == 0:
+                continue
 
-        nx, ny = x + dx, y + dy
+            nx, ny = x + dx, y + dy
 
-        # Precompute the limits based on the direction
-        if dx > 0:
-            x_limit = size
-        elif dx < 0:
-            x_limit = -1
-        else:
-            x_limit = nx + 1  # unchanged
+            # Precompute the limits based on the direction
+            if dx > 0:
+                x_limit = size
+            elif dx < 0:
+                x_limit = -1
+            else:
+                x_limit = nx + 1  # unchanged
 
-        if dy > 0:
-            y_limit = size
-        elif dy < 0:
-            y_limit = -1
-        else:
-            y_limit = ny + 1  # unchanged
+            if dy > 0:
+                y_limit = size
+            elif dy < 0:
+                y_limit = -1
+            else:
+                y_limit = ny + 1  # unchanged
 
-        while nx != x_limit and ny != y_limit and board[nx, ny] == 0:
-            reachable += 1
-            nx += dx
-            ny += dy
+            while nx != x_limit and ny != y_limit and board[nx, ny] == 0:
+                reachable += 1
+                nx += dx
+                ny += dy
 
     return reachable

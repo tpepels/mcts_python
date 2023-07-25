@@ -115,7 +115,13 @@ class TicTacToeGameState(GameState):
         if self.n_turns < self.row_length * 2:
             return 0
 
-        return get_reward(player, self.last_move, self.board, self.row_length, self.size, self.player)
+        reward = get_reward(
+            player, self.last_move[0], self.last_move[1], self.board, self.row_length, self.size, self.player
+        )
+        if reward == 0:
+            # Check if the game is a draw
+            if np.all(self.board != 0):  # If there are no empty spaces left
+                return draw
 
     def is_capture(self, move):
         # There are no captures in Tic-Tac-Toe, so this function always returns False.
@@ -130,7 +136,7 @@ class TicTacToeGameState(GameState):
         """
         scores = []
         for move in moves:
-            scores.append((move, evaluate_move(move, self.size, self.board, self.player)))
+            scores.append((move, evaluate_move(move[0], move[1], self.size, self.board, self.player)))
         return scores
 
     def evaluate_move(self, move):
@@ -140,7 +146,7 @@ class TicTacToeGameState(GameState):
         :param move: The move to evaluate.
         :return: A tuple with the freedom score, connectivity score, and centrality score for the move.
         """
-        return evaluate_move(move, self.size, self.board, self.player)
+        return evaluate_move(move[0], move[1], self.size, self.board, self.player)
 
     def visualize(self):
         visual = "    " + "   ".join(str(i) for i in range(self.size)) + "\n"  # Print column numbers
@@ -188,17 +194,23 @@ class TicTacToeGameState(GameState):
     j=cython.int,
     a=cython.int,
     move=cython.tuple,
-    board=cnp.ndarray,
+    board=cython.int[:, :],
     player=cython.int,
 )
-def evaluate_move(move, size, board, player) -> cython.float:
-    x = move[0]
-    y = move[1]
-    adjacent_moves = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
+def evaluate_move(x, y, size, board, player) -> cython.float:
+    # adjacent_moves = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
+    adjacent_moves: cython.int[:, :] = np.zeros((8, 2), dtype=np.int32)
+    idx = 0
+    for i in range(-1, 2):
+        for j in range(-1, 2):
+            if i != 0 or j != 0:
+                adjacent_moves[idx][0] = x + i
+                adjacent_moves[idx][1] = y + j
+                idx += 1
     # Calculate the Manhattan distance from the center
     center = size // 2
     connectivity_score = 0
-    for a in range(len(adjacent_moves)):
+    for a in range(adjacent_moves.shape[0]):
         i = adjacent_moves[a][0]
         j = adjacent_moves[a][1]
         if 0 <= i < size and 0 <= j < size and board[i, j] == player:
@@ -219,8 +231,9 @@ directions: cython.list = [(0, 1), (1, 0), (1, 1), (-1, 1)]  # horizontal, verti
 @cython.nonecheck(False)
 @cython.locals(
     player=cython.int,
-    last_move=cython.tuple,
-    board=cnp.ndarray,
+    last_move_x=cython.int,
+    last_move_y=cython.int,
+    board=cython.int[:, :],
     row_length=cython.int,
     size=cython.int,
     last_player=cython.int,
@@ -231,33 +244,32 @@ directions: cython.list = [(0, 1), (1, 0), (1, 1), (-1, 1)]  # horizontal, verti
     i=cython.int,
     x=cython.int,
     y=cython.int,
+    player_to_move=cython.int,
 )
-def get_reward(player, last_move, board, row_length, size, player_to_move) -> cython.int:
+def get_reward(player, last_move_x, last_move_y, board, row_length, size, player_to_move) -> cython.int:
     # only the last player to make a move can actually win the game, so we can look from their perspective
     last_player = 3 - player_to_move
     am_i_last_player = player == last_player
 
-    for dx, dy in directions:
-        count = 0
-        for i in range(-row_length + 1, row_length):
-            x = last_move[0] + dx * i
-            y = last_move[1] + dy * i
+    for dx in range(-1, 2):  # Cover -1, 0, 1 for dx
+        for dy in range(0, 2):  # Cover 0, 1 for dy
+            if dx == dy or dx < 0:
+                continue
+            count = 0
+            for i in range(-row_length + 1, row_length):
+                x = last_move_x + dx * i
+                y = last_move_y + dy * i
 
-            # Ensure the indices are within the board
-            if 0 <= x < size and 0 <= y < size:
-                if board[x, y] == last_player:
-                    count += 1
-                    if count == row_length:
-                        return win if am_i_last_player else loss
+                # Ensure the indices are within the board
+                if 0 <= x < size and 0 <= y < size:
+                    if board[x, y] == last_player:
+                        count += 1
+                        if count == row_length:
+                            return win if am_i_last_player else loss
+                    else:
+                        count = 0
                 else:
                     count = 0
-            else:
-                count = 0
-
-    # Check if the game is a draw
-    if np.all(board != 0):  # If there are no empty spaces left
-        return draw
-
     return 0
 
 
@@ -324,6 +336,29 @@ directions: cython.list = [(1, 0), (0, 1), (1, 1), (-1, 1)]  # right, down, down
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
+@cython.locals(
+    row_length=cython.int,
+    board=cython.int[:, :],
+    score_p1=cython.double,
+    score_p2=cython.double,
+    x=cython.int,
+    y=cython.int,
+    dx=cython.int,
+    dy=cython.int,
+    nx=cython.int,
+    ny=cython.int,
+    p=cython.int,
+    o=cython.int,
+    offset=cython.int,
+    posi=cython.int,
+    direct=cython.int,
+    count=cython.int,
+    space_count=cython.int,
+    center=cython.int,
+    centrality_score=cython.int,
+    positions=cython.int[:, :],
+    direction=cython.int,
+)
 def ninarow_simple_evaluation(
     state: cython.object,
     player: cython.int,
@@ -331,31 +366,15 @@ def ninarow_simple_evaluation(
     norm: cython.bint = 0,
     a: cython.int = 100,
 ) -> cython.int:
-    row_length: cython.int = state.row_length
-    board: cnp.ndarray = state.board
-    score_p1: cython.int = 0
-    score_p2: cython.int = 0
-    x: cython.int
-    y: cython.int
-    dx: cython.int
-    dy: cython.int
-    nx: cython.int
-    ny: cython.int
-    p: cython.int
-    o: cython.int
-    offset: cython.int
-    posi: cython.int
-    direct: cython.int
-    count: cython.int
-    space_count: cython.int
-    center: cython.int = board.shape[0] // 2
-    centrality_score: cython.int
-    positions: cnp.ndarray
-    direction: cython.int
+    row_length = state.row_length
+    board = state.board
+    center = board.shape[0] // 2
+    score_p1 = 0
+    score_p2 = 0
 
     if state.n_turns < 3 * row_length:
         for p in range(1, 3):
-            positions = np.array(np.where(board == p)).T
+            positions = np.array(np.where(state.board == p)).T
             for posi in range(positions.shape[0]):
                 x = positions[posi][0]
                 y = positions[posi][1]
@@ -368,59 +387,60 @@ def ninarow_simple_evaluation(
     if state.n_turns > row_length:
         for p in range(1, 3):
             o = 3 - p
-            positions = np.array(np.where(board == p)).T
+            positions = np.array(np.where(state.board == p)).T
             for posi in range(positions.shape[0]):
                 x = positions[posi][0]
                 y = positions[posi][1]
 
-                for direct in range(4):
-                    dx = directions[direct][0]
-                    dy = directions[direct][1]
+                for dx in range(-1, 2):
+                    for dy in range(0, 2):
+                        # Avoid the case dx = dy = 0
+                        if (dx != 0 or dy != 0) and not (dx == -1 and dy == 0):
+                            # Check if there's enough space in both directions
+                            space_count = 0
+                            for direction in range(-1, 2):
+                                for offset in range(1, row_length):
+                                    nx = x + (direction * dx * offset)
+                                    ny = y + (direction * dy * offset)
+                                    if (
+                                        nx < 0
+                                        or nx >= board.shape[0]
+                                        or ny < 0
+                                        or ny >= board.shape[1]
+                                        or board[nx, ny] == o
+                                    ):
+                                        break
+                                    space_count += 1
 
-                    # Check if there's enough space in both directions
-                    space_count = 0
-                    for direction in (-1, 1):
-                        for offset in range(1, row_length):
-                            nx = x + (direction * dx * offset)
-                            ny = y + (direction * dy * offset)
-                            if (
-                                nx < 0
-                                or nx >= board.shape[0]
-                                or ny < 0
-                                or ny >= board.shape[1]
-                                or board[nx, ny] == o
-                            ):
-                                break
-                            space_count += 1
+                            if space_count < row_length:
+                                continue
 
-                    if space_count < row_length:
-                        continue
+                            count = 1  # Start with the current mark
+                            for offset in range(1, row_length):
+                                nx = x + dx * offset
+                                ny = y + dy * offset
 
-                    count = 1  # Start with the current mark
-                    for offset in range(1, row_length):
-                        nx = x + dx * offset
-                        ny = y + dy * offset
+                                if (
+                                    nx < 0
+                                    or nx >= board.shape[0]
+                                    or ny < 0
+                                    or ny >= board.shape[1]
+                                    or board[nx, ny] != p
+                                ):
+                                    break
+                                count += 1
 
-                        if (
-                            nx < 0
-                            or nx >= board.shape[0]
-                            or ny < 0
-                            or ny >= board.shape[1]
-                            or board[nx, ny] != p
-                        ):
-                            break
-                        count += 1
-
-                    # If the line can be potentially completed, add the count to the score
-                    if space_count >= row_length:
-                        if p == 1:
-                            score_p1 += int(count**power)
-                        else:
-                            score_p2 += int(count**power)
+                            # If the line can be potentially completed, add the count to the score
+                            if space_count >= row_length:
+                                if p == 1:
+                                    score_p1 += count**power
+                                else:
+                                    score_p2 += count**power
 
     if norm:
         return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, a)
-    return score_p1 - score_p2 if player == 1 else score_p2 - score_p1
+
+    return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
 
 
 cache: cython.dict = {}
