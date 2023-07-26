@@ -102,7 +102,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def visualize(self):
+    def visualize(self, full_debug=False):
         """
         Generate a string representation of the game
 
@@ -119,6 +119,8 @@ class GameState(ABC):
 import numpy as np
 
 
+@cython.ccall
+@cython.locals(value=cython.double, a=cython.double)
 def normalize(value, a):
     """
     Normalize value with range [-a,a] to [-1, 1] using tanh

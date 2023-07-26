@@ -343,9 +343,9 @@ class TranspositionTableMCTS:
         v1=0,
         v2=0,
         visits=0,
-        solved_player=None,
-        is_expanded=False,
-        im_value=None,
+        solved_player=0,
+        is_expanded=0,
+        im_value=0,
         board=None,
     ):
         entries = self.table.get(key, [])
@@ -360,13 +360,18 @@ class TranspositionTableMCTS:
                 self.collisions += 1
                 continue  # Skip this entry, as it is a collision
 
+            if im_value != 0:
+                _im_value = im_value
+            if solved_player != 0:
+                _solved_player = solved_player
+
             # Update existing entry
             entry[:] = (
                 v1 + _v1,
                 v2 + _v2,
-                im_value or _im_value,
+                _im_value,
                 visits + _visits,
-                solved_player or _solved_player,
+                _solved_player,
                 is_expanded or _is_expanded,
                 board_ref,
             )
@@ -376,7 +381,6 @@ class TranspositionTableMCTS:
         entries.append([v1, v2, im_value, visits, solved_player, is_expanded, board_ref])
         self.table[key] = entries
 
-    @cython.ccall
     def evict(self):
         # Replace the table with a new table that only includes keys in the visited set
         self.table = {key: self.table[key] for key in set(self.visited)}

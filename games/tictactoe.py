@@ -43,7 +43,7 @@ class TicTacToeGameState(GameState):
         self.zobrist_table = self.zobrist_tables[self.size]
 
         if self.board is None:
-            self.board = np.zeros((self.size, self.size), dtype=int)
+            self.board = np.zeros((self.size, self.size), dtype=np.int32)
             self.board_hash = 0
             for i in range(self.size):
                 for j in range(self.size):
@@ -148,7 +148,7 @@ class TicTacToeGameState(GameState):
         """
         return evaluate_move(move[0], move[1], self.size, self.board, self.player)
 
-    def visualize(self):
+    def visualize(self, full_debug=False):
         visual = "    " + "   ".join(str(i) for i in range(self.size)) + "\n"  # Print column numbers
         visual += "    " + "----" * self.size + "\n"
 
@@ -161,7 +161,22 @@ class TicTacToeGameState(GameState):
             if i != self.size - 1:
                 visual += "    " + "----" * self.size + "\n"
 
-        visual += "hash: " + str(self.board_hash)
+        if full_debug:
+            actions = self.get_legal_actions()
+            visual += "hash: " + str(self.board_hash)
+            visual += f"\nPlayer: {self.player} | {self.n_turns} moves made"
+            visual += f"\nReward: ({self.get_reward(1)}/{self.get_reward(2)}), Terminal: {self.is_terminal()}"
+            visual += f"\n{len(actions)} last_move: {self.last_move} actions: {self.get_legal_actions()}"
+
+            visual += f"\nEv P1: {evaluate_n_in_a_row(self, 1)}"
+            visual += f"\nEv P2: {evaluate_n_in_a_row(self, 2)}"
+            visual += f"\nSimple P1: {ninarow_simple_evaluation(self, 1)}"
+            visual += f"\nSimple P2: {ninarow_simple_evaluation(self, 2)}"
+            if len(actions) > 0:
+                actions = self.evaluate_moves(self.get_legal_actions())
+                actions = sorted(actions, key=lambda x: x[1], reverse=True)
+                visual += "\n" + "..." * 60
+                visual += "\n" + str(actions)
         return visual
 
     @property
@@ -358,11 +373,12 @@ directions: cython.list = [(1, 0), (0, 1), (1, 1), (-1, 1)]  # right, down, down
     centrality_score=cython.int,
     positions=cython.int[:, :],
     direction=cython.int,
+    line_broken=cython.int,
 )
 def ninarow_simple_evaluation(
     state: cython.object,
     player: cython.int,
-    power: cython.int = 4,
+    power: cython.int = 2,
     norm: cython.bint = 0,
     a: cython.int = 100,
 ) -> cython.int:
@@ -374,7 +390,7 @@ def ninarow_simple_evaluation(
 
     if state.n_turns < 3 * row_length:
         for p in range(1, 3):
-            positions = np.array(np.where(state.board == p)).T
+            positions = np.array(np.where(state.board == p)).T.astype(np.int32)
             for posi in range(positions.shape[0]):
                 x = positions[posi][0]
                 y = positions[posi][1]
@@ -387,21 +403,60 @@ def ninarow_simple_evaluation(
     if state.n_turns > row_length:
         for p in range(1, 3):
             o = 3 - p
-            positions = np.array(np.where(state.board == p)).T
+            positions = np.array(np.where(state.board == p)).T.astype(np.int32)
             for posi in range(positions.shape[0]):
                 x = positions[posi][0]
                 y = positions[posi][1]
 
                 for dx in range(-1, 2):
                     for dy in range(0, 2):
-                        # Avoid the case dx = dy = 0
                         if (dx != 0 or dy != 0) and not (dx == -1 and dy == 0):
-                            # Check if there's enough space in both directions
-                            space_count = 0
-                            for direction in range(-1, 2):
-                                for offset in range(1, row_length):
-                                    nx = x + (direction * dx * offset)
-                                    ny = y + (direction * dy * offset)
+                            # Counting marks, looking only in the positive direction
+                            count = 1  # Start with the current mark
+                            line_broken = 0
+                            for offset in range(1, row_length):
+                                nx = x + (dx * offset)
+                                ny = y + (dy * offset)
+                                if (
+                                    nx < 0
+                                    or nx >= board.shape[0]
+                                    or ny < 0
+                                    or ny >= board.shape[1]
+                                    or board[nx, ny] == o
+                                ):
+                                    break
+                                if board[nx, ny] == 0 and line_broken == 1:
+                                    break
+                                if board[nx, ny] == p and line_broken <= 1:
+                                    count += 1
+                                if board[nx, ny] == 0:
+                                    line_broken += 1
+
+                            if count < 2:
+                                continue
+
+                            # Counting spaces, looking in both directions
+                            space_count = 1
+                            for offset in range(1, row_length):
+                                nx = x + (dx * offset)
+                                ny = y + (dy * offset)
+                                if (
+                                    nx < 0
+                                    or nx >= board.shape[0]
+                                    or ny < 0
+                                    or ny >= board.shape[1]
+                                    or board[nx, ny] == o
+                                ):
+                                    break
+                                if board[nx, ny] == 0 or board[nx, ny] == p:
+                                    space_count += 1
+                                    if space_count >= row_length:
+                                        break
+
+                            if space_count < row_length:
+                                for offset in range(-1, -row_length, -1):
+                                    nx = x + (dx * offset)
+                                    ny = y + (dy * offset)
                                     if (
                                         nx < 0
                                         or nx >= board.shape[0]
@@ -410,28 +465,16 @@ def ninarow_simple_evaluation(
                                         or board[nx, ny] == o
                                     ):
                                         break
-                                    space_count += 1
-
-                            if space_count < row_length:
-                                continue
-
-                            count = 1  # Start with the current mark
-                            for offset in range(1, row_length):
-                                nx = x + dx * offset
-                                ny = y + dy * offset
-
-                                if (
-                                    nx < 0
-                                    or nx >= board.shape[0]
-                                    or ny < 0
-                                    or ny >= board.shape[1]
-                                    or board[nx, ny] != p
-                                ):
-                                    break
-                                count += 1
+                                    if board[nx, ny] == 0 or board[nx, ny] == p:
+                                        space_count += 1
+                                        if space_count >= row_length:
+                                            break
 
                             # If the line can be potentially completed, add the count to the score
                             if space_count >= row_length:
+                                # If the line is broken we don't want that, unless we only need one more mark to win
+                                if count < (row_length - 1):
+                                    count -= line_broken
                                 if p == 1:
                                     score_p1 += count**power
                                 else:

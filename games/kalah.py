@@ -262,7 +262,7 @@ class KalahGameState(GameState):
         """
         return evaluate_move(self.board, move[0], self.player)
 
-    def visualize(self):
+    def visualize(self, full_debug=False):
         """
         Visualize the current game state.
         """
@@ -277,13 +277,39 @@ class KalahGameState(GameState):
         )
         player2_store = str(self.board[-1]).rjust(2)
         player1_store = str(self.board[self.num_houses]).rjust(2)
-        return (
+        output = (
             f"Player 1's store: {player1_store}\n"
             f"{top_row}\n"
             f"{bottom_row}\n"
             f"Player 2's store: {player2_store}\n"
-            f"hash: {self.board_hash}"
         )
+        output += "..." * 60 + "\n"
+
+        if full_debug:
+            actions = self.get_legal_actions()
+            output += f"Player: {self.player} | {len(actions)} actions: {[a[0] for a in actions]} | hash: {self.board_hash}\n"
+            output += f"Reward: {self.get_reward(1)}/{self.get_reward(2)} | Terminal?: {self.is_terminal()}\n"
+            # ------------------ Evaluation ----------------------
+            output += "-*-" * 8 + "\n"
+            simple_eval_1 = evaluate_kalah_simple(self, 1)
+            simple_eval_2 = evaluate_kalah_simple(self, 2)
+            output += f"Simple Eval P1: {simple_eval_1} P2: {simple_eval_2}\n"
+            # --------------- Simple Evaluation -------------------
+            enhanced_eval_1 = evaluate_kalah_enhanced(self, 1)
+            enhanced_eval_2 = evaluate_kalah_enhanced(self, 2)
+            output += f"Enhanced Eval P1: {enhanced_eval_1} P2: {enhanced_eval_2}\n"
+            output += "-*-" * 8 + "\n"
+
+            for action in actions:
+                output += f"{action} is capture? {is_capture(self.board, action[0], self.player)}\n"
+
+            if len(actions) > 0:
+                actions = self.evaluate_moves(self.get_legal_actions())
+                actions = sorted(actions, key=lambda x: x[1], reverse=True)
+                output += "..." * 60 + "\n"
+                output += str(actions)
+
+        return output
 
     @property
     def transposition_table_size(self):
@@ -359,9 +385,10 @@ def calc_last_index_total_steps(seeds, move, k, size=13):
 def evaluate_kalah_simple(state, player, m_opp_disc=0.9, a=20, norm=0):
     score = 0
     if player == 1:
-        score = state.board[6] - state.board[-1] * (m_opp_disc if state.player == 3 - player else 1)
+        score = (state.board[6] - state.board[-1]) * (m_opp_disc if state.player == 3 - player else 1)
     else:
-        score = state.board[-1] - state.board[6] * (m_opp_disc if state.player == 3 - player else 1)
+        score = (state.board[-1] - state.board[6]) * (m_opp_disc if state.player == 3 - player else 1)
+
     if norm:
         return normalize(score, a)
     else:
@@ -399,7 +426,7 @@ def evaluate_kalah_enhanced(
     state,
     player,
     m_score=10.0,
-    m_seed_diff=2,
+    m_seed_diff=0,
     m_empty=1,
     m_double=2,
     m_capture=4,
@@ -408,13 +435,14 @@ def evaluate_kalah_enhanced(
     norm=False,
 ):
     player_store = 6 if player == 1 else 13
-    opponent_store = 13 if player == 2 else 6
+    opponent_store = 6 if player == 2 else 13
 
     player_seeds = opponent_seeds = 0
     player_double_moves = opponent_double_moves = 0
     player_capture_moves = opponent_capture_moves = 0
     empty_opponent_houses = empty_player_houses = 0
     board: cython.list = state.board
+
     for i in range(0, 13):  # go through all houses (excluding p2 store)
         if i == 6 or i == 13:  # Skip p1/p2 store
             continue
@@ -423,6 +451,7 @@ def evaluate_kalah_enhanced(
         # Check if the house belongs to the player or the opponent
         if (player == 1 and 0 <= i <= 5) or (player == 2 and 7 <= i <= 12):
             player_seeds += seeds
+
             if seeds == 0:
                 empty_player_houses += 1
             else:
@@ -438,18 +467,19 @@ def evaluate_kalah_enhanced(
             else:
                 if m_double != 0 and calc_last_index_total_steps(seeds, i, player_store)[0] == opponent_store:
                     opponent_double_moves += 1
-                elif m_capture != 0 and is_capture(state.board, i, 3 - player):
+                elif m_capture != 0 and is_capture(board, i, 3 - player):
                     opponent_capture_moves += 1
 
-    score = board[player_store] - board[opponent_store]
-
     evaluation = (
-        m_score * score
-        + m_seed_diff * (player_seeds - opponent_seeds)
-        + m_empty * (empty_opponent_houses - empty_player_houses)
-        + m_double * (player_double_moves - opponent_double_moves)
-        + m_capture * (player_capture_moves - opponent_capture_moves)
-    ) * (m_opp_disc if state.player == 3 - player else 1)
+        (m_score * (board[player_store] - board[opponent_store]))
+        + (m_seed_diff * (player_seeds - opponent_seeds))
+        + (m_empty * (empty_opponent_houses - empty_player_houses))
+        + (m_double * (player_double_moves - opponent_double_moves))
+        + (m_capture * (player_capture_moves - opponent_capture_moves))
+    )
+
+    if state.player == 3 - player:
+        evaluation *= m_opp_disc
 
     if norm:
         return normalize(evaluation, a)

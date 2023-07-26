@@ -384,7 +384,7 @@ class AmazonsGameState(GameState):
             self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen, move, self.mid
         )
 
-    def visualize(self):
+    def visualize(self, full_debug=False):
         output = "Player: " + str(self.player) + "\n"
         cell_representation = {
             1: "W",
@@ -392,15 +392,49 @@ class AmazonsGameState(GameState):
             -1: "-",
             0: ".",
         }
+        output += "  " + " ".join(str(j) for j in range(self.board_size)) + "\n"  # column indices
         for i in range(self.board_size):
             row = [cell_representation[piece] for piece in self.board[i]]
-            output += " ".join(row) + "\n"
+            output += str(i) + " " * (2 - len(str(i))) + " ".join(row) + "\n"  # row index and the row content
 
         output += "hash: " + str(self.board_hash) + "\n"
         output += "w:" + str(self.white_queens) + "\n"
         output += "b:" + str(self.black_queens) + "\n"
-        output += "n_moves: " + str(self.n_moves) + " legal moves left? " + str(self.player_has_legal_moves)
-        output += "\nhas_legal_moves: " + str(self.has_legal_moves())
+
+        if full_debug:
+            n_moves = 0
+            if self.player_has_legal_moves:
+                n_moves = len(self.get_legal_actions())
+            output += f"Player: {self.player} has legal moves: {str(self.has_legal_moves())} | Turn: {self.n_moves} | # of moves: {n_moves}\n"
+            output += f"Reward: {self.get_reward(1)}/{self.get_reward(2)}, Terminal: {self.is_terminal()}\n"
+            output += "..." * 60 + "\n"
+            output += f"Evaluation w:{evaluate_amazons(self, 1)} (b: {evaluate_amazons(self, 2)})\n"
+            output += f"Lieberum Evaluation w:{evaluate_amazons_lieberum(self, 1)} (b: {evaluate_amazons_lieberum(self, 2)})\n"
+
+            white_queens = self.white_queens
+            black_queens = self.black_queens
+            output += "..." * 60 + "\n"
+            for queen in white_queens:
+                output += f"White {queen} reachable squares: {count_reachable_squares(self.board, queen[0], queen[1])}\n"
+            for queen in black_queens:
+                output += f"Black {queen} reachable squares: {count_reachable_squares(self.board, queen[0], queen[1])}\n"
+
+            output += "..." * 60 + "\n"
+
+            output += f"White kill/save/imm: {kill_save_queens_immediate_moves(black_queens, white_queens, self.board)}\n"
+            output += f"Black kill/save/imm: {kill_save_queens_immediate_moves(white_queens, black_queens, self.board)}\n"
+
+            output += f"White mobility: {mobility_heuristic(black_queens, white_queens, self.board)}\n"
+            output += f"Black mobility: {mobility_heuristic(white_queens, black_queens, self.board)}\n"
+
+            output += f"White territory: {territory_heuristic(black_queens, white_queens, self.board, max_depth=3)}\n"
+            output += f"Black territory: {territory_heuristic(white_queens, black_queens, self.board, max_depth=3)}\n"
+
+            if n_moves > 0:
+                actions = self.evaluate_moves(self.get_legal_actions())
+                actions = sorted(actions, key=lambda x: x[1], reverse=True)
+                output += "..." * 60 + "\n"
+                output += str(actions)
 
         return output
 
@@ -556,6 +590,13 @@ def evaluate_amazons(
     for i in range(4):
         opponent_controlled_squares += count_reachable_squares(board, opp_queens[i][0], opp_queens[i][1])
 
+    board_size: cython.int = board.shape[0] * board.shape[1]
+    player_controlled_squares = (board_size * player_controlled_squares) / (
+        player_controlled_squares**2 + 1
+    )
+    opponent_controlled_squares = (board_size * opponent_controlled_squares) / (
+        opponent_controlled_squares**2 + 1
+    )
     # Calculate the differences between player's and opponent's moves and controlled squares.
     controlled_squares_difference: cython.double = player_controlled_squares - opponent_controlled_squares
 
@@ -588,11 +629,11 @@ def evaluate_amazons_lieberum(
     state: AmazonsGameState,
     player: cython.int,
     n_moves_cutoff: cython.int = 15,
-    m_ter: cython.float = 0.25,
-    m_kill_s: cython.float = 0.25,
-    m_imm: cython.float = 0.25,
-    m_mob: cython.float = 0.25,
-    m_opp_disc: cython.float = 0.9,
+    m_ter: cython.float = 1,
+    m_kill_s: cython.float = 1,
+    m_imm: cython.float = 1,
+    m_mob: cython.float = 1,
+    m_opp_disc: cython.float = 1,
     a: cython.uint = 50,
     norm: cython.bint = 0,
 ) -> cython.double:

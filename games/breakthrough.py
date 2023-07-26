@@ -213,23 +213,110 @@ class BreakthroughGameState(GameState):
 
         return evaluate_move(self.board, move[0], move[1], self.player)
 
-    def visualize(self):
+    def visualize(self, full_debug=False):
         """
         Visualize the board for the Breakthrough game.
-
-        :param state: The Breakthrough game state.
-        :param characters: If True, print the board with characters, otherwise print raw values.
         """
-        result = ""
+        output = ""
         cell_representation = {0: ".", 1: "W", 2: "B"}
         column_letters = "  " + " ".join("ABCDEFGH") + "\n"  # Use chess-style notation
 
         for i in range(8):
             row = [cell_representation.get(piece, ".") for piece in self.board[i * 8 : i * 8 + 8]]
             formatted_row = " ".join(row)
-            result += f"{i + 1} {formatted_row}\n"
+            output += f"{i + 1} {formatted_row}\n"
 
-        return column_letters + result + "hash: " + str(self.board_hash)
+        output += column_letters
+        output += f"Player: {self.player}\n"
+
+        if full_debug:
+            if not self.validate_actions():
+                print(" !!! Invalid actions detected !!! ")
+
+            output += "Hash: " + str(self.board_hash) + "\n"
+            output += f"Reward: {self.get_reward(1)}/{self.get_reward(2)}, Terminal: {self.is_terminal()}\n"
+
+            moves = self.get_legal_actions()
+            output += f"{len(moves)} actions: {','.join([self.readable_move(x) for x in moves])}\n"
+            # ---------------------------Evaluations---------------------------------
+            output += f"Simple evaluation: {evaluate_breakthrough(self, 1, norm=False)}/{evaluate_breakthrough(self, 2, norm=False)}\n"
+            output += f"Lorenz evaluation: {evaluate_breakthrough_lorenz(self, 1, norm=False)}/{evaluate_breakthrough_lorenz(self, 2, norm=False)}\n"
+
+            white_pieces = np.where(self.board == 1)[0]
+            black_pieces = np.where(self.board == 2)[0]
+
+            output += f"# white pieces: {len(white_pieces)} | # black pieces: {len(black_pieces)}\n"
+            # ---------------------------Endgame-------------------------------------------
+            output += f"is endgame: {np.count_nonzero(self.board) < 16}\n"
+            output += "..." * 60 + "\n"
+            # ---------------------------Possible captures---------------------------------
+            wh_caps = count_capture_moves(self.board, white_pieces, 1)
+            bl_caps = count_capture_moves(self.board, black_pieces, 2)
+            output += f"White has {wh_caps} capture value, black has {bl_caps}.\n"
+            output += "..." * 60 + "\n"
+            # ---------------------------Piece safety--------------------------------------
+            for piece in black_pieces:
+                if not is_safe(piece, 2, self.board):
+                    output += f"{self.readable_location(piece)} - black is not safe\n"
+
+            for piece in white_pieces:
+                if not is_safe(piece, 1, self.board):
+                    output += f"{self.readable_location(piece)} - white is not safe\n"
+            output += "..." * 60 + "\n"
+            # ---------------------------Decisiveness---------------------------------
+            p1_decisive, p2_decisive, p1_antidecisive, p2_antidecisive = is_decisive(self)
+            output += f"Player 1 decisive: {p1_decisive}, Player 2 decisive: {p2_decisive}, Player 1 antidecisive: {p1_antidecisive}, Player 2 antidecisive: {p2_antidecisive}\n"
+            output += "..." * 60 + "\n"
+
+            if len(moves) > 0:
+                actions = self.evaluate_moves(self.get_legal_actions())
+                actions = sorted(actions, key=lambda x: x[1], reverse=True)
+                output += "..." * 60 + "\n"
+                output += str([(self.readable_move(a[0]), a[1]) for a in actions]) + "\n"
+
+            output += "..." * 60 + "\n"
+            # ---------------------------Piece mobility---------------------------------
+            for piece in black_pieces:
+                output += f"{self.readable_location(piece)} - black piece mobility: {piece_mobility(piece, 2, self.board)}\n"
+            for piece in white_pieces:
+                output += f"{self.readable_location(piece)} - white piece mobility: {piece_mobility(piece, 1, self.board)}\n"
+
+        return output
+
+    def validate_actions(self):
+        """
+        Check if the available actions are valid or not.
+
+        :return: A boolean indicating whether all actions are valid or not.
+        """
+        actions = self.get_legal_actions()
+        # Make sure all actions are unique.
+        if len(actions) != len(set(actions)):
+            print("Found duplicate actions.")
+            return False
+
+        for action in actions:
+            from_position, to_position = action
+
+            # Check that there is a piece belonging to the current player at the 'from' position.
+            if self.board[from_position] != self.player:
+                print(f"No piece for current player at {to_chess_notation(from_position)}.")
+                return False
+
+            # Check that there is not a piece belonging to the current player at the 'to' position.
+            if self.board[to_position] == self.player:
+                print(f"Existing piece for current player at {to_chess_notation(to_position)}.")
+                return False
+
+            # Check that all moves are in the correct direction (higher rows for p2, lower rows for p1).
+            if self.player == 1 and to_position >= from_position:
+                print(f"Invalid move direction for player 1 at {self.readable_move(action)}.")
+                return False
+            elif self.player == 2 and to_position <= from_position:
+                print(f"Invalid move direction for player 2 at {self.readable_move(action)}.")
+                return False
+
+        return True
 
     def readable_move(self, move):
         """
@@ -606,7 +693,9 @@ def evaluate_breakthrough_lorenz(
             antidecisive_values -= m_antidecisive if player_1_antidecisive else 0
 
     if m_cap >= 0:
-        caps = count_capture_moves(board, positions, player) - count_capture_moves(board, positions, opponent)
+        caps = count_capture_moves(board, np.where(state.board == player)[0], player) - count_capture_moves(
+            board, np.where(state.board == opponent)[0], opponent
+        )
 
     eval_value: cython.double = (
         decisive_values
@@ -790,7 +879,7 @@ def is_safe(position, player, board) -> cython.bint:
     col_direction = -1  # start with -1 direction, then change to 1 in the loop
 
     # For each direction (-1, 1), check the positions in the row direction (straight and diagonals).
-    for i in range(2):
+    for _ in range(2):
         # Check the first row direction (upwards for player 1, downwards for player 2).
         new_x = x + row_direction
         new_y = y + col_direction
@@ -821,7 +910,6 @@ def is_safe(position, player, board) -> cython.bint:
 
         # Change the column direction for the second iteration
         col_direction = 1
-
     # The piece is considered safe if the number of attackers is less than or equal to the number of defenders.
     return attackers <= defenders
 
@@ -846,6 +934,7 @@ def is_safe(position, player, board) -> cython.bint:
     i=cython.int,
     n=cython.int,
     opponent=cython.int,
+    piece_value=cython.int,
 )
 def count_capture_moves(board, positions, player) -> cython.int:
     """Count the number of pieces that can capture and the total number of possible capture moves for a given player.
@@ -856,7 +945,7 @@ def count_capture_moves(board, positions, player) -> cython.int:
     """
     total_capture_moves = 0
     opponent = 3 - player
-    n = positions.shape[0]
+    n: cython.int = positions.shape[0]
 
     for i in range(n):
         position = positions[i]
@@ -881,10 +970,10 @@ def count_capture_moves(board, positions, player) -> cython.int:
                 if board[new_position] == opponent:
                     # Add the lorenz value from the opponent's perspective
                     # Assume that we'll capture the most valuable piece
-                    piece_capture_moves = max(
-                        piece_capture_moves,
-                        (lorentz_values[new_position] if player == 1 else lorentz_values[63 - new_position]),
+                    piece_value = (
+                        lorentz_values[new_position] if opponent == 2 else lorentz_values[63 - new_position]
                     )
+                    piece_capture_moves = max(piece_capture_moves, piece_value)
 
         total_capture_moves += piece_capture_moves
 
@@ -960,10 +1049,4 @@ lorentz_values: cython.int[:] = np.array(
         36,
     ],
     dtype=np.int32,
-)
-
-MAX_LORENZ = 10
-# Normalize the lorenz values so it requires less tuning to combine with other heuristics
-lorentz_values = (
-    MAX_LORENZ * (lorentz_values - np.min(lorentz_values)) / (np.max(lorentz_values) - np.min(lorentz_values))
 )
