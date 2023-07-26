@@ -13,3 +13,5 @@ profiler_results.out
 *.c
 *.so
 *.out
+*.html
+*.o
