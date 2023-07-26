@@ -69,10 +69,10 @@ class TranspositionTable:
     Collisions in the table are handled by storing and comparing board states when provided.
     """
 
-    size = cython.declare(
-        cython.uint, visibility="public"
-    )  # The maximum number of entries the table can hold
-    table: object
+    # The maximum number of entries the table can hold
+    size = cython.declare(cython.uint, visibility="public")
+    table: cython.object
+
     # Metrics for debugging and experimental purposes
     c_cache_hits: cython.uint
     c_cache_misses: cython.uint
@@ -246,7 +246,22 @@ class TranspositionTable:
         }
 
 
+@cython.cclass
 class TranspositionTableMCTS:
+    size = cython.declare(cython.uint, visibility="public")
+    table: cython.object
+    visited: cython.list
+
+    # Metrics for debugging and experimental purposes
+    c_cache_hits: cython.uint
+    c_cache_misses: cython.uint
+    c_collisions: cython.uint
+    c_cleanups: cython.uint
+    cache_hits: cython.uint
+    cache_misses: cython.uint
+    collisions: cython.uint
+    cleanups: cython.uint
+
     def __init__(self, size):
         """
         Initialize the transposition table with the given size.
@@ -260,12 +275,27 @@ class TranspositionTableMCTS:
         self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
+    @cython.ccall
+    @cython.locals(key=cython.long)
     def exists(self, key):
         return key in self.table
 
-    def get(self, key: int, board=None):
+    @cython.ccall
+    @cython.locals(
+        key=cython.long,
+        board=cython.object,
+        _board_ref=cython.object,
+        v1=cython.float,
+        v2=cython.float,
+        im_value=cython.float,
+        visits=cython.int,
+        solved_player=cython.int,
+        is_expanded=cython.bint,
+    )
+    def get(self, key, board=None) -> cython.tuple:
         try:
-            entries = self.table[key]
+            entries: cython.list = self.table[key]
+            entry: cython.tuple
             for entry in entries:
                 v1, v2, im_value, visits, solved_player, is_expanded, _board_ref = entry
                 _board = _board_ref()  # Resolve weak reference
@@ -285,15 +315,37 @@ class TranspositionTableMCTS:
 
         return None, None, None, None, None, None
 
+    @cython.ccall
+    @cython.locals(
+        key=cython.long,
+        board=cython.object,
+        _board_ref=cython.object,
+        v1=cython.float,
+        v2=cython.float,
+        im_value=cython.float,
+        visits=cython.int,
+        solved_player=cython.int,
+        is_expanded=cython.bint,
+        entries=cython.list,
+        _v1=cython.float,
+        _v2=cython.float,
+        _im_value=cython.float,
+        _visits=cython.int,
+        _solved_player=cython.int,
+        _is_expanded=cython.bint,
+        _board=cython.object,
+        board_ref=cython.object,
+        entry=cython.list,
+    )
     def put(
         self,
-        key: int,
-        v1: float = 0,
-        v2: float = 0,
-        visits: int = 0,
-        solved_player: int = None,
-        is_expanded: bool = False,
-        im_value: float = None,
+        key,
+        v1=0,
+        v2=0,
+        visits=0,
+        solved_player=None,
+        is_expanded=False,
+        im_value=None,
         board=None,
     ):
         entries = self.table.get(key, [])
@@ -324,12 +376,14 @@ class TranspositionTableMCTS:
         entries.append([v1, v2, im_value, visits, solved_player, is_expanded, board_ref])
         self.table[key] = entries
 
+    @cython.ccall
     def evict(self):
         # Replace the table with a new table that only includes keys in the visited set
         self.table = {key: self.table[key] for key in set(self.visited)}
         self.num_entries = sum(len(entries) for entries in self.table.values())  # Update num_entries
         self.visited.clear()  # Clear the visited set
 
+    @cython.ccall
     def reset_metrics(self):
         # Keep some cumulative statistics
         self.c_cache_hits += self.cache_hits
