@@ -2,7 +2,7 @@
 
 import copy
 import random
-from typing import Generator, List, Tuple
+from typing import Generator, Tuple
 
 import cython
 from cython.cimports import numpy as cnp
@@ -100,10 +100,9 @@ for piece_index, piece in enumerate(pieces):
 
     unique_rotations[piece_index] = len(unique)
 
-# Pre-compute masks for all rotated and flipped pieces
-piece_masks: cython.dict = {}
-rotated_pieces: cython.dict = {}
 
+rotated_pieces: cython.dict = {}
+piece_indices: cython.dict = {}
 for piece_index, piece in enumerate(pieces):
     rotations = [np.rot90(piece, rotation) for rotation in range(unique_rotations[piece_index])]
     # Add flipped versions of the piece and its rotations.
@@ -111,7 +110,7 @@ for piece_index, piece in enumerate(pieces):
     rotations += flips
 
     rotated_pieces[piece_index] = [np.array(rotation).astype(np.int32) for rotation in rotations]
-    piece_masks[piece_index] = [rotation.astype(bool) for rotation in rotated_pieces[piece_index]]
+    piece_indices[piece_index] = [np.argwhere(rotation).astype(np.int32) for rotation in rotations]
 
 MAX_PIECE_COUNT: cython.int = total_ones * 2
 
@@ -130,10 +129,29 @@ class BlokusPieces:
                 i: sum([np.sum(pieces[piece_i]) for piece_i in range(len(pieces))]) for i in [1, 2, 3, 4]
             }
 
+    @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     def copy(self):
         return copy.deepcopy(self)
 
     @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
+    @cython.locals(new_obj="BlokusPieces")
+    def custom_copy(self) -> "BlokusPieces":
+        new_obj = BlokusPieces()
+        new_obj.rem_pieces = self.rem_pieces.copy()
+        new_obj.pieces_count = self.pieces_count.copy()
+        new_obj.pieces_size = self.pieces_size.copy()
+        return new_obj
+
+    @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.locals(piece_index=cython.int, color=cython.int, key=cython.tuple)
     def play_piece(self, piece_index, color):
         key = (color, piece_index)
@@ -145,6 +163,9 @@ class BlokusPieces:
             raise ValueError(f"Player {color} doesn't have piece {piece_index} available.")
 
     @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.locals(piece_index=cython.int, color=cython.int, color_i=cython.int, piece_i=cython.int)
     def avail_pieces_for_color(self, color) -> cython.list:
         return [
@@ -152,11 +173,17 @@ class BlokusPieces:
         ]
 
     @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.locals(color=cython.int)
     def pieces_left_for_color(self, color) -> cython.int:
         return self.pieces_count[color]
 
     @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.locals(player=cython.int)
     def pieces_left_for_player(self, player) -> cython.int:
         if player == 1:
@@ -165,6 +192,9 @@ class BlokusPieces:
             return self.pieces_count[2] + self.pieces_count[4]
 
     @cython.ccall
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.locals(player=cython.int)
     def sum_piece_size(self, player) -> cython.int:
         if player == 1:
@@ -176,7 +206,7 @@ class BlokusPieces:
         return f"BlokusPieces:\n Pieces count: {self.pieces_count}"
 
 
-class BlokusGameState:
+class BlokusGameState(GameState):
     # Changed zobrist_table size to include 4 players
     zobrist_table = np.random.randint(
         low=0,
@@ -208,18 +238,20 @@ class BlokusGameState:
         self.positions_checked = 0
 
     def _calculate_board_hash(self):
-        board_hash = np.uint32(0)
-        for x in range(BOARD_SIZE):
-            for y in range(BOARD_SIZE):
-                player = int(self.board[x, y])
-                board_hash ^= self.zobrist_table[x, y, player]
-        return board_hash
+        return calculate_board_hash(self.board, self.zobrist_table)
+        # board_hash = np.uint32(0)
+        # for x in range(BOARD_SIZE):
+        #     for y in range(BOARD_SIZE):
+        #         player = int(self.board[x, y])
+        #         board_hash ^= self.zobrist_table[x, y, player]
+        # return board_hash
 
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search"""
         new_state = BlokusGameState(
             board=np.copy(self.board),
-            pieces=self.pieces.copy(),
+            # pieces=self.pieces.copy()
+            pieces=self.pieces.custom_copy(),
             player=3 - self.player,
             n_turns=self.n_turns + 1,
             passed=self.passed.copy(),
@@ -230,7 +262,8 @@ class BlokusGameState:
     def apply_action(self, action: Tuple[int, int, int, int]) -> BlokusGameState:
         new_state = BlokusGameState(
             board=np.copy(self.board),
-            pieces=self.pieces.copy(),
+            # pieces=self.pieces.copy()
+            pieces=self.pieces.custom_copy(),
             player=self.player,
             n_turns=self.n_turns,
             passed=self.passed.copy(),
@@ -253,100 +286,22 @@ class BlokusGameState:
     def get_random_action(self):
         if self.passed[self.color]:
             return PASS_MOVE
-        # Store already checked actions to prevent repeating them
-        checked_actions = set()
 
-        perimeter_points = list(self.perimeters[self.color])
-        avail_pieces = self.pieces.avail_pieces_for_color(self.color)
-        total_possible_actions = sum(unique_rotations[piece_index] for piece_index in avail_pieces) * len(
-            perimeter_points
+        return get_random_legal_action(
+            self.board, self.color, self.n_turns, self.pieces.avail_pieces_for_color(self.color)
         )
-
-        while len(checked_actions) < total_possible_actions:
-            # Select a random perimeter point
-            if perimeter_points:
-                px, py = random.choice(perimeter_points)
-            else:  # No available perimeter points
-                return [PASS_MOVE]
-
-            # Select a random piece
-            if avail_pieces:
-                piece_index = random.choice(avail_pieces)
-            else:  # No available pieces
-                return [PASS_MOVE]
-
-            rotation = random.randint(0, unique_rotations[piece_index] - 1)
-            piece = rotated_pieces[piece_index][rotation]
-            piece_width, piece_height = piece.shape
-
-            dx = random.randint(max(-piece_width + 1, -px), min(piece_width, BOARD_SIZE - px))
-            dy = random.randint(max(-piece_height + 1, -py), min(piece_height, BOARD_SIZE - py))
-
-            x, y = px + dx, py + dy
-
-            # Check if piece can be physically placed, considering its shape
-            if not (0 <= x + piece_width - 1 < BOARD_SIZE and 0 <= y + piece_height - 1 < BOARD_SIZE):
-                continue
-
-            action = (x, y, piece_index, rotation)
-            if action in checked_actions:
-                continue
-
-            checked_actions.add(action)
-            if self.is_legal_action(x, y, piece, piece_masks[piece_index][rotation]):
-                return action
-
-        # All possible actions have been tried and are illegal, return a PASS_MOVE
-        return PASS_MOVE
 
     def yield_legal_actions(self) -> Generator[Tuple[int, int, int, int], None, None]:
         if self.passed[self.color]:
             yield PASS_MOVE
             return
 
-        self.positions_checked = 0
-        checked_actions = set()
-        perimeter_points = list(self.perimeters[self.color])
-        random.shuffle(perimeter_points)  # Shuffle perimeter points
+        legal_actions = get_legal_actions(
+            self.board, self.color, self.n_turns, self.pieces.avail_pieces_for_color(self.color)
+        )
 
-        avail_pieces = self.pieces.avail_pieces_for_color(self.color)
-        random.shuffle(avail_pieces)  # Shuffle available pieces
-
-        for px, py in perimeter_points:
-            # The first 4 moves must be played in the corners
-            if self.n_turns <= 3 and (px, py) not in BOARD_CORNERS:
-                continue
-
-            for piece_index in avail_pieces:
-                rotations = list(range(unique_rotations[piece_index]))  # Create list of rotations
-                random.shuffle(rotations)  # Shuffle rotations
-                for rotation in rotations:  # Use pre-computed rotations
-                    piece = rotated_pieces[piece_index][rotation]
-                    piece_width, piece_height = piece.shape
-
-                    dx_values = list(range(max(-piece_width + 1, -px), min(piece_width, BOARD_SIZE - px)))
-                    random.shuffle(dx_values)  # Shuffle dx_values
-                    for dx in dx_values:
-                        dy_values = list(
-                            range(max(-piece_height + 1, -py), min(piece_height, BOARD_SIZE - py))
-                        )
-                        random.shuffle(dy_values)  # Shuffle dy_values
-                        for dy in dy_values:
-                            x, y = px + dx, py + dy
-                            # Check if piece can be physically placed, considering its shape
-                            if not (
-                                0 <= x + piece_width - 1 < BOARD_SIZE
-                                and 0 <= y + piece_height - 1 < BOARD_SIZE
-                            ):
-                                continue
-
-                            action = (x, y, piece_index, rotation)
-                            if action in checked_actions:
-                                continue
-
-                            checked_actions.add(action)
-                            if self.is_legal_action(x, y, piece, piece_masks[piece_index][rotation]):
-                                yield action
+        for action in legal_actions:
+            yield action
 
         # If we haven't yielded any actions, then it's a PASS_MOVE
         yield PASS_MOVE
@@ -462,7 +417,24 @@ class BlokusGameState:
 
 
 @cython.ccall
+@cython.cdivision(True)
 @cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.locals(x=cython.int, y=cython.int, player=cython.int)
+def calculate_board_hash(board: cython.int[:, :], zobrist_table: cython.uint[:, :, :]) -> cython.uint:
+    board_hash: cython.uint = 0
+    for x in range(20):
+        for y in range(20):
+            player = int(board[x, y])
+            board_hash ^= zobrist_table[x, y, player]
+    return board_hash
+
+
+@cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
 @cython.wraparound(False)
 def update_state(
     board: cython.int[:, :],
@@ -472,8 +444,9 @@ def update_state(
     rotation: cython.int,
     color: cython.int,
 ):
-    piece: cython.int[:, :] = rotated_pieces[piece_index][rotation]
-    indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
+    # piece: cython.int[:, :] = rotated_pieces[piece_index][rotation]
+    # indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
+    indices: cython.int[:, :] = piece_indices[piece_index][rotation]
     i: cython.int
     dx: cython.int
     dy: cython.int
@@ -485,6 +458,10 @@ def update_state(
 
 
 @cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 @cython.locals(
     px=cython.int,
     py=cython.int,
@@ -534,7 +511,7 @@ def get_legal_actions(
                             continue
                         checked_actions.add(action)
 
-                        if is_legal_action(x, y, piece, n_turns, color, board):
+                        if is_legal_action(x, y, piece_index, rotation, n_turns, color, board):
                             legal_actions.append(action)
 
     if not legal_actions:  # If legal_actions list is empty, then it's a PASS_MOVE
@@ -543,7 +520,73 @@ def get_legal_actions(
     return legal_actions
 
 
+import random
+
+
 @cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+@cython.locals(
+    px=cython.int,
+    py=cython.int,
+    piece=cython.int[:, :],
+    piece_index=cython.int,
+    rotation=cython.int,
+    piece_width=cython.int,
+    piece_height=cython.int,
+    dx=cython.int,
+    dy=cython.int,
+    x=cython.int,
+    y=cython.int,
+)
+def get_random_legal_action(
+    board: cython.int[:, :],
+    color: cython.int,
+    n_turns: cython.int,
+    avail_pieces: cython.list,
+    attempts: cython.int = 1000,
+) -> cython.tuple:
+    checked_actions: cython.set = set()
+    # Get a set of points around which to look, preventing us from checking the entire board for each piece
+    if n_turns > 3:
+        perimeter_points = find_corners_for_color(board, color)
+    else:
+        perimeter_points = BOARD_CORNERS
+
+    for _ in range(attempts):
+        px, py = random.choice(list(perimeter_points))
+        piece_index = random.choice(avail_pieces)
+        rotation = random.randint(0, unique_rotations[piece_index] - 1)  # Use pre-computed rotations
+        piece = rotated_pieces[piece_index][rotation]
+        piece_width = piece.shape[0]
+        piece_height = piece.shape[1]
+
+        dx = random.randint(max(-piece_width + 1, -px), min(piece_width, 20 - px))
+        dy = random.randint(max(-piece_height + 1, -py), min(piece_height, 20 - py))
+        x, y = px + dx, py + dy
+        # Check if piece can be physically placed, considering its shape
+        if not (0 <= x + piece_width - 1 < 20 and 0 <= y + piece_height - 1 < 20):
+            continue
+
+        action = (x, y, piece_index, rotation)
+
+        if action in checked_actions:
+            continue
+        checked_actions.add(action)
+
+        if is_legal_action(x, y, piece_index, rotation, n_turns, color, board):
+            return action
+
+    return PASS_MOVE  # If no legal move found after the given number of attempts, return a pass move
+
+
+@cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 @cython.locals(
     x=cython.int,
     y=cython.int,
@@ -562,24 +605,26 @@ def get_legal_actions(
 def is_legal_action(
     x: cython.int,
     y: cython.int,
-    piece: cython.int[:, :],
+    piece_index: cython.int,
+    rotation: cython.int,
     n_turns: cython.int,
     color: cython.int,
     board: cython.int[:, :],
 ) -> cython.bint:
     # Verify if it's the first piece and if it's on the corner
-    if n_turns <= 3 and is_on_board_corner(x, y, piece):
-        return no_overlap(piece, board, x, y)
+    if n_turns <= 3 and is_on_board_corner(x, y, rotated_pieces[piece_index][rotation]):
+        return no_overlap(rotated_pieces[piece_index][rotation], board, x, y)
     elif n_turns <= 3:
         return False
 
     # Piece should not overlap with an existing piece or opponent's piece
-    if not no_overlap(piece, board, x, y):
+    if not no_overlap(rotated_pieces[piece_index][rotation], board, x, y):
         return False
 
-    corner_touch: cython.bint = 0
-    indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
+    # indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
+    indices: cython.int[:, :] = piece_indices[piece_index][rotation]
 
+    corner_touch: cython.bint = 0
     for k in range(indices.shape[0]):
         dx = indices[k, 0]
         dy = indices[k, 1]
@@ -611,6 +656,10 @@ def is_legal_action(
 
 
 @cython.cfunc
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 @cython.locals(
     piece=cython.int[:, :], board=cython.int[:, :], x=cython.int, y=cython.int, i=cython.int, j=cython.int
 )
@@ -623,6 +672,10 @@ def no_overlap(piece, board, x, y) -> cython.bint:
 
 
 @cython.cfunc
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 @cython.locals(
     piece_x=cython.int,
     piece_y=cython.int,
@@ -647,6 +700,10 @@ def is_on_board_corner(x: cython.int, y: cython.int, piece: cython.int[:, :]) ->
 
 
 @cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 @cython.locals(
     board=cython.int[:, :],
     color=cython.int,
@@ -654,6 +711,8 @@ def is_on_board_corner(x: cython.int, y: cython.int, piece: cython.int[:, :]) ->
     j=cython.int,
     dx=cython.int,
     dy=cython.int,
+    di=cython.int,
+    dj=cython.int,
     new_i=cython.int,
     new_j=cython.int,
     orthogonal_touch=cython.bint,
@@ -704,6 +763,10 @@ def find_corners_for_color(board, color) -> cython.set:
 
 
 @cython.ccall
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 @cython.locals(
     game_state=cython.object,
     m_piece_diff=cython.double,
