@@ -876,7 +876,7 @@ def territory_heuristic(
     move_count=cython.int,
 )
 def territory_helper(
-    queen_position: cython.tuple, board: cython.int[:, :], out: cython.double[:, :], max_depth: cython.uint
+    queen_position: cython.tuple, board: cython.int[:, :], out: cython.double[:, :], max_depth: cython.int
 ):
     x = queen_position[0]
     y = queen_position[1]
