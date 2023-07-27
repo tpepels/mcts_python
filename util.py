@@ -14,9 +14,14 @@ GLOBAL_HIGHLIGHTING = True
 def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
     color_map = {float: Fore.BLUE, int: Fore.GREEN, str: Fore.CYAN, list: Fore.MAGENTA, bool: Fore.YELLOW}
 
-    # Function to format different types of values
     def format_value(v, key):
-        if "time" in key.lower() and isinstance(v, (int, float)):
+        if isinstance(v, tuple) and all(isinstance(sub_v, (int, float)) for sub_v in v):
+            return str(
+                tuple(str(sub_v) if isinstance(sub_v, int) else f"{sub_v:.{float_precision}f}" for sub_v in v)
+            ).replace("'", ""), type(v)
+        elif isinstance(v, (list, tuple)):  # handle list/tuple before other types
+            return str(type(v)(format_value(sub_v, key)[0] for sub_v in v)).replace("'", ""), type(v)
+        elif "time" in key.lower() and isinstance(v, (int, float)):
             return format_time(v), type(v)
         elif isinstance(v, bool):  # handle bool before int
             return str(v), type(v)
@@ -51,10 +56,11 @@ def pretty_print_dict(d, float_precision=3, sort_keys=True, indent=0):
             value = [colorize_value(*format_value(v, key)) for v in value]
             print("\t" * indent + f"{str(key).ljust(key_len_max)}: ", end="")
             for i, v in enumerate(value):
-                if i == 0:
-                    print(v)
-                else:
-                    print(f"{' ' * (indent * 8 + key_len_max + 2)}{v}", end="\n")
+                # if i == 0:
+                print(v, end=" ")
+                # else:
+                #     print(f"{' ' * (indent * 8 + key_len_max + 2)}{v}", end=" ")
+            print()
         elif isinstance(value, dict):
             print("\t" * indent + f"{str(key).ljust(key_len_max)}:")
             pretty_print_dict(value, float_precision, sort_keys, indent + 1)
@@ -74,10 +80,10 @@ def format_time(seconds):
     time_str = ""
 
     if hours:
-        time_str += f"{int(hours)} hours, "
+        time_str += f"{int(hours)} hrs., "
     if minutes:
-        time_str += f"{int(minutes)} minutes, "
-    time_str += f"{seconds:.2f} seconds"
+        time_str += f"{int(minutes)} min., "
+    time_str += f"{seconds:.2f} sec."
 
     if negative:
         time_str = "-" + time_str
@@ -174,3 +180,8 @@ def log_exception_handler(func):
             raise e  # re-throw the exception after logging
 
     return wrapper
+
+
+def abbreviate(word):
+    vowels = "aeiouAEIOU"
+    return "".join([letter for letter in word if letter not in vowels])

@@ -21,15 +21,16 @@ from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_en
 from games.tictactoe import (
     TicTacToeGameState,
     evaluate_tictactoe,
-    evaluate_n_in_a_row,
-    ninarow_simple_evaluation,
+    evaluate_ninarow,
+    evaluate_ninarow_fast,
 )
 from util import log_exception_handler
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {
     evaluate_tictactoe.__name__: evaluate_tictactoe,
-    evaluate_n_in_a_row.__name__: evaluate_n_in_a_row,
+    evaluate_ninarow.__name__: evaluate_ninarow,
+    evaluate_ninarow_fast.__name__: evaluate_ninarow_fast,
     evaluate_breakthrough.__name__: evaluate_breakthrough,
     evaluate_breakthrough_lorenz.__name__: evaluate_breakthrough_lorenz,
     evaluate_amazons.__name__: evaluate_amazons,
@@ -37,7 +38,6 @@ eval_dict = {
     evaluate_kalah_simple.__name__: evaluate_kalah_simple,
     evaluate_kalah_enhanced.__name__: evaluate_kalah_enhanced,
     evaluate_blokus.__name__: evaluate_blokus,
-    ninarow_simple_evaluation.__name__: ninarow_simple_evaluation,
 }
 
 # Contains all possible games for use in factory
@@ -182,7 +182,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     return game.get_reward(1)
 
 
-def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams) -> None:
+def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams) -> float:
     """Run the game with two AI players.
 
     Args:
@@ -193,7 +193,7 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
     """
 
     def callback(player, action, game: GameState, time):
-        print(f"Player {player} chosen action: {action}. Current game state: \n {game.visualize()}")
+        print(f"{player} -> mv.: {action}.\n{game.visualize()}")
         if game.is_terminal():
             if game.get_reward(1) == win:
                 print("Game Over. Winner: P1")
@@ -279,6 +279,7 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
 
 
 def print_function_params(function_dict):
+    function_dict = dict(sorted(function_dict.items()))
     for func_name, func in function_dict.items():
         print(f"FUNCTION NAME: {func_name}")
         sig = inspect.signature(func)
@@ -288,6 +289,7 @@ def print_function_params(function_dict):
 
 
 def print_class_init_params(class_dict):
+    class_dict = dict(sorted(class_dict.items()))
     for class_name, cls in class_dict.items():
         print(f"CLASS NAME: {class_name}")
         init = getattr(cls, "__init__", None)
@@ -302,9 +304,9 @@ def print_class_init_params(class_dict):
 if __name__ == "__main__":
     print("\nEvaluation functions parameters:")
     print_function_params(eval_dict)
-
+    print("..." * 40)
     print("\nGame classes __init__ parameters:")
     print_class_init_params(game_dict)
-
+    print("..." * 40)
     print("\nPlayer classes __init__ parameters:")
     print_class_init_params(player_dict)

@@ -8,14 +8,14 @@ p1_params = AIParams(
     ai_key="alphabeta",
     eval_key="evaluate_blokus",
     max_player=1,
-    ai_params={"max_time": 10, "debug": True, "use_kill_moves": True, "use_history": True},
+    ai_params={"max_time": 10, "debug": True},
     eval_params={},
 )
 p2_params = AIParams(
     ai_key="alphabeta",
     eval_key="evaluate_blokus",
     max_player=2,
-    ai_params={"max_time": 10, "debug": True, "use_history": True, "use_kill_moves": True},
+    ai_params={"max_time": 10, "debug": True},
     eval_params={},
 )
 

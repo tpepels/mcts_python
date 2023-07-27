@@ -650,8 +650,6 @@ def update_state(
     rotation: cython.int,
     color: cython.int,
 ):
-    # piece: cython.int[:, :] = rotated_pieces[piece_index][rotation]
-    # indices: cython.int[:, :] = np.argwhere(piece).astype(np.int32)
     indices: cython.int[:, :] = piece_indices[piece_index][rotation]
     i: cython.int
     dx: cython.int
@@ -901,7 +899,7 @@ def is_on_board_corner(x: cython.int, y: cython.int, piece: cython.int[:, :]) ->
     return False
 
 
-@cython.ccall
+@cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.nonecheck(False)

@@ -32,7 +32,7 @@ class TicTacToeGameState(GameState):
         self, board_size=3, row_length=None, last_move=None, board=None, player=1, n_turns=0, board_hash=None
     ):
         self.size = board_size
-        self.row_length = row_length if row_length else self.size
+        self.row_length = row_length if row_length else board_size
         self.board = board
         self.board_hash = board_hash
         self.player = player
@@ -106,22 +106,20 @@ class TicTacToeGameState(GameState):
 
     def is_terminal(self):
         if self.n_turns > self.row_length * 2 - 1:
-            return (np.count_nonzero(self.board == 0) == 0) or (self.get_reward(1) != 0)
+            return (self.n_turns == self.size**2) or self.get_reward(1) != 0
+        return False
 
     def get_reward(self, player):
-        assert self.last_move is not None
-
         # We first need enough marks on the board to be able to win
         if self.n_turns < self.row_length * 2:
             return 0
 
-        reward = get_reward(
+        if self.n_turns == self.size**2:
+            return draw
+
+        return get_reward(
             player, self.last_move[0], self.last_move[1], self.board, self.row_length, self.size, self.player
         )
-        if reward == 0:
-            # Check if the game is a draw
-            if np.all(self.board != 0):  # If there are no empty spaces left
-                return draw
 
     def is_capture(self, move):
         # There are no captures in Tic-Tac-Toe, so this function always returns False.
@@ -170,9 +168,9 @@ class TicTacToeGameState(GameState):
             visual += f"\nReward: ({self.get_reward(1)}/{self.get_reward(2)}), Terminal: {self.is_terminal()}"
             visual += f"\n{len(actions)} last_move: {self.last_move} actions: {self.get_legal_actions()}"
 
-            visual += f"\nEv P1: {evaluate_n_in_a_row(self, 1)}"
-            visual += f"\nEv P2: {evaluate_n_in_a_row(self, 2)}"
-            visual += f"\nSimple P1: {ninarow_simple_evaluation(self, 1)}"
+            visual += f"\nEv P1: {evaluate_ninarow(self, 1)}"
+            visual += f"\nEv P2: {evaluate_ninarow(self, 2)}"
+            visual += f"\nSimple P1: {evaluate_ninarow_fast(self, 1)}"
             # visual += f"\nSimple P2: {ninarow_simple_evaluation(self, 2)}"
             if len(actions) > 0:
                 actions = self.evaluate_moves(self.get_legal_actions())
@@ -268,12 +266,14 @@ def get_reward(player, last_move_x, last_move_y, board, row_length, size, player
     last_player = 3 - player_to_move
     am_i_last_player = player == last_player
 
-    for dx in range(-1, 2):  # Cover -1, 0, 1 for dx
-        for dy in range(0, 2):  # Cover 0, 1 for dy
-            if dx == dy or dx < 0:
+    # Check all 8 directions around the last move made
+    for dx in range(-1, 2):
+        for dy in range(-1, 2):
+            if dx == dy == 0:
                 continue
-            count = 0
-            for i in range(-row_length + 1, row_length):
+            count = 1
+
+            for i in range(1, row_length):  # Start from the last move and check for row_length cells
                 x = last_move_x + dx * i
                 y = last_move_y + dy * i
 
@@ -284,9 +284,9 @@ def get_reward(player, last_move_x, last_move_y, board, row_length, size, player
                         if count == row_length:
                             return win if am_i_last_player else loss
                     else:
-                        count = 0
+                        break  # If not the last player's cell, break out of the loop
                 else:
-                    count = 0
+                    break  # If outside the board, break out of the loop
     return 0
 
 
@@ -378,7 +378,7 @@ directions: cython.list = [(1, 0), (0, 1), (1, 1), (-1, 1)]  # right, down, down
     line_broken=cython.int,
     parts=cython.int,
 )
-def ninarow_simple_evaluation(
+def evaluate_ninarow_fast(
     state: cython.object,
     player: cython.int,
     m_power: cython.int = 2,
@@ -495,9 +495,9 @@ def ninarow_simple_evaluation(
                                     count -= parts
 
                                 if p == 1:
-                                    score_p1 += count ** (m_power * count)
+                                    score_p1 += count**m_power
                                 else:
-                                    score_p2 += count ** (m_power * count)
+                                    score_p2 += count**m_power
 
                             # else:
                             #     print(
@@ -592,7 +592,7 @@ def calculate_weights(m_top_k: cython.int, factor: cython.float, scale: cython.i
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.nonecheck(False)
-def evaluate_n_in_a_row(
+def evaluate_ninarow(
     state: cython.object,
     player: cython.int,
     m_bonus: cython.float = 0.75,

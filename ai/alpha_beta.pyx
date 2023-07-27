@@ -6,7 +6,7 @@ from ai.ai_player import AIPlayer
 from ai.transpos_table import TranspositionTable
 from ai.transpos_table import MoveHistory
 from games.gamestate import GameState, win, loss, draw
-from util import pretty_print_dict
+from util import pretty_print_dict, abbreviate
 from operator import itemgetter
 
 from libc.time cimport time
@@ -206,7 +206,7 @@ cdef float value(
 
             # Prune the branch
             if beta <= alpha:
-                # Update the move history with a high score since we caused a cutoff
+                # Update the move history with a high score since we've caused a cutoff
                 if allow_null_move and move_history is not None:
                     move_history.update(move, 10)
 
@@ -327,8 +327,8 @@ cdef class AlphaBetaPlayer:
         unsigned transposition_table_size=2**16,
         bint use_null_moves=False,
         bint use_quiescence=False,
-        bint use_history=False,
-        bint use_kill_moves=False,
+        bint use_history=True,
+        bint use_kill_moves=True,
         bint use_tt=True,
         bint debug=False,
     ):
@@ -403,8 +403,8 @@ cdef class AlphaBetaPlayer:
         cdef float last_best_v
         cdef int stat_depth_reached
         cdef dict killer_moves = {i: None for i in range(self.max_depth + 1)} if self.use_kill_moves else None
-        cdef double start_depth_time
-        cdef double last_search_time
+        cdef double start_depth_time = 0
+        cdef double last_search_time = 0
         cdef object move_history = MoveHistory() if self.use_history else None
 
         assert state.player == self.player, "Player to move in the game is not my assigned player"
@@ -430,6 +430,8 @@ cdef class AlphaBetaPlayer:
             start_time = curr_time()
             
             for depth in range(1, self.max_depth + 1):
+                if self.debug:
+                    print(f"depth {depth}... ", end="")
                 start_depth_time = curr_time()  # Time when this depth search starts
                 # How much time can be spent searching this depth
                 time_limit = self.max_time + self.grace_time - (start_depth_time - start_time) 
@@ -447,6 +449,9 @@ cdef class AlphaBetaPlayer:
                 else:
                     # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
                     if ((start_depth_time - start_time) + (last_search_time * 8) >= (self.max_time + self.grace_time)):
+                        if self.debug:
+                            print(f"Time limit exceeded, stopping search at depth {depth}.")
+                            print(f"start_depth_time - start_time = {start_depth_time - start_time:.2f} seconds, last_search_time = {last_search_time:.2f} seconds, max_time = {self.max_time:.2f} seconds, grace_time = {self.grace_time:.2f} seconds")
                         break
                
                 reached = root_seen = 0
@@ -486,7 +491,7 @@ cdef class AlphaBetaPlayer:
                 last_search_time = curr_time()
                 last_search_time -= start_depth_time
                 if self.debug:
-                    print(f"d={depth} t_l={(last_search_time):.2f} ***", end="")
+                    print(f"time {(last_search_time):.3f} *** ", end="")
                 # keep track of the time spent on each depth
                 search_times.append(last_search_time)
 
@@ -539,7 +544,7 @@ cdef class AlphaBetaPlayer:
                 stat_dict = {
                     f"{self.player}_max_player": self.player,
                     f"{self.player}_eval_func": eval_name,
-                    "nodes_best_move_order": stat_tt_orders,
+                    "nodes_best_mv_ord.": stat_tt_orders,
                     "nodes_visited": stat_visited,
                     "nodes_evaluated": stat_n_eval,
                     "T_nodes_ps": int(stat_visited / max(1, (curr_time() - start_time))),
@@ -553,13 +558,13 @@ cdef class AlphaBetaPlayer:
                     "depth": depth,
                     "search_time": (curr_time() - start_time),
                     "search_times_p.d": search_times[1:],
-                    "search_time_average": int(total_search_time[self.player] / max(1, n_moves[self.player])),
-                    "search_interr": is_interrupted,
+                    "search_time_avg": int(total_search_time[self.player] / max(1, n_moves[self.player])),
+                    "search_interr.": is_interrupted,
                     "best_value": best_value_labels.get(v, v),
                     "best_move": best_move,
-                    "best_values": best_values,
+                    "best_values": best_values[::-1],
                     "killer_moves": stat_killers,
-                    "grace_time": self.grace_time
+                    "search_grace_time": self.grace_time
                 }
 
                 if v == win:
@@ -602,7 +607,7 @@ cdef class AlphaBetaPlayer:
             self.reset_globals()
 
     def print_cumulative_statistics(self):
-        if not self.debug or self.c_stats["count_searches"] == 0:
+        if not self.debug or self.c_stats["count_searches"] == 0 or self.c_stats["total_search_time"] == 0:
             return
 
         # Compute the average at the end of the game(s):
@@ -628,7 +633,7 @@ cdef class AlphaBetaPlayer:
             (self.c_stats["count_tim_out"] / self.c_stats["count_searches"]) * 100
         )
         self.c_stats["nodes_per_sec"] = int(
-            (self.c_stats["total_nodes_evaluated"] / self.c_stats["total_search_time"]) * 100
+            (self.c_stats["total_nodes_evaluated"] / max(self.c_stats["total_search_time"], 1)) * 100
         )
         if self.use_quiescence:
             self.c_stats["average_q_searches"] = int(
@@ -651,13 +656,16 @@ cdef class AlphaBetaPlayer:
             eval_name = self.evaluate.__name__
         except AttributeError:
             eval_name = self.evaluate.func.__name__
+        
+        eval_name = abbreviate(eval_name)
         return (
             f"a/b("
             f"p={self.player}, "
             f"max_d={self.max_depth}, "
             f"max_t={self.max_time}, "
             f"eval={eval_name}, "
-            f"use_null={self.use_null_moves}, "
-            f"use_qs={self.use_quiescence}, "
-            f"use_his={self.use_history}, "
+            f"null={self.use_null_moves}, "
+            f"qs={self.use_quiescence}, "
+            f"hist={self.use_history}, "
+            f"kill={self.use_kill_moves})"
         )
