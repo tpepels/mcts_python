@@ -1,4 +1,4 @@
-# cython: language_level=3
+# cython: language_level=3, infer_types=True, cdivision=True, boundscheck=False, wraparound=False, nonecheck=False
 
 import cython
 from ai.ai_player import AIPlayer
