@@ -21,10 +21,24 @@ ext_modules = [
         ["games/breakthrough.py"],
         include_dirs=[numpy.get_include()],  # Include directory for numpy
     ),
-    Extension("games.kalah", ["games/kalah.py"]),
-    Extension("games.blokus", ["games/blokus.py"], include_dirs=[numpy.get_include()]),
-    Extension("ai.alpha_beta", ["ai/alpha_beta.pyx"]),
-    Extension("ai.transpos_table", ["ai/transpos_table.py"], include_dirs=[numpy.get_include()]),
+    Extension(
+        "games.kalah",
+        ["games/kalah.py"],
+    ),
+    Extension(
+        "games.blokus",
+        ["games/blokus.py"],
+        include_dirs=[numpy.get_include()],
+    ),
+    Extension(
+        "ai.alpha_beta",
+        ["ai/alpha_beta.pyx"],
+    ),
+    Extension(
+        "ai.transpos_table",
+        ["ai/transpos_table.py"],
+        include_dirs=[numpy.get_include()],
+    ),
 ]
 
 setup(name="Cython MCTS", ext_modules=cythonize(ext_modules))

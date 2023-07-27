@@ -1,4 +1,4 @@
-# cython: language_level=3
+# cython: language_level=3, initializedcheck=False
 
 import cython
 
@@ -367,7 +367,7 @@ class AmazonsGameState(GameState):
         n_moves_per_queen = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
 
         for move in moves:
-            scores.append((move, evaluate_move(n_moves_per_queen, move, self.mid)))
+            scores.append((move, evaluate_move(n_moves_per_queen, move, self.mid, self.board, self.player)))
 
         return scores
 
@@ -381,7 +381,11 @@ class AmazonsGameState(GameState):
         :return: The heuristic value of the move.
         """
         return move, evaluate_move(
-            self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen, move, self.mid
+            self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen,
+            move,
+            self.mid,
+            self.board,
+            self.player,
         )
 
     def visualize(self, full_debug=False):
@@ -510,7 +514,13 @@ def generate_arrow_shots(
 @cython.wraparound(False)
 @cython.nonecheck(False)
 @cython.cdivision(True)
-def evaluate_move(n_moves_per_queen: cython.dict, move: cython.tuple, mid: cython.uint) -> cython.int:
+def evaluate_move(
+    n_moves_per_queen: cython.dict,
+    move: cython.tuple,
+    mid: cython.uint,
+    board: cython.int[:, :],
+    player: cython.int,
+) -> cython.int:
     """
     Evaluate the given move using a simple heuristic:
     Each move to a location closer to the center of the board is valued.
@@ -527,24 +537,36 @@ def evaluate_move(n_moves_per_queen: cython.dict, move: cython.tuple, mid: cytho
     end_y: cython.int
     arrow_x: cython.int
     arrow_y: cython.int
+    dx: cython.int
+    dy: cython.int
+    ny: cython.int
+    nx: cython.int
 
     # Extract the start and end positions of the amazon and the arrow shot from the move
     start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
 
-    # Calculate score based on the distance of the Amazon's move from the center
-    score += (mid - abs(mid - end_x)) + (mid - abs(mid - end_y))
+    # If we can throw an arrow at an opponent's queen, increase the score
+    for dx in range(-1, 2):
+        for dy in range(-1, 2):
+            if dx == 0 and dy == 0:
+                continue
+            nx, ny = arrow_x + dx, arrow_y + dy
+            if 0 <= nx < board.shape[0] and 0 <= ny < board.shape[0] and board[nx, ny] == 3 - player:
+                score += 40
+            # Prefer moves where we still have room to move
+            nx, ny = end_x + dx, end_y + dy
+            if 0 <= nx < board.shape[0] and 0 <= ny < board.shape[0] and board[nx, ny] == 0:
+                score += 5
 
-    # Add value to the score based on the distance of the arrow shot from the Amazon
-    score += abs(end_x - arrow_x) + abs(end_y - arrow_y)
+    if score < 40:
+        # Calculate score based on the distance of the Amazon's move from the center
+        score += (mid - abs(mid - end_x)) + (mid - abs(mid - end_y))
+
+        # Add value to the score based on the distance of the arrow shot from the Amazon
+        score += abs(end_x - arrow_x) + abs(end_y - arrow_y)
 
     # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
     score -= int(math.log(max(1, n_moves_per_queen[(start_x, start_y)])))
-
-    # Add a bonus for ending in a position where the queen still has room to move
-    # for dx, dy in DIRECTIONS:
-    #     nx, ny = end_x + dx, end_y + dy
-    #     if 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[nx, ny] == 0:
-    #         score += 2
 
     return score
 

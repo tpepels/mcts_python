@@ -1,5 +1,4 @@
-# cython: language_level=3
-# cython: infer_types=True
+# cython: language_level=3, initializedcheck=False
 
 import itertools
 import random
@@ -12,8 +11,9 @@ cnp.import_array()
 
 import numpy as np
 from games.gamestate import GameState, win, loss, draw, normalize
+from termcolor import colored
 
-MARKS = {0: " ", 1: "X", 2: "O"}
+# MARKS = {0: " ", 1: "X", 2: "O"}
 
 if cython.compiled:
     print("Tictactoe is compiled.")
@@ -149,17 +149,19 @@ class TicTacToeGameState(GameState):
         return evaluate_move(move[0], move[1], self.size, self.board, self.player)
 
     def visualize(self, full_debug=False):
-        visual = "    " + "   ".join(str(i) for i in range(self.size)) + "\n"  # Print column numbers
-        visual += "    " + "----" * self.size + "\n"
+        MARKS = {
+            0: colored(" ", "white"),
+            1: colored("X", "green", attrs=["bold"]),
+            2: colored("O", "red", attrs=["bold"]),
+        }
+
+        visual = "  " + "  ".join(str(i) for i in range(self.size)) + "\n"  # Print column numbers
 
         for i in range(self.size):
-            visual += str(i) + "   "  # Print row numbers
+            visual += str(i) + " "  # Print row numbers
             for j in range(self.size):
-                visual += MARKS[self.board[i, j]] + " | "
-            visual = visual[:-3] + "\n"  # Remove last separator
-
-            if i != self.size - 1:
-                visual += "    " + "----" * self.size + "\n"
+                visual += MARKS[self.board[i, j]] + "  "  # Adding two spaces
+            visual = visual[:-2] + "\n"  # Remove extra spaces at the end of the line and reset color
 
         if full_debug:
             actions = self.get_legal_actions()
@@ -171,7 +173,7 @@ class TicTacToeGameState(GameState):
             visual += f"\nEv P1: {evaluate_n_in_a_row(self, 1)}"
             visual += f"\nEv P2: {evaluate_n_in_a_row(self, 2)}"
             visual += f"\nSimple P1: {ninarow_simple_evaluation(self, 1)}"
-            visual += f"\nSimple P2: {ninarow_simple_evaluation(self, 2)}"
+            # visual += f"\nSimple P2: {ninarow_simple_evaluation(self, 2)}"
             if len(actions) > 0:
                 actions = self.evaluate_moves(self.get_legal_actions())
                 actions = sorted(actions, key=lambda x: x[1], reverse=True)
@@ -370,15 +372,18 @@ directions: cython.list = [(1, 0), (0, 1), (1, 1), (-1, 1)]  # right, down, down
     count=cython.int,
     space_count=cython.int,
     center=cython.int,
-    centrality_score=cython.int,
+    centrality_score=cython.double,
     positions=cython.int[:, :],
     direction=cython.int,
     line_broken=cython.int,
+    parts=cython.int,
 )
 def ninarow_simple_evaluation(
     state: cython.object,
     player: cython.int,
-    power: cython.int = 2,
+    m_power: cython.int = 2,
+    m_opp_disc: cython.double = 1.0,
+    m_centre_bonus: cython.double = 1.0,
     norm: cython.bint = 0,
     a: cython.int = 100,
 ) -> cython.int:
@@ -396,12 +401,13 @@ def ninarow_simple_evaluation(
                 y = positions[posi][1]
                 centrality_score = (center - abs(x - center)) + (center - abs(y - center))
                 if p == 1:
-                    score_p1 += centrality_score
+                    score_p1 += m_centre_bonus * centrality_score
                 else:
-                    score_p2 += centrality_score
+                    score_p2 += m_centre_bonus * centrality_score
 
     if state.n_turns > row_length:
         for p in range(1, 3):
+            seen: cython.set = set()
             o = 3 - p
             positions = np.array(np.where(state.board == p)).T.astype(np.int32)
             for posi in range(positions.shape[0]):
@@ -411,9 +417,13 @@ def ninarow_simple_evaluation(
                 for dx in range(-1, 2):
                     for dy in range(0, 2):
                         if (dx != 0 or dy != 0) and not (dx == -1 and dy == 0):
+                            # seen this position already in this direction, so skip it
+                            if (x, y, dx, dy) in seen:
+                                continue
                             # Counting marks, looking only in the positive direction
                             count = 1  # Start with the current mark
                             line_broken = 0
+                            parts = 0
                             for offset in range(1, row_length):
                                 nx = x + (dx * offset)
                                 ny = y + (dy * offset)
@@ -429,6 +439,11 @@ def ninarow_simple_evaluation(
                                     break
                                 if board[nx, ny] == p and line_broken <= 1:
                                     count += 1
+                                    # Looking at an unbroken line, we don't want to check this position again
+                                    if line_broken == 0:
+                                        seen.add((nx, ny, dx, dy))
+                                    else:
+                                        parts += 1
                                 if board[nx, ny] == 0:
                                     line_broken += 1
 
@@ -472,18 +487,29 @@ def ninarow_simple_evaluation(
 
                             # If the line can be potentially completed, add the count to the score
                             if space_count >= row_length:
+                                # print(
+                                #     f"Player {p} has {count} marks in a row at ({x}, {y}) with {space_count} spaces line_broken={line_broken}, parts={parts}"
+                                # )
                                 # If the line is broken we don't want that, unless we only need one more mark to win
                                 if count < (row_length - 1):
-                                    count -= line_broken
-                                if p == 1:
-                                    score_p1 += count**power
-                                else:
-                                    score_p2 += count**power
+                                    count -= parts
 
+                                if p == 1:
+                                    score_p1 += count ** (m_power * count)
+                                else:
+                                    score_p2 += count ** (m_power * count)
+
+                            # else:
+                            #     print(
+                            #         f"Player {p} has {count} marks in a row at ({x}, {y}) but the line is not long enough with {space_count} spaces line_broken={line_broken}, parts={parts}"
+                            #     )
     if norm:
         return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, a)
 
-    return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
+    if state.player == player:
+        return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
+    else:
+        return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1) * m_opp_disc
 
 
 cache: cython.dict = {}

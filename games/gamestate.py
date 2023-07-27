@@ -1,5 +1,6 @@
 # cython: language_level=3
 
+from operator import itemgetter
 import cython
 from abc import ABC, abstractmethod
 
@@ -117,6 +118,7 @@ class GameState(ABC):
 
 
 import numpy as np
+import random
 
 
 @cython.ccall
@@ -130,3 +132,35 @@ def normalize(value, a):
         a (float): absolute max
     """
     return np.tanh(value / a)
+
+
+@cython.ccall
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.locals(
+    weighted_population=cython.list,
+    item=cython.tuple,
+    weight_total=cython.double,
+    random_num=cython.double,
+    n=cython.int,
+    i=cython.int,
+    is_sorted=cython.bint,
+)
+def roulette_selection(weighted_population, is_sorted=1) -> cython.tuple:
+    if not is_sorted:
+        weighted_population.sort(key=itemgetter(1), reverse=True)
+    # Calculate the total weight (sum of values)
+    weight_total = 0.0
+    n = len(weighted_population)
+    for i in range(n):
+        weight_total += weighted_population[i][1]
+
+    # Pick a random value between 0 and the total weight
+    random_num = random.uniform(0, weight_total)
+
+    # Go through the population, subtracting each weight from the random number until we get to 0
+    # Return the item where this happens
+    for i in range(n):
+        random_num -= weighted_population[i][1]
+        if random_num < 0:
+            return weighted_population[i][0]

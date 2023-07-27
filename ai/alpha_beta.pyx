@@ -7,6 +7,8 @@ from ai.transpos_table import TranspositionTable
 from ai.transpos_table import MoveHistory
 from games.gamestate import GameState, win, loss, draw
 from util import pretty_print_dict
+from operator import itemgetter
+
 from libc.time cimport time
 
 cdef double curr_time():
@@ -136,7 +138,7 @@ cdef float value(
         else:
             actions = [(actions[i][0], actions[i][1]) for i in range(n_actions)]
         
-        actions = sorted(actions, key=lambda x: x[1], reverse=is_max_player)
+        actions.sort(key=itemgetter(1), reverse=is_max_player)
         actions = [actions[i][0] for i in range(n_actions)]
         
         stat_moves_gen += n_actions
