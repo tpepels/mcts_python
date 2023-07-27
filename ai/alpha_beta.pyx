@@ -67,7 +67,7 @@ cdef float value(
     global count, time_limit, start_time, is_first, is_interrupted, best_move, reached, root_seen
     
     cdef bint is_max_player = state.player == max_player
-    cdef float v, null_score, cur_time
+    cdef float v, null_score, cur_time, new_v
     cdef list actions
     cdef tuple trans_move, killer_move, move
     cdef int m = 0
