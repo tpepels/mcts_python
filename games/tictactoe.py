@@ -706,7 +706,7 @@ def evaluate_ninarow(
                 (x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0
             ]
 
-            for j in range(length):
+            for j in range(len(adjacent_moves)):
                 move = adjacent_moves[j]
                 x_ = move[0]
                 y_ = move[1]
