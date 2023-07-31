@@ -422,15 +422,17 @@ def evaluate_kalah_simple(state, player, m_opp_disc=0.9, a=20, norm=0):
     score=cython.double,
     evaluation=cython.double,
 )
+# Results from genetic optimization:
+# https://docs.google.com/spreadsheets/d/1ubiIoIQEVj7INwhGG64uXSe--tWFOF7096EQ2GT8p2s/edit#gid=0
 def evaluate_kalah_enhanced(
     state,
     player,
     m_score=10.0,
-    m_seed_diff=0,
-    m_empty=1,
+    m_seed_diff=4,
+    m_empty=17,
     m_double=2,
-    m_capture=4,
-    m_opp_disc=0.99,
+    m_capture=10,
+    m_opp_disc=0.75,
     a=5,
     norm=False,
 ):

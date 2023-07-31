@@ -22,9 +22,8 @@ else:
 
 
 class TicTacToeGameState(GameState):
-    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_tables = {
-        size: [[[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
+        size: [[[random.randint(1, 2**16 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
         for size in range(3, 10)
     }
 
@@ -49,7 +48,6 @@ class TicTacToeGameState(GameState):
                 for j in range(self.size):
                     piece = self.board[i][j]
                     self.board_hash ^= self.zobrist_table[i][j][piece]
-            self.board_hash ^= self.players_bitstrings[self.player]
 
     def apply_action(self, action):
         x, y = action
@@ -58,13 +56,7 @@ class TicTacToeGameState(GameState):
 
         new_board = np.copy(self.board)
         new_board[x][y] = self.player
-        board_hash = (
-            self.board_hash
-            ^ self.zobrist_table[x][y][0]
-            ^ self.zobrist_table[x][y][3 - self.player]
-            ^ self.players_bitstrings[self.player]
-            ^ self.players_bitstrings[3 - self.player]
-        )
+        board_hash = self.board_hash ^ self.zobrist_table[x][y][0] ^ self.zobrist_table[x][y][3 - self.player]
 
         new_state = TicTacToeGameState(
             board_size=self.size,
@@ -95,7 +87,7 @@ class TicTacToeGameState(GameState):
         return next(self.yield_legal_actions(), None)
 
     def yield_legal_actions(self):
-        non_zero_indices = np.transpose(np.nonzero(self.board)).tolist()  # Convert to list of pairs
+        non_zero_indices = list(zip(*np.where(self.board == 0)))
         random.shuffle(non_zero_indices)  # Shuffle the list
 
         for i, j in non_zero_indices:
@@ -105,17 +97,14 @@ class TicTacToeGameState(GameState):
         return list(zip(*np.where(self.board == 0)))
 
     def is_terminal(self):
-        if self.n_turns > self.row_length * 2 - 1:
+        if self.n_turns >= (self.row_length * 2) - 1:
             return (self.n_turns == self.size**2) or self.get_reward(1) != 0
         return False
 
     def get_reward(self, player):
         # We first need enough marks on the board to be able to win
-        if self.n_turns < self.row_length * 2:
+        if self.n_turns < (self.row_length * 2) - 1:
             return 0
-
-        if self.n_turns == self.size**2:
-            return draw
 
         return get_reward(
             player, self.last_move[0], self.last_move[1], self.board, self.row_length, self.size, self.player
@@ -269,13 +258,16 @@ def get_reward(player, last_move_x, last_move_y, board, row_length, size, player
     # Check all 8 directions around the last move made
     for dx in range(-1, 2):
         for dy in range(-1, 2):
-            if dx == dy == 0:
+            if dx == 0 and dy == 0:
                 continue
             count = 1
+            # Start from the last move and check for row_length cells
 
-            for i in range(1, row_length):  # Start from the last move and check for row_length cells
-                x = last_move_x + dx * i
-                y = last_move_y + dy * i
+            for i in range(-(row_length + 1), row_length):
+                if i == 0:  # Skip the starting cell
+                    continue
+                x = last_move_x + (dx * i)
+                y = last_move_y + (dy * i)
 
                 # Ensure the indices are within the board
                 if 0 <= x < size and 0 <= y < size:
@@ -283,10 +275,6 @@ def get_reward(player, last_move_x, last_move_y, board, row_length, size, player
                         count += 1
                         if count == row_length:
                             return win if am_i_last_player else loss
-                    else:
-                        break  # If not the last player's cell, break out of the loop
-                else:
-                    break  # If outside the board, break out of the loop
     return 0
 
 
@@ -592,15 +580,17 @@ def calculate_weights(m_top_k: cython.int, factor: cython.float, scale: cython.i
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.nonecheck(False)
+# Genetic optimization results:
+# https://docs.google.com/spreadsheets/d/1cokehgvyvb5yIcfiAjI1v16h63czmYsOMF5dFiCLLn8/edit#gid=0
 def evaluate_ninarow(
     state: cython.object,
     player: cython.int,
-    m_bonus: cython.float = 0.75,
-    m_decay: cython.float = 2.9,
-    m_w_factor: cython.float = 0.8,
+    m_bonus: cython.float = 18,
+    m_decay: cython.float = 3.5,
+    m_w_factor: cython.float = 0.6,
     m_top_k: cython.int = 4,
-    m_disc: cython.float = 1.49,
-    m_pow: cython.float = 7,
+    m_disc: cython.float = 0.7,
+    m_pow: cython.float = 9,
     norm: cython.bint = 0,
     a: cython.int = 100,
 ) -> cython.float:

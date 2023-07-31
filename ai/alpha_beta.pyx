@@ -5,10 +5,12 @@ from ai.ai_player import AIPlayer
 
 from ai.transpos_table import TranspositionTable
 from ai.transpos_table import MoveHistory
+
 from games.gamestate import GameState, win, loss, draw
 from util import pretty_print_dict, abbreviate
 from operator import itemgetter
 
+from ai.transpos_table cimport TranspositionTable, MoveHistory
 from libc.time cimport time
 
 cdef double curr_time():
@@ -51,8 +53,8 @@ cdef float value(
     int depth,
     int max_player,
     object evaluate,
-    object trans_table,
-    object move_history,
+    TranspositionTable trans_table,
+    MoveHistory move_history,
     dict killer_moves,
     int max_d=0,
     bint allow_null_move=1,
@@ -316,7 +318,7 @@ cdef class AlphaBetaPlayer:
     cdef list stats
     cdef list last_move_search_times
     cdef dict c_stats
-    cdef object trans_table
+    cdef TranspositionTable trans_table
 
     def __init__(
         self,
@@ -370,7 +372,7 @@ cdef class AlphaBetaPlayer:
             "total_killers",
             "total_tt_orders"
         ]}  # Initialize to 0
-        self.trans_table: TranspositionTable = None
+        self.trans_table = None
         if use_tt:  # Store evaluation resuls
             self.trans_table = TranspositionTable(transposition_table_size)
 
@@ -405,7 +407,7 @@ cdef class AlphaBetaPlayer:
         cdef dict killer_moves = {i: None for i in range(self.max_depth + 1)} if self.use_kill_moves else None
         cdef double start_depth_time = 0
         cdef double last_search_time = 0
-        cdef object move_history = MoveHistory() if self.use_history else None
+        cdef MoveHistory move_history = MoveHistory() if self.use_history else None
 
         assert state.player == self.player, "Player to move in the game is not my assigned player"
         

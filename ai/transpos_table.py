@@ -36,8 +36,7 @@ class MoveHistory:
         """
         self.table = collections.defaultdict(int)
 
-    @cython.ccall
-    def get(self, move: cython.tuple) -> int:
+    def get(self, move):
         """
         Retrieve the history of a move from the move history table.
 
@@ -46,8 +45,7 @@ class MoveHistory:
         """
         return self.table[move]
 
-    @cython.ccall
-    def update(self, move: cython.tuple, increment: cython.int):
+    def update(self, move, increment):
         """
         Update the history of a move in the move history table.
 
@@ -57,7 +55,7 @@ class MoveHistory:
         self.table[move] += increment
 
 
-@cython.cclass
+# @cython.cclass
 class TranspositionTable:
     """
     Class to manage a transposition table for a game. The table stores previously computed values
@@ -68,20 +66,6 @@ class TranspositionTable:
 
     Collisions in the table are handled by storing and comparing board states when provided.
     """
-
-    # The maximum number of entries the table can hold
-    size = cython.declare(cython.uint, visibility="public")
-    table: cython.object
-
-    # Metrics for debugging and experimental purposes
-    c_cache_hits: cython.uint
-    c_cache_misses: cython.uint
-    c_collisions: cython.uint
-    c_cleanups: cython.uint
-    cache_hits: cython.uint
-    cache_misses: cython.uint
-    collisions: cython.uint
-    cleanups: cython.uint
 
     def __init__(self, size):
         """
@@ -95,15 +79,13 @@ class TranspositionTable:
         self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
-    @cython.ccall
-    @cython.infer_types(True)
     def get(
         self,
-        key: cython.ulong,
-        depth: cython.uint,
-        player: cython.int,
-        board: cython.str = None,
-    ) -> tuple:
+        key,
+        depth,
+        player,
+        board=None,
+    ) -> cython.tuple:
         """
         Retrieve a value from the transposition table for the given key, depth, and player.
         If a board is provided, it is also compared with the stored board for the same key.
@@ -153,16 +135,14 @@ class TranspositionTable:
             self.cache_misses += 1  # Increase the cache misses
         return 0.0, ()
 
-    @cython.ccall
-    @cython.infer_types(True)
     def put(
         self,
-        key: cython.ulong,
-        value: cython.float,
-        depth: cython.uint,
-        player: cython.int,
-        best_move: cython.tuple,
-        board: cython.str = None,
+        key,
+        value,
+        depth,
+        player,
+        best_move,
+        board=None,
     ):
         """
         Insert a value into the transposition table for the given key, depth, and player.
@@ -185,6 +165,7 @@ class TranspositionTable:
             board = 'board_state'
             transposition_table.put(key, value, depth, player, best_move, board)
         """
+        stored_depth: cython.int
         try:
             (
                 _,
@@ -208,7 +189,6 @@ class TranspositionTable:
 
         self.table[key] = (value, depth, player, best_move, board)
 
-    @cython.ccall
     def reset_metrics(self):
         # Keep some cumulative statistics
         self.c_cache_hits += self.cache_hits
@@ -221,7 +201,6 @@ class TranspositionTable:
         self.collisions = 0
         self.cleanups = 0
 
-    @cython.ccall
     def get_metrics(self):
         """
         Get the metrics for debugging and experimental purposes.
@@ -235,7 +214,6 @@ class TranspositionTable:
             "tt_cleanups": self.cleanups,
         }
 
-    @cython.ccall
     def get_cumulative_metrics(self):
         return {
             "tt_total_cache_hits": self.c_cache_hits,
@@ -246,22 +224,11 @@ class TranspositionTable:
         }
 
 
-@cython.cclass
+# To use:
+# a = cython.declare(MCTSEntry)
+
+
 class TranspositionTableMCTS:
-    size = cython.declare(cython.uint, visibility="public")
-    table: cython.object
-    visited: cython.list
-
-    # Metrics for debugging and experimental purposes
-    c_cache_hits: cython.uint
-    c_cache_misses: cython.uint
-    c_collisions: cython.uint
-    c_cleanups: cython.uint
-    cache_hits: cython.uint
-    cache_misses: cython.uint
-    collisions: cython.uint
-    cleanups: cython.uint
-
     def __init__(self, size):
         """
         Initialize the transposition table with the given size.
@@ -269,73 +236,46 @@ class TranspositionTableMCTS:
         :param size: The maximum number of entries the transposition table can hold.
         """
         self.size = size
-        self.table = OrderedDict()
+        self.table = dict()
         self.visited = []  # Hashes of the visited states
         # Metrics for debugging and experimental purposes
         self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
 
-    @cython.ccall
-    @cython.locals(key=cython.long)
     def exists(self, key):
         return key in self.table
 
-    @cython.ccall
-    @cython.locals(
-        key=cython.long,
-        board=cython.object,
-        _board_ref=cython.object,
-        v1=cython.float,
-        v2=cython.float,
-        im_value=cython.float,
-        visits=cython.int,
-        solved_player=cython.int,
-        is_expanded=cython.bint,
-    )
-    def get(self, key, board=None) -> cython.tuple:
+    def get(self, key):
         try:
-            entries: cython.list = self.table[key]
-            entry: cython.tuple
-            for entry in entries:
-                v1, v2, im_value, visits, solved_player, is_expanded, _board_ref = entry
-                _board = _board_ref()  # Resolve weak reference
+            entry: tuple[
+                cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint
+            ] = self.table[key]
 
-                if _board is not None and not np.array_equal(_board, board):
-                    continue  # Skip this entry, as it is a collision
+            # _board = _board_ref()  # Resolve weak reference
 
-                # Refresh entry in LRU
-                entries.remove(entry)
-                entries.append(entry)
-                self.visited.append(key)  # Add this hash to the visited set
-                self.cache_hits += 1
-                return v1, v2, im_value, visits, solved_player, is_expanded
+            # if _board is not None and not np.array_equal(_board, board):
+            #     continue  # Skip this entry, as it is a collision
+
+            # Refresh entry in LRU
+            # entries.remove(entry)
+            # entries.append(entry)
+
+            self.visited.append(key)  # Add this hash to the visited set
+            self.cache_hits += 1
+            return entry
 
         except KeyError:
             self.cache_misses += 1
 
-        return None, None, None, None, None, None
+        return (0.0, 0.0, 0.0, 0, 0, 0)
 
-    @cython.ccall
     @cython.locals(
-        key=cython.long,
-        board=cython.object,
-        _board_ref=cython.object,
-        v1=cython.float,
-        v2=cython.float,
-        im_value=cython.float,
-        visits=cython.int,
-        solved_player=cython.int,
-        is_expanded=cython.bint,
-        entries=cython.list,
         _v1=cython.float,
         _v2=cython.float,
         _im_value=cython.float,
         _visits=cython.int,
         _solved_player=cython.int,
         _is_expanded=cython.bint,
-        _board=cython.object,
-        board_ref=cython.object,
-        entry=cython.list,
     )
     def put(
         self,
@@ -346,40 +286,40 @@ class TranspositionTableMCTS:
         solved_player=0,
         is_expanded=0,
         im_value=0,
-        board=None,
     ):
-        entries = self.table.get(key, [])
-        board_ref = weakref.ref(board)  # Create weak reference
-        self.visited.append(key)  # Add this hash to the visited set
-
-        for entry in entries:
-            _v1, _v2, _im_value, _visits, _solved_player, _is_expanded, _board_ref = entry
-            _board = _board_ref()  # Resolve weak reference
-
-            if _board is not None and not np.array_equal(_board, board):
-                self.collisions += 1
-                continue  # Skip this entry, as it is a collision
+        try:
+            entry: tuple[
+                cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint
+            ] = self.table[key]
+            # board_ref = weakref.ref(board)  # Create weak reference
+            _v1, _v2, _im_value, _visits, _solved_player, _is_expanded = entry
+            # _board = _board_ref()  # Resolve weak reference
+            # if _board is not None and not np.array_equal(_board, board):
+            #     self.collisions += 1
+            #     continue  # Skip this entry, as it is a collision
 
             if im_value != 0:
                 _im_value = im_value
             if solved_player != 0:
                 _solved_player = solved_player
 
-            # Update existing entry
-            entry[:] = (
-                v1 + _v1,
-                v2 + _v2,
-                _im_value,
-                visits + _visits,
-                _solved_player,
-                is_expanded or _is_expanded,
-                board_ref,
-            )
-            return
-
-        # Create new entry if no existing entry was found
-        entries.append([v1, v2, im_value, visits, solved_player, is_expanded, board_ref])
-        self.table[key] = entries
+            if entry:
+                # Update existing entry
+                self.table[key] = (
+                    v1 + _v1,
+                    v2 + _v2,
+                    _im_value,
+                    visits + _visits,
+                    _solved_player,
+                    is_expanded or _is_expanded,
+                )
+                return
+        except KeyError:
+            self.num_entries += 1
+            # Create new entry if no existing entry was found
+            self.table[key] = (v1, v2, im_value, visits, solved_player, is_expanded)
+        finally:
+            self.visited.append(key)  # Add this hash to the visited set
 
     def evict(self):
         # Replace the table with a new table that only includes keys in the visited set
@@ -387,7 +327,6 @@ class TranspositionTableMCTS:
         self.num_entries = sum(len(entries) for entries in self.table.values())  # Update num_entries
         self.visited.clear()  # Clear the visited set
 
-    @cython.ccall
     def reset_metrics(self):
         # Keep some cumulative statistics
         self.c_cache_hits += self.cache_hits

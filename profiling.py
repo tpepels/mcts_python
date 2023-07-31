@@ -4,27 +4,21 @@ import pstats
 from run_games import run_game, AIParams
 
 
+from run_games import run_game, AIParams
+
 p1_params = AIParams(
-    ai_key="alphabeta",
-    eval_key="evaluate_blokus",
+    ai_key="mcts",
+    eval_key="evaluate_tictactoe",
     max_player=1,
-    ai_params={"max_time": 10, "debug": True},
-    eval_params={},
+    ai_params={"num_simulations": 100, "debug": False},
 )
 p2_params = AIParams(
-    ai_key="alphabeta",
-    eval_key="evaluate_blokus",
+    ai_key="mcts",
+    eval_key="evaluate_tictactoe",
     max_player=2,
-    ai_params={"max_time": 10, "debug": True},
-    eval_params={},
+    ai_params={"num_simulations": 100, "debug": False},
 )
-
-run_game(
-    game_key="blokus",
-    game_params={},
-    p1_params=p1_params,
-    p2_params=p2_params,
-)
+run_game(game_key="tictactoe", game_params={"board_size": 3}, p1_params=p1_params, p2_params=p2_params)
 
 # try:
 #     # Use cProfile to run the function and save the profiling results to a file
