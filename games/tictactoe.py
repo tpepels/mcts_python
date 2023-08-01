@@ -32,7 +32,7 @@ class TicTacToeGameState(GameState):
     ):
         self.size = board_size
         self.row_length = row_length if row_length else board_size
-        self.board = board
+        self.board: np.ndarray = board
         self.board_hash = board_hash
         self.player = player
 
@@ -87,11 +87,11 @@ class TicTacToeGameState(GameState):
         return next(self.yield_legal_actions(), None)
 
     def yield_legal_actions(self):
-        non_zero_indices = list(zip(*np.where(self.board == 0)))
-        random.shuffle(non_zero_indices)  # Shuffle the list
-
-        for i, j in non_zero_indices:
-            yield (i, j)
+        all_indices = list(itertools.product(range(self.size), range(self.size)))
+        random.shuffle(all_indices)  # Shuffle the list
+        for i, j in all_indices:
+            if self.board[i, j] == 0:
+                yield (i, j)
 
     def get_legal_actions(self):
         return list(zip(*np.where(self.board == 0)))
@@ -116,14 +116,25 @@ class TicTacToeGameState(GameState):
 
     def evaluate_moves(self, moves):
         """
-        Evaluates the "connectivity" and "centrality" of a list of moves.
+        :param moves: The list of moves to evaluate.
+        :return: A list of tuples of moves and scores for each move.
+        """
+        scores: list[tuple] = [()] * len(moves)
+        for i in range(len(moves)):
+            scores[i] = (
+                moves[i],
+                evaluate_move(moves[i][0], moves[i][1], self.size, self.board, self.player),
+            )
+        return scores
 
+    def move_weights(self, moves):
+        """
         :param moves: The list of moves to evaluate.
         :return: A list of scores for each move.
         """
-        scores = []
-        for move in moves:
-            scores.append((move, evaluate_move(move[0], move[1], self.size, self.board, self.player)))
+        scores = [0] * len(moves)
+        for i in range(len(moves)):
+            scores[i] = evaluate_move(moves[i][0], moves[i][1], self.size, self.board, self.player)
         return scores
 
     def evaluate_move(self, move):
@@ -192,37 +203,39 @@ class TicTacToeGameState(GameState):
     y=cython.int,
     center=cython.int,
     size=cython.int,
-    connectivity_score=cython.float,
-    centrality_score=cython.float,
+    connectivity_score=cython.int,
+    centrality_score=cython.int,
     i=cython.int,
     j=cython.int,
-    a=cython.int,
-    move=cython.tuple,
+    new_x=cython.int,
+    new_y=cython.int,
     board=cython.int[:, :],
     player=cython.int,
 )
-def evaluate_move(x, y, size, board, player) -> cython.float:
-    # adjacent_moves = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
-    adjacent_moves: cython.int[:, :] = np.zeros((8, 2), dtype=np.int32)
-    idx = 0
-    for i in range(-1, 2):
-        for j in range(-1, 2):
-            if i != 0 or j != 0:
-                adjacent_moves[idx][0] = x + i
-                adjacent_moves[idx][1] = y + j
-                idx += 1
+def evaluate_move(x, y, size, board, player) -> cython.int:
+    # Initialize the score
+    connectivity_score = 0
+
     # Calculate the Manhattan distance from the center
     center = size // 2
-    connectivity_score = 0
-    for a in range(adjacent_moves.shape[0]):
-        i = adjacent_moves[a][0]
-        j = adjacent_moves[a][1]
-        if 0 <= i < size and 0 <= j < size and board[i, j] == player:
-            connectivity_score += 1
 
-    centrality_score = ((center - abs(x - center)) + (center - abs(y - center))) / center
+    # Iterate over all 8 possible adjacent positions
+    for i in range(-1, 2):
+        for j in range(-1, 2):
+            # Exclude the current position itself
+            if i != 0 or j != 0:
+                # Calculate the new potential position
+                new_x = x + i
+                new_y = y + j
 
-    return (2.0 * connectivity_score) + centrality_score
+                # If the new position is within the board and is occupied by the current player, increment the connectivity_score
+                if 0 <= new_x < size and 0 <= new_y < size and board[new_x, new_y] == player:
+                    connectivity_score += 3
+
+    # Calculate the centrality score
+    centrality_score = (center - abs(x - center)) + (center - abs(y - center))
+
+    return 10 + connectivity_score + centrality_score
 
 
 directions: cython.list = [(0, 1), (1, 0), (1, 1), (-1, 1)]  # horizontal, vertical, two diagonal directions
@@ -680,7 +693,7 @@ def evaluate_ninarow(
         x_: cython.int
         y_: cython.int
         length: cython.int = len(non_zero_indices[0])
-        move: cython.tuple
+        move: tuple[cython.int, cython.int]
         element: cython.int
 
         for k in range(length):

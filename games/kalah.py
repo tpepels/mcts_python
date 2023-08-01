@@ -12,9 +12,9 @@ MAX_SEEDS = 72  # maximum number of seeds in one position, it's 72 as it's the t
 
 
 class KalahGameState(GameState):
-    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
+    players_bitstrings = [random.randint(1, 2**32 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_table = [
-        [random.randint(1, 2**64 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)
+        [random.randint(1, 2**32 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)
     ]  # 14 slots
 
     def __init__(self, board=None, player=1):
@@ -248,9 +248,21 @@ class KalahGameState(GameState):
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic scores for the moves.
         """
-        scores = []
-        for move in moves:
-            scores.append((move, evaluate_move(self.board, move[0], self.player)))
+        scores: list[tuple] = [()] * len(moves)
+        for i in range(len(moves)):
+            scores[i] = (moves[i], evaluate_move(self.board, moves[i][0], self.player))
+        return scores
+
+    def move_weights(self, moves):
+        """
+        Evaluate the given moves using a heuristic based on the potential benefits of the move.
+
+        :param moves: The list of moves to evaluate.
+        :return: The list of heuristic scores for the moves.
+        """
+        scores: list[int] = [0] * len(moves)
+        for i in range(len(moves)):
+            scores[i] = evaluate_move(self.board, moves[i][0], self.player)
         return scores
 
     def evaluate_move(self, move):
@@ -330,9 +342,8 @@ def evaluate_move(board, move, player):
     :return: The heuristic score for the move.
     """
 
-    # Initialize score to 0
-    score = 0
-
+    # Initialize score to the number of seeds in the house
+    score = board[move]
     # Check if the move results in a capture and assign a positive score
     if is_capture(board, move, player):
         last_index, _ = calc_last_index_total_steps(
@@ -342,11 +353,10 @@ def evaluate_move(board, move, player):
             size=len(board),
         )
         score += board[12 - last_index] * 4
-
     # Check if the move results in another move for the current player and assign a positive score
     last_index, _ = calc_last_index_total_steps(board[move], move, 13 if player == 1 else 6)
     if (player == 1 and last_index == 6) or (player == 2 and last_index == 6):
-        score += 1
+        score += 10
 
     return score
 

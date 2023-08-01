@@ -1,5 +1,6 @@
 # cython: language_level=3
 
+import random
 import cython
 
 import itertools
@@ -7,7 +8,7 @@ import time
 
 import numpy as np
 from ai.transpos_table import TranspositionTableMCTS
-from games.gamestate import roulette_selection, win, loss
+from games.gamestate import win, loss
 from cython.cimports.ai.transpos_table import TranspositionTableMCTS
 
 DEBUG: cython.bint = 0
@@ -15,7 +16,6 @@ DEBUG: cython.bint = 0
 
 @cython.cclass
 class Node:
-    # action = cython.declare(cython.tuple, visibility="public")
     children = cython.declare(cython.list, visibility="public")
 
     action: cython.tuple
@@ -363,6 +363,7 @@ class MCTSPlayer:
         node: Node = self.root
         selected: cython.list = [node.state_hash]
         next_state: cython.object = state
+        result: tuple[cython.float, cython.float]
 
         while not next_state.is_terminal():
             node = node.select(self.c, state)  # * Expansion requres a reference to the state, uct does not
@@ -377,13 +378,13 @@ class MCTSPlayer:
 
         if not next_state.is_terminal():
             # Do a random playout and collect the result
-            result: cython.tuple = self.play_out(next_state)
+            result = self.play_out(next_state)
             if DEBUG:
                 print(f"Random playout result: {result}")
         else:
             p1_reward: cython.float = next_state.get_reward(1)
             # We've reached a terminal node, so we can just use the result
-            result: cython.tuple = (p1_reward, -p1_reward)
+            result = (p1_reward, -p1_reward)
             if DEBUG:
                 print(f"Terminal node result: {result}")
 
@@ -417,7 +418,7 @@ class MCTSPlayer:
         actions=cython.list,
         best_action=cython.tuple,
         action=cython.tuple,
-        result=cython.tuple,
+        result=tuple[cython.float, cython.float],
         max_value=cython.float,
     )
     def play_out(self, state: cython.object):
@@ -462,9 +463,7 @@ class MCTSPlayer:
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
             if self.roulette and np.random.uniform(0, 1) < self.epsilon:
                 actions = state.get_legal_actions()
-                best_action = roulette_selection(
-                    state.evaluate_moves(actions), is_sorted=False
-                )  # Select a random action (weighted by the evaluation)
+                best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
 
             # With probability 1-epsilon chose a move at random
             if best_action == ():

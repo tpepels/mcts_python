@@ -16,8 +16,8 @@ else:
 
 
 class BreakthroughGameState(GameState):
-    players_bitstrings = [random.randint(1, 2**64 - 1) for _ in range(3)]  # 0 is for the empty player
-    zobrist_table = [[[random.randint(1, 2**64 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
+    players_bitstrings = [random.randint(1, 2**32 - 1) for _ in range(3)]  # 0 is for the empty player
+    zobrist_table = [[[random.randint(1, 2**32 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
 
     """
     This class represents the game state for the Breakthrough board game.
@@ -197,9 +197,15 @@ class BreakthroughGameState(GameState):
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic values of the moves.
         """
-        scores = []
-        for move in moves:
-            scores.append((move, evaluate_move(self.board, move[0], move[1], self.player)))
+        scores: list[tuple] = [()] * len(moves)
+        for i in range(len(moves)):
+            scores[i] = (moves[i], evaluate_move(self.board, moves[i][0], moves[i][1], self.player))
+        return scores
+
+    def move_weights(self, moves):
+        scores = [0] * len(moves)
+        for i in range(len(moves)):
+            scores[i] = evaluate_move(self.board, moves[i][0], moves[i][1], self.player)
         return scores
 
     def evaluate_move(self, move):
@@ -365,7 +371,7 @@ def to_chess_notation(index):
     board=cnp.ndarray,
     player=cython.int,
 )
-def get_random_action(board, player) -> cython.tuple:
+def get_random_action(board, player) -> tuple[cython.int, cython.int]:
     """
     Generate a single legal action for the current player.
 
@@ -397,7 +403,7 @@ def get_random_action(board, player) -> cython.tuple:
                     return (position, new_position)
 
     # if no legal moves are found after iterating all positions and directions, return None
-    return (None, None)
+    return (0, 0)
 
 
 @cython.ccall
@@ -456,13 +462,12 @@ def evaluate_move(
 ) -> cython.int:
     score: cython.int = 0
 
-    # Player 1 views the lorenz_values in reverse
+    # Use lorentz_values for base_value, the max value is 36, so we add 36 to the score to make sure it is non-negative
     if player == 2:
-        # Use lorentz_values for base_value
-        score = lorentz_values[to_position] - lorentz_values[from_position]
+        score = 36 + (lorentz_values[to_position] - lorentz_values[from_position])
     else:
-        # Use lorentz_values for base_value
-        score = lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
+        # Player 1 views the lorenz_values in reverse
+        score = 36 + (lorentz_values[63 - to_position] - lorentz_values[63 - from_position])
 
     # Reward capturing
     if board[to_position] == 3 - player:
@@ -736,7 +741,9 @@ bef_last_rows_1: cnp.ndarray = np.arange(8, 16)
     board=cnp.ndarray,
     player_positions=cython.long[:],  # to specify a 1-D memoryview type, can be more efficient
 )
-def is_decisive(state: cython.object) -> cython.tuple:
+def is_decisive(
+    state: cython.object,
+) -> tuple[cython.int, cython.int, cython.int, cython.int]:
     board = state.board
     player_1_decisive = player_2_decisive = player_1_antidecisive = player_2_antidecisive = 0
 

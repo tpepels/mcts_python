@@ -1,6 +1,7 @@
 # cython: language_level=3
 
 from operator import itemgetter
+from typing import Generator
 import cython
 from abc import ABC, abstractmethod
 
@@ -22,7 +23,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def apply_action(self, action) -> "GameState":
+    def apply_action(self, action) -> GameState:
         """
         Apply an action to the current game state and return the resulting new state.
         The state of the instance is not altered in this method, i.e. the move is not applied to this gamestate
@@ -33,14 +34,14 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def get_random_action(self):
+    def get_random_action(self) -> tuple:
         """
         Return a single legal action, uniformly chosen from all legal actions
         """
         pass
 
     @abstractmethod
-    def yield_legal_actions(self):
+    def yield_legal_actions(self) -> Generator[tuple, None, None]:
         """
         Returns legal actions one by one
         """
@@ -56,7 +57,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def is_terminal(self):
+    def is_terminal(self) -> bool:
         """
         Check if the current game state is a terminal state, i.e., the game has ended.
 
@@ -74,7 +75,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def is_capture(self, move):
+    def is_capture(self, move) -> bool:
         """
         Check if a move results in a capture of pieces
 
@@ -84,7 +85,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def evaluate_moves(self, moves) -> list:
+    def evaluate_moves(self, moves) -> list[tuple[tuple, int]]:
         """Evaluate a list of moves to use in move ordering
 
         Args:
@@ -93,7 +94,16 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def evaluate_move(self, move):
+    def move_weights(self, moves) -> list[int]:
+        """Evaluate a list of moves to use in move ordering
+
+        Args:
+            moves list: A list of moves to evaluate
+        """
+        pass
+
+    @abstractmethod
+    def evaluate_move(self, move) -> int:
         """
         Evaluates a move use for playouts. (This is a simple evaluation)
 
@@ -103,7 +113,7 @@ class GameState(ABC):
         pass
 
     @abstractmethod
-    def visualize(self, full_debug=False):
+    def visualize(self, full_debug=False) -> str:
         """
         Generate a string representation of the game
 
@@ -132,35 +142,3 @@ def normalize(value, a):
         a (float): absolute max
     """
     return np.tanh(value / a)
-
-
-@cython.ccall
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.locals(
-    weighted_population=cython.list,
-    item=cython.tuple,
-    weight_total=cython.double,
-    random_num=cython.double,
-    n=cython.int,
-    i=cython.int,
-    is_sorted=cython.bint,
-)
-def roulette_selection(weighted_population, is_sorted=1) -> cython.tuple:
-    if not is_sorted:
-        weighted_population.sort(key=itemgetter(1), reverse=True)
-    # Calculate the total weight (sum of values)
-    weight_total = 0.0
-    n = len(weighted_population)
-    for i in range(n):
-        weight_total += weighted_population[i][1]
-
-    # Pick a random value between 0 and the total weight
-    random_num = random.uniform(0, weight_total)
-
-    # Go through the population, subtracting each weight from the random number until we get to 0
-    # Return the item where this happens
-    for i in range(n):
-        random_num -= weighted_population[i][1]
-        if random_num < 0:
-            return weighted_population[i][0]

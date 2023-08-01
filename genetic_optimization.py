@@ -39,7 +39,12 @@ def setup_reporting(
     eval_param_ranges: Dict[str, Tuple[float, float]],
     no_google: bool = False,
 ):
-    csv_header = ["Generation"] + list(ai_param_ranges.keys()) + list(eval_param_ranges.keys()) + ["Fitness"]
+    csv_header = (
+        ["Generation"]
+        + sorted(list(ai_param_ranges.keys()))
+        + sorted(list(eval_param_ranges.keys()))
+        + ["Fitness"]
+    )
     global csv_f, csv_writer, sheet
     try:
         config = util.read_config()
@@ -72,12 +77,11 @@ def report_results(
     best_individual: Dict[str, Dict[str, float]],
     best_individual_fitness: int,
 ) -> None:
-    row = (
-        [generation]
-        + list(best_individual["ai"].values())
-        + list(best_individual["eval"].values())
-        + [best_individual_fitness]
-    )
+    # Sort the keys so that values are reported in the correct order
+    ai_params = [best_individual["ai"][key] for key in sorted(best_individual["ai"].keys())]
+    eval_params = [best_individual["eval"][key] for key in sorted(best_individual["eval"].keys())]
+
+    row = [generation] + ai_params + eval_params + [best_individual_fitness]
     try:
         if sheet:
             sheet.append_row(row)
@@ -91,12 +95,13 @@ def report_results(
 
 
 def report_final_results(best_overall_individual: Tuple[Dict[str, Dict[str, float]], int]) -> None:
-    row = (
-        ["Final"]
-        + list(best_overall_individual[0]["ai"].values())
-        + list(best_overall_individual[0]["eval"].values())
-        + [best_overall_individual[1]]
-    )
+    ai_params = [
+        best_overall_individual[0]["ai"][key] for key in sorted(best_overall_individual[0]["ai"].keys())
+    ]
+    eval_params = [
+        best_overall_individual[0]["eval"][key] for key in sorted(best_overall_individual[0]["eval"].keys())
+    ]
+    row = ["Final"] + ai_params + eval_params + [best_overall_individual[1]]
 
     try:
         if sheet:
@@ -304,7 +309,7 @@ def genetic_algorithm(
 
         # Calculate the number of wins for each individual as fitness values
         fitnesses = [0.0] * len(population)  # Initialize the fitnesses list
-        n_games = [0.0] * len(population)
+        # n_games = [0.0] * len(population)
         for individual1, fitness1, individual2, fitness2 in results:
             # Find indices of the individuals
             index1 = population.index(individual1)
@@ -312,15 +317,15 @@ def genetic_algorithm(
             # Update fitnesses list in-place
             fitnesses[index1] += fitness1
             fitnesses[index2] += fitness2
-            # * Allthough two games are played per pair, we only count one result per individual
-            n_games[index1] += 1
-            n_games[index2] += 1
+        #     # * Allthough two games are played per pair, we only count one result per individual
+        #     n_games[index1] += 1
+        #     n_games[index2] += 1
 
-        # normalize the fitnesses to an average
-        for i in range(len(fitnesses)):
-            if n_games[i] != 0:
-                fitnesses[i] /= n_games[i]
-            fitnesses[i] = round(fitnesses[i], 2)
+        # # normalize the fitnesses to an average
+        # for i in range(len(fitnesses)):
+        #     if n_games[i] != 0:
+        #         fitnesses[i] /= n_games[i]
+        #     fitnesses[i] = round(fitnesses[i], 2)
 
         if debug:
             # print the fitnesses per individual:
