@@ -8,7 +8,6 @@ import numpy as np
 from cython.cimports import numpy as cnp
 
 cnp.import_array()
-
 import numpy as np
 from games.gamestate import GameState, win, loss, draw, normalize
 from termcolor import colored

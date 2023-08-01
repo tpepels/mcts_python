@@ -33,7 +33,7 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_centre_bonus": { "range": [0.5, 4], "precision": 1 },
-      "m_pow": { "range": [1, 10], "precision": 0 },
+      "m_power": { "range": [1, 10], "precision": 0 },
       "m_opp_disc": { "range": [0, 2], "precision": 2 }
     },
     "ai_static_params": { "max_time": 5 },

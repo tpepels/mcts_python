@@ -333,7 +333,7 @@ def genetic_algorithm(
 
         if debug:
             print("." * 30 + time.strftime("%H:%M:%S", time.localtime()) + "." * 30)
-            print(f"Finished fitness calculation, took {int(time.time() - gen_start_time)} seconds")
+            print(f"Finished fitness calculation, took {format_time(int(time.time() - gen_start_time))}")
 
         # Get the best individual and its fitness
         best_individual_index = fitnesses.index(max(fitnesses))
@@ -370,7 +370,6 @@ def genetic_algorithm(
         population = create_next_generation(parents, mutation_rate, ai_param_ranges, eval_param_ranges)
 
         if debug:
-            print(f"* Finished creating next generation, took {int(time.time() - gen_start_time)} seconds")
             # print the population info
             print(f"* Population size: {len(population)}")
             print(f"* Number of unique individuals in previous population: {len(unique_elites)}")
@@ -498,6 +497,7 @@ def evaluate_fitness(
         n_moves += 1
         print(f"Player {player} - chosen action: {action}.\nCurrent game state:\n{game.visualize()}")
         if game.is_terminal():
+            print(f"{n_moves} moves total.")
             if game.get_reward(1) == win:
                 print("Game Over. Winner: P1")
             elif game.get_reward(1) == loss:
@@ -505,14 +505,13 @@ def evaluate_fitness(
             else:
                 print("Game Over. Draw")
 
-    start_time = time.time()
     with ErrorLogger(play_game_until_terminal, log_dir="log/game_error/"):
         # Create AI players with given parameters
         ai1_params = AIParams(player_name, eval_name, 1, ai_params1, eval_params1)
         ai2_params = AIParams(player_name, eval_name, 2, ai_params2, eval_params2)
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         game_result = play_game_until_terminal(game, player1, player2, callback=callback)
-
+        n_moves = 0
         # Create AI players with given parameters for the swapped seats game
         ai1_params = AIParams(player_name, eval_name, 2, ai_params1, eval_params1)
         ai2_params = AIParams(player_name, eval_name, 1, ai_params2, eval_params2)
@@ -520,11 +519,6 @@ def evaluate_fitness(
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
         game_result_sw = play_game_until_terminal(game, player2, player1, callback=callback)
-    end_time = time.time()
-
-    print(
-        f"Game of {n_moves} moves, took {format_time(int(end_time - start_time))} to complete. Moves per second: {n_moves / (end_time - start_time):.2f}"
-    )
     res_1 = get_game_result(game_result, draw_score)
     res_2 = get_game_result(game_result_sw, draw_score)
 
