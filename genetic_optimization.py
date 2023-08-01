@@ -287,10 +287,9 @@ def genetic_algorithm(
             print("." * 30 + time.strftime("%H:%M:%S", time.localtime()) + "." * 30)
             print(f"Starting generation {generation}")
 
-        gen_start_time = time.time()
-
         pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
 
+        gen_start_time = time.time()
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
@@ -333,6 +332,7 @@ def genetic_algorithm(
                 print(f"fitness: {fitness}")
 
         if debug:
+            print("." * 30 + time.strftime("%H:%M:%S", time.localtime()) + "." * 30)
             print(f"Finished fitness calculation, took {int(time.time() - gen_start_time)} seconds")
 
         # Get the best individual and its fitness
@@ -491,6 +491,21 @@ def evaluate_fitness(
     ai_params2 = {**ai_static_params, **individual2["ai"]}
     eval_params2 = {**eval_static_params, **individual2["eval"]}
 
+    n_moves = 0
+
+    def callback(player, action, game, time):
+        nonlocal n_moves
+        n_moves += 1
+        print(f"Player {player} - chosen action: {action}.\nCurrent game state:\n{game.visualize()}")
+        if game.is_terminal():
+            if game.get_reward(1) == win:
+                print("Game Over. Winner: P1")
+            elif game.get_reward(1) == loss:
+                print("Game Over. Winner: P2")
+            else:
+                print("Game Over. Draw")
+
+    start_time = time.time()
     with ErrorLogger(play_game_until_terminal, log_dir="log/game_error/"):
         # Create AI players with given parameters
         ai1_params = AIParams(player_name, eval_name, 1, ai_params1, eval_params1)
@@ -505,7 +520,11 @@ def evaluate_fitness(
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
         game_result_sw = play_game_until_terminal(game, player2, player1, callback=callback)
+    end_time = time.time()
 
+    print(
+        f"Game took {format_time(int(end_time - start_time))} to complete. Moves per second: {n_moves / (end_time - start_time):.2f}"
+    )
     res_1 = get_game_result(game_result, draw_score)
     res_2 = get_game_result(game_result_sw, draw_score)
 
@@ -527,17 +546,6 @@ def get_game_result(game_result, draw_score: float) -> Tuple[float, float]:
         return 0.0, 1.0
     else:
         assert False, f"Unexpected game result: {game_result}"
-
-
-def callback(player, action, game, time):
-    print(f"Player {player} chosen action: {action}. Current game state: \n {game.visualize()}")
-    if game.is_terminal():
-        if game.get_reward(1) == win:
-            print("Game Over. Winner: P1")
-        elif game.get_reward(1) == loss:
-            print("Game Over. Winner: P2")
-        else:
-            print("Game Over. Draw")
 
 
 def scale_fitnesses(fitnesses):
