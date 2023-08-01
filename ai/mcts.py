@@ -11,6 +11,8 @@ from ai.transpos_table import TranspositionTableMCTS
 from games.gamestate import win, loss
 from cython.cimports.ai.transpos_table import TranspositionTableMCTS
 
+from util import abbreviate, pretty_print_dict
+
 DEBUG: cython.bint = 0
 
 
@@ -27,7 +29,9 @@ class Node:
 
     tt: TranspositionTableMCTS
 
-    def __init__(self, player: int, action: tuple, state_hash: int, tt: TranspositionTableMCTS):
+    def __init__(
+        self, player: int, state: cython.object, action: tuple, state_hash: int, tt: TranspositionTableMCTS
+    ):
         self.children = []
         # The action that led to this state, needed for root selection
         self.action = action
@@ -37,25 +41,19 @@ class Node:
         self.action_generator = None
         self.expanded = 0
 
-    @cython.cfunc
-    @cython.locals(child=Node)
-    @cython.returns(Node)
-    def select(self, c: cython.float, state: cython.object) -> Node:
-        child = None
-        if not self.expanded:
-            stats = self.stats()
-            self.expanded = stats[5]
+        # Check if the node was previously expanded, in which case add the relevant states to this node.
+        self.check_tt_expand(state)
 
-            # No need to expand an already solved node
-            if self.expanded and stats[4] == 0:
-                self.add_all_children(state)
-            elif stats[4] == 0:  # If the node was not solved elsewhere in the tree
-                child = self.expand(state)
-
-        if child is None:
-            child = self.uct(c)
-
-        return child
+    @cython.ccall
+    @cython.locals(stats=tuple[cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint])
+    def check_tt_expand(self, state: cython.object):
+        """
+        Check if the node has been expanded elsewhere in the tree since the last time that we saw it
+        """
+        stats = self.stats()
+        # No need to expand an already expanded node, since all nodes are already in the tt
+        if not self.expanded and stats[5] and stats[4] == 0:
+            return self.add_all_children(state)
 
     @cython.cfunc
     @cython.locals(
@@ -69,6 +67,7 @@ class Node:
         ci=cython.int,
         n_children=cython.int,
         c=cython.float,
+        children_lost=cython.int,
     )
     @cython.returns(Node)
     def uct(self, c) -> Node:
@@ -77,31 +76,34 @@ class Node:
         max_val = -999999.99
         max_child = None
         n_children = len(self.children)
+        children_lost = 0
         for ci in range(n_children):
             child = self.children[ci]
-
             # 0: v1, 1: v2, 2: im_value, 3: visits, 4: solved_player, 5: is_expanded
             child_stats = child.stats()
-            assert child_stats[3] > 0, f"Child ({child}) of mine ({self}) has no visits in uct!"
+            # TODO Hier was je gebleven, je kan dus nodes hebben die zonder visits zitten omdat die ergens anders aan de tree toegevoegd zijn
+            # TODO Maar dat moet je wel nog even bevestigen.
+            assert (
+                child_stats[3] > 0 or child_stats[4] != 0
+            ), f"Child ({child}) of mine ({self}) has neither visits in uct, nor is it solved!"
 
             i = self.player - 1  # This makes is easier to index the player in the stats
 
             # TODO Dit moet je nog checken
-            if child_stats[4] != 0:  # This child node has been solved
-                if child_stats[4] == self.player:  # Winning move
-                    self.solved = True
-                    self.tt.put(
-                        key=self.state_hash,
-                        v1=0,
-                        v2=0,
-                        visits=0,
-                        im_value=0,
-                        is_expanded=1,
-                        solved_player=self.player,
-                    )
-                    return child
-                else:  # Losing move
-                    continue  # Skip this child
+            if child_stats[4] == self.player:  # Winning move, let's go champ
+                self.tt.put(
+                    key=self.state_hash,
+                    v1=0,
+                    v2=0,
+                    visits=0,
+                    im_value=0,
+                    is_expanded=1,
+                    solved_player=self.player,
+                )
+                return child
+            elif child_stats[4] == 3 - self.player:  # Losing move
+                children_lost += 1
+                continue  # Skip this child
 
             uct_val = (
                 child_stats[i] / child_stats[3]
@@ -113,6 +115,20 @@ class Node:
                 max_child = child
                 max_val = uct_val
 
+        # It may happen that somewhere else in the tree all my children have been found to be proven losses.
+        if children_lost == len(self.children):
+            self.tt.put(
+                key=self.state_hash,
+                v1=0,
+                v2=0,
+                visits=0,
+                im_value=0,
+                is_expanded=1,
+                solved_player=3 - self.player,
+            )
+            # Just return any child, it doesn't matter which one because they are all losses.
+            return random.choice(self.children)
+
         return max_child
 
     @cython.cfunc
@@ -122,6 +138,7 @@ class Node:
         all_children_loss=cython.bint,
         state=cython.object,
         new_state=cython.object,
+        result=cython.int,
     )
     def expand(self, state) -> Node:
         # If no generator exists, create it
@@ -129,19 +146,33 @@ class Node:
             # TODO Checken of dit betere performance geeft dan get_legal_actions
             self.action_generator = state.yield_legal_actions()
 
-        all_children_loss = 0
-
         for action in self.action_generator:
             # TODO Remove this after testing
             assert action not in [child.action for child in self.children]
 
             new_state = state.apply_action(action)
-            child = Node(new_state.player, action, new_state.board_hash, tt=self.tt)
+            child = Node(new_state.player, state, action, new_state.board_hash, tt=self.tt)
+            # print(f"Adding node {child} to the tree.")
             self.children.append(child)
 
-            # Solver
-            if child.stats()[4] == self.player:  # This child is a win
-                self.solved = 1
+            if new_state.is_terminal():  # Solver
+                result = new_state.get_reward(self.player)
+                if result == win:  # We've found a winning position, hence this node is solved
+                    self.tt.put(
+                        key=self.state_hash,
+                        v1=0,
+                        v2=0,
+                        visits=0,
+                        im_value=0,
+                        is_expanded=1,
+                        solved_player=self.player,
+                    )
+                    return child
+                # We've found a losing position, we cannot yet tell if it is solved, but no need to return the child
+                elif result == loss:
+                    continue
+                # If the game is a draw, we can just continue and return the child as any other
+            elif child.stats()[4] == self.player:  # This child is a win in the transposition table
                 self.tt.put(
                     key=self.state_hash,
                     v1=0,
@@ -152,18 +183,41 @@ class Node:
                     solved_player=self.player,
                 )
                 return child
-
-            # If one child is not a loss, then not all children are loss. Hence continue to the next node
-            if child.stats()[4] == 3 - self.player:  # The child is a loss
-                all_children_loss = 1
-                continue  # Skip this child
-            else:
-                all_children_loss = 0  # If one node is not a loss, then no worries. Continue to the next node
+            elif child.stats()[4] == 3 - self.player:  # The child is a loss in the transposition table
+                continue  # Skip this child, i.e. if all children are losses then we leave the loop with this variable set to 1
 
             return child  # Return a child that is not a loss. This is the node we will explore next.
 
+        # print(f"All children of {self} are added to the tree.")
+        # The node is fully expanded so we can switch to UTC selection
+        self.expanded = 1
+        self.tt.put(
+            key=self.state_hash,
+            v1=0,
+            v2=0,
+            visits=0,
+            im_value=0,
+            is_expanded=1,
+            solved_player=0,
+        )
+
+        self.check_loss_node()
+        # return any child, the node is now expanded so we can switch to UTC selection
+        return random.choice(self.children)
+
+    @cython.cfunc
+    @cython.locals(all_children_loss=cython.bint, i=cython.int)
+    def check_loss_node(self):
+        all_children_loss = 0
+        for i in range(len(self.children)):
+            # If all children are a loss, then we mark this node as solved for the opponent
+            if self.children[i].stats()[4] == 3 - self.player:
+                all_children_loss = 1
+            else:
+                all_children_loss = 0
+                break
+
         if all_children_loss:  # All children are losses, this node is solved for the opponent
-            self.solved = 1
             self.tt.put(
                 key=self.state_hash,
                 v1=0,
@@ -173,20 +227,6 @@ class Node:
                 is_expanded=1,
                 solved_player=3 - self.player,
             )
-
-        # The node is fully expanded so we can switch to UTC selection
-        self.expanded = 1
-        self.tt.put(
-            key=self.state_hash,
-            v1=0,
-            v2=0,
-            visits=0,
-            im_value=0,
-            is_expanded=True,
-            solved_player=0,
-        )
-
-        return None
 
     @cython.cfunc
     @cython.locals(
@@ -215,8 +255,12 @@ class Node:
                 if child.action == action:
                     continue  # Skip this child, it already exists
 
-            child = Node(new_state.player, action, new_state.board_hash, tt=self.tt)
+            child = Node(new_state.player, new_state, action, new_state.board_hash, tt=self.tt)
             self.children.append(child)
+
+        self.expanded = 1
+        # Check if all children are losses
+        self.check_loss_node()
 
     @cython.ccall
     def stats(self) -> tuple[cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint]:
@@ -227,9 +271,13 @@ class Node:
 
     def __str__(self):
         if self.action == ():
-            return f"Root(Player: {self.player}, Children {len(self.children)}, {str(self.stats())})"
+            return abbreviate(
+                f"Root(P:{self.player}, Hash: {self.state_hash}, Children: {len(self.children)}, Stats: {str(self.stats())})"
+            )
 
-        return f"Node(Action: {self.action}, Player: {self.player}, Children {len(self.children)}, Expanded: {self.expanded}, {str(self.stats())})"
+        return abbreviate(
+            f"Node(P: {self.player}, Action: {self.action}, Hash: {self.state_hash}, Children {len(self.children)}, Expanded: {self.expanded}, Stats: {str(self.stats())})"
+        )
 
 
 @cython.cclass
@@ -318,12 +366,8 @@ class MCTSPlayer:
         start_time=cython.float,
     )
     def best_action(self, state: cython.object):
-        if DEBUG:
-            print("Starting best_action function...")
-
-        self.root = Node(state.player, (), state.board_hash, self.tt)  # reset root for new round of MCTS
-        if DEBUG:
-            print(f"Root reset for new round of MCTS. Root: {self.root}")
+        # Reset root for new round of MCTS
+        self.root = Node(state.player, state, (), state.board_hash, self.tt)
 
         if self.num_simulations:
             if DEBUG:
@@ -333,12 +377,9 @@ class MCTSPlayer:
         else:
             start_time = time.time()
             if DEBUG:
-                print("Running simulations based on time limit.")
+                print(f"Running simulations based on time limit: {self.time}")
             while time.time() - start_time < self.time:
                 self.simulate(state)
-
-        # Clean the transposition table
-        self.tt.evict()
 
         # retrieve the node with the most visits
         max_node = self.root.children[0]
@@ -355,7 +396,13 @@ class MCTSPlayer:
             print(f"Max node found: {max_node}, with max value: {max_value}")
 
         if DEBUG:
-            print("Ending best_action function...")
+            print("\n\t".join([str(child) for child in self.root.children]))
+            print(f"{self.root}")
+            pretty_print_dict(self.tt.get_metrics())
+
+        # Clean the transposition table
+        self.tt.evict()
+
         return max_node.action, max_value  # return the most visited state
 
     @cython.cfunc
@@ -365,28 +412,33 @@ class MCTSPlayer:
         next_state: cython.object = state
         result: tuple[cython.float, cython.float]
 
-        while not next_state.is_terminal():
-            node = node.select(self.c, state)  # * Expansion requres a reference to the state, uct does not
+        while not next_state.is_terminal() and node.expanded:
+            node = node.uct(self.c)
             next_state = state.apply_action(node.action)
             selected.append(node.state_hash)
 
-            # We've reached a leaf node, so we can start a simulation
-            if (
-                not node.expanded or node.stats()[4] != 0
-            ):  # If the node is solved, we don't need to expand it or simulate it
+            if node.stats()[4] != 0:  # If the node is solved, we don't need to expand it or simulate it
                 break
 
         if not next_state.is_terminal():
+            node = node.expand(next_state)
+            next_state = state.apply_action(node.action)
+            selected.append(node.state_hash)
+
             # Do a random playout and collect the result
             result = self.play_out(next_state)
-            if DEBUG:
-                print(f"Random playout result: {result}")
+            # if DEBUG:
+            #     print(f"Random playout result: {result}")
         else:
             p1_reward: cython.float = next_state.get_reward(1)
-            # We've reached a terminal node, so we can just use the result
-            result = (p1_reward, -p1_reward)
-            if DEBUG:
-                print(f"Terminal node result: {result}")
+            if p1_reward == win:
+                result = (1.0, 0.0)
+            elif p1_reward == loss:
+                result = (0.0, 1.0)
+            else:
+                result = (0.5, 0.5)
+            # if DEBUG:
+            #     print(f"Terminal node result: {result}")
 
         # TODO If a proven node is returned, we should not backpropagate the result
         # TODO Hier was je gebleven, backprop doet niks, effe tt.put checken
@@ -404,10 +456,6 @@ class MCTSPlayer:
                 solved_player=0,
                 is_expanded=0,
             )
-            if DEBUG:
-                print(
-                    f"Backpropagated result for node {i}: {selected[i]} with values {result[0]}, {result[1]}"
-                )
 
     @cython.ccall
     @cython.returns(tuple[cython.float, cython.float])

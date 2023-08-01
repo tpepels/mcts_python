@@ -193,7 +193,7 @@ class AmazonsGameState(GameState):
 
         queens = self.white_queens if self.player == 1 else self.black_queens
 
-        return get_random_action(self.board, queens, self.player)
+        return get_random_action(self.board, queens)
 
     def yield_legal_actions(self):
         """
@@ -442,10 +442,9 @@ class AmazonsGameState(GameState):
         cython.int,
     ]
 )
-def get_random_action(board: cython.int[:, :], queens: cython.list, player: cython.int):
+def get_random_action(board: cython.int[:, :], queens: cython.list):
     random_queen = random.choice(queens)
-    all_moves_for_queen = get_legal_moves_for_amazon(random_queen[0], random_queen[1], board)
-    return random.choice(all_moves_for_queen)
+    return random.choice(get_legal_moves_for_amazon(random_queen[0], random_queen[1], board))
 
 
 @cython.ccall

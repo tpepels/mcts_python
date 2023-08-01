@@ -34,7 +34,7 @@ cdef struct MCTSEntry:
 cdef class TranspositionTableMCTS:
     cdef public unsigned long size
     cdef dict table
-    cdef list visited
+    cdef set visited
     cdef unsigned c_cache_hits
     cdef unsigned c_cache_misses
     cdef unsigned c_collisions

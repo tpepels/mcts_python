@@ -237,7 +237,7 @@ class TranspositionTableMCTS:
         """
         self.size = size
         self.table = dict()
-        self.visited = []  # Hashes of the visited states
+        self.visited = set()  # Hashes of the visited states
         # Metrics for debugging and experimental purposes
         self.c_cache_hits = self.c_cache_misses = self.c_collisions = self.c_cleanups = 0
         self.cache_hits = self.cache_misses = self.collisions = self.cleanups = 0
@@ -260,14 +260,13 @@ class TranspositionTableMCTS:
             # entries.remove(entry)
             # entries.append(entry)
 
-            self.visited.append(key)  # Add this hash to the visited set
+            self.visited.add(key)  # Add this hash to the visited set
             self.cache_hits += 1
             return entry
 
         except KeyError:
             self.cache_misses += 1
-
-        return (0.0, 0.0, 0.0, 0, 0, 0)
+            return (0.0, 0.0, 0.0, 0, 0, 0)
 
     @cython.locals(
         _v1=cython.float,
@@ -291,6 +290,7 @@ class TranspositionTableMCTS:
             entry: tuple[
                 cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint
             ] = self.table[key]
+            # print(f"Found entry for key {key}: {entry}")
             # board_ref = weakref.ref(board)  # Create weak reference
             _v1, _v2, _im_value, _visits, _solved_player, _is_expanded = entry
             # _board = _board_ref()  # Resolve weak reference
@@ -298,28 +298,28 @@ class TranspositionTableMCTS:
             #     self.collisions += 1
             #     continue  # Skip this entry, as it is a collision
 
-            if im_value != 0:
+            if im_value != 0:  # Overwrite if a new values is passed
                 _im_value = im_value
             if solved_player != 0:
+                assert _solved_player == 0, "Trying to overwrite a previously solved position.."
                 _solved_player = solved_player
-
-            if entry:
-                # Update existing entry
-                self.table[key] = (
-                    v1 + _v1,
-                    v2 + _v2,
-                    _im_value,
-                    visits + _visits,
-                    _solved_player,
-                    is_expanded or _is_expanded,
-                )
-                return
+            # Update existing entry
+            self.table[key] = (
+                v1 + _v1,
+                v2 + _v2,
+                _im_value,
+                visits + _visits,
+                _solved_player,
+                is_expanded or _is_expanded,
+            )
+            if is_expanded:
+                print(f"Expanded entry for key {key}: {self.table[key]}")
         except KeyError:
             self.num_entries += 1
             # Create new entry if no existing entry was found
             self.table[key] = (v1, v2, im_value, visits, solved_player, is_expanded)
         finally:
-            self.visited.append(key)  # Add this hash to the visited set
+            self.visited.add(key)  # Add this hash to the visited set
 
     def evict(self):
         # Replace the table with a new table that only includes keys in the visited set
@@ -347,6 +347,7 @@ class TranspositionTableMCTS:
             "tt_cache_hits": self.cache_hits,
             "tt_cache_misses": self.cache_misses,
             "tt_entries": len(self.table),
+            "tt_visited": len(self.visited),
             "tt_size": self.size,
             "tt_collisions": self.collisions,
             "tt_cleanups": self.cleanups,

@@ -98,34 +98,7 @@ class BreakthroughGameState(GameState):
 
         :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
         """
-
-        positions = np.where(self.board == self.player)[0]
-        random.shuffle(positions)  # shuffle the positions to add randomness
-        dr = -1 if self.player == 1 else 1
-        directions = [-1, 0, 1]
-        random.shuffle(directions)  # shuffle the directions to add randomness
-
-        for position in positions:
-            row, col = divmod(position, 8)
-
-            for dc in directions:
-                new_row, new_col = row + dr, col + dc
-                in_bounds = (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
-
-                if not in_bounds:  # if the new position is not in bounds, skip to the next direction
-                    continue
-
-                new_position = new_row * 8 + new_col
-
-                if dc == 0:  # moving straight
-                    if self.board[new_position] == 0:
-                        return (position, new_position)
-                else:  # capturing
-                    if self.board[new_position] != self.player:
-                        return (position, new_position)
-
-        # if no legal moves are found after iterating all positions and directions, return None
-        return None
+        return get_random_action(self.board, self.player)
 
     def yield_legal_actions(self):
         """
@@ -357,13 +330,14 @@ def to_chess_notation(index):
 @cython.wraparound(False)
 @cython.nonecheck(False)
 @cython.locals(
-    positions=cython.int[:],
+    positions=cython.long[:],
     position=cython.int,
     row=cython.int,
     i=cython.int,
     col=cython.int,
     dr=cython.int,
     dc=cython.int,
+    ran=cython.list,
     new_row=cython.int,
     new_col=cython.int,
     in_bounds=cython.bint,
@@ -388,11 +362,13 @@ def get_random_action(board, player) -> tuple[cython.int, cython.int]:
 
         row = position // 8
         col = position % 8
-
-        for dc in range(-1, 2):
+        ran = list(range(-1, 2))
+        random.shuffle(ran)
+        for dc in ran:
             new_row, new_col = row + dr, col + dc
-            in_bounds = (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
-            if not in_bounds:  # if the new position is not in bounds, skip to the next direction
+            if not (
+                (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
+            ):  # if the new position is not in bounds, skip to the next direction
                 continue
             new_position = new_row * 8 + new_col
             if dc == 0:  # moving straight
