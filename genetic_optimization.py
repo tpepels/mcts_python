@@ -523,7 +523,7 @@ def evaluate_fitness(
     end_time = time.time()
 
     print(
-        f"Game took {format_time(int(end_time - start_time))} to complete. Moves per second: {n_moves / (end_time - start_time):.2f}"
+        f"Game of {n_moves} moves, took {format_time(int(end_time - start_time))} to complete. Moves per second: {n_moves / (end_time - start_time):.2f}"
     )
     res_1 = get_game_result(game_result, draw_score)
     res_2 = get_game_result(game_result_sw, draw_score)
