@@ -381,9 +381,9 @@ directions: cython.list = [(1, 0), (0, 1), (1, 1), (-1, 1)]  # right, down, down
 def evaluate_ninarow_fast(
     state: cython.object,
     player: cython.int,
-    m_power: cython.int = 2,
+    m_power: cython.int = 3,
     m_opp_disc: cython.double = 1.0,
-    m_centre_bonus: cython.double = 1.0,
+    m_centre_bonus: cython.double = 1.7,
     norm: cython.bint = 0,
     a: cython.int = 100,
 ) -> cython.int:
@@ -597,12 +597,12 @@ def calculate_weights(m_top_k: cython.int, factor: cython.float, scale: cython.i
 def evaluate_ninarow(
     state: cython.object,
     player: cython.int,
-    m_bonus: cython.float = 18,
-    m_decay: cython.float = 3.5,
-    m_w_factor: cython.float = 0.6,
-    m_top_k: cython.int = 4,
-    m_disc: cython.float = 0.7,
-    m_pow: cython.float = 9,
+    m_bonus: cython.float = 9,
+    m_decay: cython.float = 1.1,
+    m_w_factor: cython.float = 0.95,
+    m_top_k: cython.int = 2,
+    m_disc: cython.float = 1.1,
+    m_pow: cython.float = 7,
     norm: cython.bint = 0,
     a: cython.int = 100,
 ) -> cython.float:

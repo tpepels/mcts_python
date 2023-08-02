@@ -46,6 +46,6 @@ cdef class TranspositionTableMCTS:
     cdef unsigned long num_entries
 
     cpdef public bint exists(self, long long  key)
-    cpdef public (float, float, float, int, int, bint) get(self, long long key)
-    cpdef public void put(self, long long key, float v1=*, float v2=*, int visits=*, int solved_player=*, bint is_expanded=*, float im_value=*)
+    cpdef public (double, double, double, int, bint, double) get(self, long long key)
+    cpdef public void put(self, long long key, double v1=*, double v2=*, double visits=*, int solved_player=*, bint is_expanded=*, double eval_value=*)
     cpdef public void reset_metrics(self)

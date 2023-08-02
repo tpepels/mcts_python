@@ -1,12 +1,11 @@
 # cython: language_level=3
 
 import collections
-import weakref
+
 from collections import OrderedDict
 from typing import DefaultDict
 
 import cython
-import numpy as np
 
 if cython.compiled:
     print("Transpositions is compiled.")
@@ -55,7 +54,6 @@ class MoveHistory:
         self.table[move] += increment
 
 
-# @cython.cclass
 class TranspositionTable:
     """
     Class to manage a transposition table for a game. The table stores previously computed values
@@ -248,76 +246,66 @@ class TranspositionTableMCTS:
     def get(self, key):
         try:
             entry: tuple[
-                cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint
+                cython.double,
+                cython.double,
+                cython.double,
+                cython.int,
+                cython.bint,
+                cython.double,
             ] = self.table[key]
-
-            # _board = _board_ref()  # Resolve weak reference
-
-            # if _board is not None and not np.array_equal(_board, board):
-            #     continue  # Skip this entry, as it is a collision
-
-            # Refresh entry in LRU
-            # entries.remove(entry)
-            # entries.append(entry)
 
             self.visited.add(key)  # Add this hash to the visited set
             self.cache_hits += 1
+
             return entry
 
         except KeyError:
             self.cache_misses += 1
-            return (0.0, 0.0, 0.0, 0, 0, 0)
+            return (0.0, 0.0, 0.0, 0, 0, 0.0)
 
     @cython.locals(
-        _v1=cython.float,
-        _v2=cython.float,
-        _im_value=cython.float,
-        _visits=cython.int,
+        _v1=cython.double,
+        _v2=cython.double,
+        _visits=cython.double,
         _solved_player=cython.int,
         _is_expanded=cython.bint,
+        _eval_value=cython.double,
     )
-    def put(
-        self,
-        key,
-        v1=0,
-        v2=0,
-        visits=0,
-        solved_player=0,
-        is_expanded=0,
-        im_value=0,
-    ):
+    def put(self, key, v1=0, v2=0, visits=0, solved_player=0, is_expanded=0, eval_value=0):
         try:
             entry: tuple[
-                cython.float, cython.float, cython.float, cython.int, cython.int, cython.bint
+                cython.double,
+                cython.double,
+                cython.double,
+                cython.int,
+                cython.bint,
+                cython.double,
             ] = self.table[key]
-            # print(f"Found entry for key {key}: {entry}")
-            # board_ref = weakref.ref(board)  # Create weak reference
-            _v1, _v2, _im_value, _visits, _solved_player, _is_expanded = entry
-            # _board = _board_ref()  # Resolve weak reference
-            # if _board is not None and not np.array_equal(_board, board):
-            #     self.collisions += 1
-            #     continue  # Skip this entry, as it is a collision
 
-            if im_value != 0:  # Overwrite if a new values is passed
-                _im_value = im_value
+            _v1, _v2, _visits, _solved_player, _is_expanded, _eval_value = entry
+
+            if eval_value != 0:  # Overwrite if a new values is passed
+                _eval_value = eval_value
+
             if solved_player != 0:
-                assert _solved_player == 0, "Trying to overwrite a previously solved position.."
+                assert (
+                    _solved_player == 0 or _solved_player == solved_player
+                ), f"Trying to overwrite a previously solved position.. was: {_solved_player}, would become: {solved_player}"
                 _solved_player = solved_player
+
             # Update existing entry
             self.table[key] = (
                 v1 + _v1,
                 v2 + _v2,
-                _im_value,
                 visits + _visits,
                 _solved_player,
                 is_expanded or _is_expanded,
+                _eval_value,
             )
-            if is_expanded:
-                print(f"Expanded entry for key {key}: {self.table[key]}")
         except KeyError:
             self.num_entries += 1
             # Create new entry if no existing entry was found
-            self.table[key] = (v1, v2, im_value, visits, solved_player, is_expanded)
+            self.table[key] = (v1, v2, visits, solved_player, is_expanded, eval_value)
         finally:
             self.visited.add(key)  # Add this hash to the visited set
 

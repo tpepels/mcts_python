@@ -7,6 +7,7 @@ import multiprocessing
 import os
 import random
 import re
+import socket
 import time
 import traceback
 from collections import Counter
@@ -565,16 +566,26 @@ def get_config_sheet(client: gspread.Client):
         client (gspread.Client): A client for interacting with the Google Sheets API.
 
     Returns:
-        gspread.models.Worksheet: The first worksheet of the Google Sheets document.
+        gspread.models.Worksheet: The worksheet of the Google Sheets document with the hostname title.
     """
     # Read the config file
     config = read_config()
     sheet_id = config.get("Sheets", "ExperimentListID")
 
     # Open the Google Sheets document
-    sheet = client.open_by_key(sheet_id).sheet1
+    sheet = client.open_by_key(sheet_id)
 
-    return sheet
+    # Get the system hostname
+    hostname = socket.gethostname()
+
+    try:
+        # Try to open the worksheet with the system hostname
+        tab = sheet.worksheet(hostname)
+    except gspread.WorksheetNotFound:
+        # If the worksheet does not exist, create it
+        tab = sheet.add_worksheet(title=hostname, rows="200", cols="20")
+
+    return tab
 
 
 def update_running_experiment_status(sheet_name, index: int, sheet: gspread.Worksheet, is_running: bool):

@@ -13,6 +13,7 @@ ext_modules = [
     Extension("games.blokus", ["games/blokus.py"], include_dirs=[numpy.get_include()]),
     Extension("ai.transpos_table", ["ai/transpos_table.py"], include_dirs=[numpy.get_include()]),
     Extension("ai.alpha_beta", ["ai/alpha_beta.pyx"]),
+    Extension("ai.c_random", ["ai/c_random.pyx"]),
     Extension("ai.mcts", ["ai/mcts.py"]),
 ]
 

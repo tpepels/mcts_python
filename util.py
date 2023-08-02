@@ -184,4 +184,7 @@ def log_exception_handler(func):
 
 def abbreviate(word):
     vowels = "aeiouAEIOU"
-    return "".join([letter for letter in word if letter not in vowels])
+    if word[0] in vowels:
+        return word[0] + "".join([letter for letter in word[1:] if letter not in vowels])
+    else:
+        return "".join([letter for letter in word if letter not in vowels])

@@ -433,7 +433,7 @@ cdef class AlphaBetaPlayer:
             
             for depth in range(1, self.max_depth + 1):
                 if self.debug:
-                    print(f"depth {depth}... ", end="")
+                    print(f"\rdepth {depth}... ", end="")
                 start_depth_time = curr_time()  # Time when this depth search starts
                 # How much time can be spent searching this depth
                 time_limit = self.max_time + self.grace_time - (start_depth_time - start_time) 
