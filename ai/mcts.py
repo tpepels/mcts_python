@@ -1,4 +1,4 @@
-# cython: language_level=3, infer_types=True, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False, overflowcheck=False,
+# cython: language_level=3
 
 import itertools
 import random
@@ -18,7 +18,7 @@ from util import abbreviate, format_time, pretty_print_dict
 
 DEBUG: cython.bint = 0
 
-
+# TODO Compiler directives toevoegen na debuggen
 # TODO After testing, remove assert statements
 
 
