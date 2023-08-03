@@ -8,6 +8,7 @@ cnp.import_array()
 
 from games.gamestate import GameState, normalize, win, loss, draw
 import random
+from cython.cimports.ai.c_random import c_shuffle, c_shuffle_array
 
 if cython.compiled:
     print("Breakthrough is compiled.")
@@ -108,14 +109,14 @@ class BreakthroughGameState(GameState):
         """
         # TODO It may be faster to just generate all actions using the cython function..
         positions = np.where(self.board == self.player)[0]
-        random.shuffle(positions)  # Shuffle positions
+        c_shuffle(positions)  # Shuffle positions
 
         dr = -1 if self.player == 1 else 1
 
         dc_values = [-1, 0, 1]
         for position in positions:
             row, col = divmod(position, 8)
-            random.shuffle(dc_values)  # Shuffle dc_values for each position
+            c_shuffle(dc_values)  # Shuffle dc_values for each position
 
             for dc in dc_values:
                 new_row, new_col = row + dr, col + dc
@@ -352,7 +353,7 @@ def get_random_action(board, player) -> tuple[cython.int, cython.int]:
     :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
     """
     positions = np.where(board == player)[0]
-    random.shuffle(positions)  # shuffle the positions to add randomness
+    c_shuffle_array(positions)  # shuffle the positions to add randomness
     dr = -1
     if player == 2:
         dr = 1
@@ -363,7 +364,7 @@ def get_random_action(board, player) -> tuple[cython.int, cython.int]:
         row = position // 8
         col = position % 8
         ran = list(range(-1, 2))
-        random.shuffle(ran)
+        c_shuffle(ran)
         for dc in ran:
             new_row, new_col = row + dr, col + dc
             if not (

@@ -1,4 +1,5 @@
 # cython: language_level=3, infer_types=True, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False, overflowcheck=False,
+# cython: profile=True
 
 import itertools
 import random
@@ -42,8 +43,8 @@ class Node:
     expanded: cython.bint
     solved: cython.bint
 
-    action_generator: cython.object  # This is the generator object used for expansion, which still needs to be performance-tested
     children: cython.list
+    actions: cython.list
 
     tt: TranspositionTableMCTS
 
@@ -62,7 +63,7 @@ class Node:
         self.player = player
         self.state_hash = state_hash
 
-        self.action_generator = None
+        self.actions = None
         # Since evaluations are stored in view of player 1, player 1 is the maximizing player
         self.im_value = -99999999.9 if self.player == 1 else 99999999.9
         self.expanded = 0
@@ -110,7 +111,7 @@ class Node:
         _, _, my_visits, _, _, _ = self.stats()
 
         # Just to make sure that there's always a child to select
-        max_child = self.children[c_random(n_children)]
+        max_child = self.children[c_random(0, n_children - 1)]
 
         max_val = -999999.99
         children_lost = 0
@@ -181,14 +182,15 @@ class Node:
         evaluate=cython.object,
     )
     def expand(self, init_state, prog_bias=0, imm=0, evaluate=None) -> Node:
-        # If no generator exists, create it
-        if self.action_generator is None:
-            # TODO Determine whether using a generator actually improves performance
-            self.action_generator = init_state.yield_legal_actions()
+        assert not self.expanded, "Trying to re-expand an already expanded node, you madman."
 
-        for action in self.action_generator:
-            # TODO Remove this after testing
-            assert action not in [child.action for child in self.children]
+        if self.actions is None:
+            # * Idee: move ordering!
+            self.actions = init_state.get_legal_actions()
+
+        while len(self.actions) > 0:
+            # Get a random action from the list of previously generated actions
+            action = self.actions.pop(c_random(0, len(self.actions) - 1))
 
             new_state = init_state.apply_action(action)
             child = Node(new_state.player, new_state, action, new_state.board_hash, tt=self.tt)
@@ -241,11 +243,15 @@ class Node:
                         # TODO Je moet de evaluatie van de parent alleen bijwerken als die verbeterd wordt
                         # TODO Pas als je node helemaal expanded is dan moet je naar alle kids kijken en dan de imValue updaten
                         self.im_value = eval_value
+                        # * Idee, blijf nodes toevoegen tot dat je hier bent.
+                        # * Dan heb je een node die de imValue verbeterd.
+                        # * Je kan zelfs Ni dieper zoeken totdate je de imValue verbeterd hebt en dan pas een node returnen
 
             return child  # Return the chlid, this is the node we will explore next.
 
         # If we've reached this point, then the node is fully expanded so we can switch to UCT selection
         self.set_expanded()
+        # TODO Remove this after testing
         assert self.check_expanded_node(init_state)
         # Check if all my nodes lead to a loss.
         self.check_loss_node()
@@ -269,7 +275,7 @@ class Node:
 
         actions = init_state.get_legal_actions()
         n_actions = len(actions)
-
+        self.expanded = 1
         for a in range(n_actions):
             action = actions[a]
             new_state = init_state.apply_action(action)
@@ -279,6 +285,7 @@ class Node:
             # The node leads to a win! We can mark this node as solved.
             if child.stats()[3] == self.player:
                 self.set_solved(self.player)
+                return
 
         # Check if all children are losses
         self.check_loss_node()
@@ -373,6 +380,11 @@ class Node:
             + "\n"
             + state.visualize()
         )
+        all_actions = [child.action for child in self.children]
+        assert len(all_actions) == len(
+            set(all_actions)
+        ), f"Non-unique actions in node {self} children: " + str(all_actions)
+
         return True
 
     def __str__(self):
@@ -614,6 +626,7 @@ class MCTSPlayer:
                     for c in range(len(node.children)):
                         min_im_val = min(min_im_val, node.children[c].im_value)
                     node.im_value = min_im_val
+
             self.tt.put(
                 key=node.state_hash,
                 v1=result[0],
@@ -696,6 +709,9 @@ class MCTSPlayer:
             return (0.0, 1.0)
         else:
             return (0.5, 0.5)
+
+    def print_cumulative_statistics(self) -> str:
+        return ""
 
     def __repr__(self):
         # Try to get the name of the evaluation function, which can be a partial

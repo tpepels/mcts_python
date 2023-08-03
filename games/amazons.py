@@ -12,6 +12,7 @@ import random
 import numpy as np
 from collections import deque
 from games.gamestate import GameState, normalize, win, loss, draw
+from cython.cimports.ai.c_random import c_shuffle, c_random
 
 if cython.compiled:
     print("Amazons is compiled.")
@@ -201,7 +202,7 @@ class AmazonsGameState(GameState):
         """
         assert self.player_has_legal_moves, "Getting or making a move should not be possible"
         queens = self.white_queens if self.player == 1 else self.black_queens
-        random.shuffle(queens)
+        c_shuffle(queens)
         for queen in queens:
             # TODO It might be faster to just use the cython function here instead of the generator...
             for move in self.get_legal_moves_for_amazon(*queen):
@@ -443,8 +444,9 @@ class AmazonsGameState(GameState):
     ]
 )
 def get_random_action(board: cython.int[:, :], queens: cython.list):
-    random_queen = random.choice(queens)
-    return random.choice(get_legal_moves_for_amazon(random_queen[0], random_queen[1], board))
+    random_queen = queens[c_random(0, len(queens) - 1)]
+    actions: cython.list = get_legal_moves_for_amazon(random_queen[0], random_queen[1], board)
+    return actions[c_random(0, len(actions) - 1)]
 
 
 @cython.ccall

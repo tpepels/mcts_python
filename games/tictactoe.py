@@ -1,4 +1,4 @@
-# cython: language_level=3, initializedcheck=False
+# cython: language_level=3, initializedcheck=False, infer_types=True, boundscheck=False, nonecheck=False, cdivision=True, overflowcheck=False
 
 import itertools
 import random
@@ -269,24 +269,41 @@ def get_reward(player, last_move_x, last_move_y, board, row_length, size, player
 
     # Check all 8 directions around the last move made
     for dx in range(-1, 2):
-        for dy in range(-1, 2):
-            if dx == 0 and dy == 0:
-                continue
-            count = 1
-            # Start from the last move and check for row_length cells
+        for dy in range(0, 2):
+            if (dx != 0 or dy != 0) and not (dx == -1 and dy == 0):
+                count = 1
 
-            for i in range(-(row_length + 1), row_length):
-                if i == 0:  # Skip the starting cell
-                    continue
-                x = last_move_x + (dx * i)
-                y = last_move_y + (dy * i)
+                # Start from the last move and check for row_length cells
+                for i in range(1, row_length):
+                    x = last_move_x + (dx * i)
+                    y = last_move_y + (dy * i)
 
-                # Ensure the indices are within the board
-                if 0 <= x < size and 0 <= y < size:
-                    if board[x, y] == last_player:
-                        count += 1
-                        if count == row_length:
-                            return win if am_i_last_player else loss
+                    # Ensure the indices are within the board
+                    if 0 <= x < size and 0 <= y < size:
+                        if board[x, y] == last_player:
+                            count += 1
+                            if count == row_length:
+                                return win if am_i_last_player else loss
+                        else:
+                            break
+                    else:
+                        break
+
+                for i in range(-1, -row_length, -1):
+                    x = last_move_x + (dx * i)
+                    y = last_move_y + (dy * i)
+
+                    # Ensure the indices are within the board
+                    if 0 <= x < size and 0 <= y < size:
+                        if board[x, y] == last_player:
+                            count += 1
+                            if count == row_length:
+                                return win if am_i_last_player else loss
+                        else:
+                            break
+                    else:
+                        break
+
     return 0
 
 

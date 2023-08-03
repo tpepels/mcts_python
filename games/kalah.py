@@ -163,8 +163,6 @@ class KalahGameState(GameState):
         end = self.num_houses if self.player == 1 else len(self.board) - 1
         actions = [i for i in range(start, end) if self.board[i] > 0]
 
-        random.shuffle(actions)  # Shuffle actions for randomness
-
         for action in actions:
             yield (action,)
 

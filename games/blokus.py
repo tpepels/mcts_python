@@ -5,6 +5,7 @@ from typing import Generator, Tuple
 
 import cython
 from cython.cimports import numpy as cnp
+from cython.cimports.ai.c_random import c_random
 
 cnp.import_array()
 import numpy as np
@@ -625,9 +626,6 @@ def get_legal_actions(
     return legal_actions
 
 
-import random
-
-
 @cython.ccall
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -656,34 +654,37 @@ def get_random_legal_action(
     checked_actions: cython.set = set()
     # Get a set of points around which to look, preventing us from checking the entire board for each piece
     if n_turns > 3:
-        perimeter_points = find_corners_for_color(board, color)
+        perimeter_points: set = find_corners_for_color(board, color)
     else:
         perimeter_points = BOARD_CORNERS
 
-    for _ in range(attempts):
-        px, py = random.choice(list(perimeter_points))
-        piece_index = random.choice(avail_pieces)
-        rotation = random.randint(0, unique_rotations[piece_index] - 1)  # Use pre-computed rotations
-        piece = rotated_pieces[piece_index][rotation]
-        piece_width = piece.shape[0]
-        piece_height = piece.shape[1]
+    while len(perimeter_points) > 0:
+        px, py = perimeter_points.pop()
+        for _ in range(attempts):
+            piece_index = avail_pieces[c_random(0, len(avail_pieces) - 1)]
+            rotation = c_random(0, unique_rotations[piece_index] - 1)  # Use pre-computed rotations
+            piece = rotated_pieces[piece_index][rotation]
+            piece_width = piece.shape[0]
+            piece_height = piece.shape[1]
 
-        dx = random.randint(max(-piece_width + 1, -px), min(piece_width, 20 - px))
-        dy = random.randint(max(-piece_height + 1, -py), min(piece_height, 20 - py))
-        x, y = px + dx, py + dy
-        # Check if piece can be physically placed, considering its shape
-        if not (0 <= x + piece_width - 1 < 20 and 0 <= y + piece_height - 1 < 20):
-            continue
+            dx = c_random(max(-piece_width + 1, -px), min(piece_width, 20 - px))
+            dy = c_random(max(-piece_height + 1, -py), min(piece_height, 20 - py))
 
-        action = (x, y, piece_index, rotation)
+            x, y = px + dx, py + dy
+            # Check if piece can be physically placed, considering its shape
+            if not (0 <= x + piece_width - 1 < 20 and 0 <= y + piece_height - 1 < 20):
+                continue
 
-        if action in checked_actions:
-            continue
-        checked_actions.add(action)
+            action = (x, y, piece_index, rotation)
 
-        if is_legal_action(x, y, piece_index, rotation, n_turns, color, board):
-            return action
+            if action in checked_actions:
+                continue
 
+            checked_actions.add(action)
+
+            if is_legal_action(x, y, piece_index, rotation, n_turns, color, board):
+                return action
+    assert False, "No legal action found"
     return PASS_MOVE  # If no legal move found after the given number of attempts, return a pass move
 
 
