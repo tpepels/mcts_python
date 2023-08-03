@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional, Tuple, Type
 
 from ai.ai_player import AIPlayer
 from ai.alpha_beta import AlphaBetaPlayer
-from ai.non_cython.alpha_beta_orig import _AlphaBetaPlayerOrig
 from ai.mcts import MCTSPlayer
 
 from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
@@ -51,7 +50,7 @@ game_dict = {
 }
 
 # Contains all possible ai players for use in factory
-player_dict = {"alphabeta": AlphaBetaPlayer, "mcts": MCTSPlayer, "alphabeta_orig": _AlphaBetaPlayerOrig}
+player_dict = {"alphabeta": AlphaBetaPlayer, "mcts": MCTSPlayer}
 
 
 @dataclass

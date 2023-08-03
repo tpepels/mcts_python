@@ -1,5 +1,4 @@
 # cython: language_level=3, infer_types=True, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False, overflowcheck=False,
-# cython: profile=True
 
 import itertools
 import random
@@ -521,7 +520,8 @@ class MCTSPlayer:
             )
 
         # retrieve the node with the most visits
-        max_node = self.root.children[0]
+        assert len(self.root.children) > 0, "No children found for root node"
+        max_node = self.root.children[0]  # TODO Hier gaat het mis (segmentation error)
         max_value = max_node.stats()[2]
         n_children = len(self.root.children)
 

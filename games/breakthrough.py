@@ -1,4 +1,4 @@
-# cython: language_level=3, initializedcheck=False
+# cython: language_level=3, initializedcheck=False, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, infer_types=True
 
 import cython
 import numpy as np
@@ -8,7 +8,7 @@ cnp.import_array()
 
 from games.gamestate import GameState, normalize, win, loss, draw
 import random
-from cython.cimports.ai.c_random import c_shuffle, c_shuffle_array
+from cython.cimports.ai.c_random import c_shuffle, c_random
 
 if cython.compiled:
     print("Breakthrough is compiled.")
@@ -16,10 +16,14 @@ else:
     print("Breakthrough is just a lowly interpreted script.")
 
 
-class BreakthroughGameState(GameState):
+@cython.cclass
+class BreakthroughGameState:
     players_bitstrings = [random.randint(1, 2**32 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_table = [[[random.randint(1, 2**32 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
 
+    player = cython.declare(cython.int, visibility="public")
+    board = cython.declare(cnp.ndarray, visibility="public")
+    board_hash = cython.declare(cython.longlong, visibility="public")
     """
     This class represents the game state for the Breakthrough board game.
     Breakthrough is a two-player game played on an 8x8 board.
@@ -54,7 +58,21 @@ class BreakthroughGameState(GameState):
         board_hash ^= self.players_bitstrings[self.player]
         return board_hash
 
-    def apply_action(self, action):
+    @cython.ccall
+    @cython.infer_types(True)
+    @cython.locals(
+        from_position=cython.int,
+        to_position=cython.int,
+        new_board=cnp.ndarray,
+        player=cython.int,
+        current_player=cython.int,
+        from_row=cython.int,
+        to_row=cython.int,
+        to_col=cython.int,
+        from_col=cython.int,
+        board_hash=cython.longlong,
+    )
+    def apply_action(self, action: tuple[cython.int, cython.int]) -> BreakthroughGameState:
         """
         Apply the given action to create a new game state. The current state is not altered by this method.
         Actions are represented as a tuple (from_position, to_position).
@@ -70,8 +88,10 @@ class BreakthroughGameState(GameState):
         captured_player = new_board[to_position]
         new_board[to_position] = player  # Place the piece at its new position
 
-        from_row, from_col = divmod(from_position, 8)
-        to_row, to_col = divmod(to_position, 8)
+        from_row = from_position // 8
+        from_col = from_position % 8
+        to_row = to_position // 8
+        to_col = to_position % 8
 
         board_hash = (
             self.board_hash
@@ -93,6 +113,9 @@ class BreakthroughGameState(GameState):
         # Pass the same board hash since this is only used for null moves
         return BreakthroughGameState(np.copy(self.board), 3 - self.player, board_hash=self.board_hash)
 
+    @cython.ccall
+    @cython.infer_types(True)
+    @cython.returns(tuple[cython.int, cython.int])
     def get_random_action(self):
         """
         Generate a single legal action for the current player.
@@ -129,7 +152,9 @@ class BreakthroughGameState(GameState):
                     elif dc != 0 and self.board[new_position] != self.player:  # capturing / diagonal move
                         yield position, new_position
 
-    def get_legal_actions(self):
+    @cython.ccall
+    @cython.infer_types(True)
+    def get_legal_actions(self) -> cython.list:
         """
         Get all legal actions for the current player.
 
@@ -137,7 +162,9 @@ class BreakthroughGameState(GameState):
         """
         return get_legal_actions(self.player, self.board)
 
-    def is_terminal(self):
+    @cython.ccall
+    @cython.infer_types(True)
+    def is_terminal(self) -> cython.bint:
         """
         Check if the current game state is terminal (i.e., a player has won).
 
@@ -145,7 +172,9 @@ class BreakthroughGameState(GameState):
         """
         return (self.board[:8] == 1).any() or (self.board[56:] == 2).any()
 
-    def get_reward(self, player):
+    @cython.ccall
+    @cython.infer_types(True)
+    def get_reward(self, player) -> cython.int:
         if (self.board[:8] == 1).any():
             return win if player == 1 else loss
         elif (self.board[56:] == 2).any():
@@ -345,6 +374,9 @@ def to_chess_notation(index):
     new_position=cython.int,
     board=cnp.ndarray,
     player=cython.int,
+    start=cython.int,
+    index=cython.int,
+    n=cython.int,
 )
 def get_random_action(board, player) -> tuple[cython.int, cython.int]:
     """
@@ -353,13 +385,17 @@ def get_random_action(board, player) -> tuple[cython.int, cython.int]:
     :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
     """
     positions = np.where(board == player)[0]
-    c_shuffle_array(positions)  # shuffle the positions to add randomness
+    # c_shuffle_array(positions)  # shuffle the positions to add randomness
+
     dr = -1
     if player == 2:
         dr = 1
+    n = positions.shape[0]
+    start = c_random(0, n - 1)
 
-    for i in range(positions.shape[0]):
-        position = positions[i]
+    for i in range(n):
+        index = (start + i) % n
+        position = positions[index]
 
         row = position // 8
         col = position % 8
