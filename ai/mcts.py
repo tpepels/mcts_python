@@ -516,7 +516,7 @@ class MCTSPlayer:
         if DEBUG:
             total_time: cython.long = curr_time() - start_time
             print(
-                f"Ran {i+1} simulations in {format_time(total_time)}, {i / (total_time):.1f} simulations per second."
+                f"Ran {i+1} simulations in {format_time(total_time)}, {i / (total_time + 1):.1f} simulations per second."
             )
 
         # retrieve the node with the most visits
