@@ -1,3 +1,5 @@
+#cython: language_level=3
+
 from collections import defaultdict, OrderedDict
 
 cdef class MoveHistory:
@@ -6,7 +8,7 @@ cdef class MoveHistory:
     cpdef void update(self, tuple move, int increment)
 
 cdef class TranspositionTable:
-    cdef public unsigned long size
+    cdef public long size
     cdef object table
     cdef unsigned c_cache_hits
     cdef unsigned c_cache_misses
@@ -35,6 +37,7 @@ cdef class TranspositionTableMCTS:
     cdef public unsigned long size
     cdef dict table
     cdef set visited
+    cdef unsigned evicted
     cdef unsigned c_cache_hits
     cdef unsigned c_cache_misses
     cdef unsigned c_collisions

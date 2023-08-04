@@ -24,9 +24,9 @@ DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 
 
 
 class AmazonsGameState(GameState):
-    players_bitstrings = [random.randint(1, 2**32 - 1) for _ in range(3)]  # 0 is for the empty player
+    players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_tables = {
-        size: [[[random.randint(1, 2**32 - 1) for _ in range(4)] for _ in range(size)] for _ in range(size)]
+        size: [[[random.randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size)] for _ in range(size)]
         for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
     }
 
@@ -444,8 +444,12 @@ class AmazonsGameState(GameState):
     ]
 )
 def get_random_action(board: cython.int[:, :], queens: cython.list):
-    random_queen = queens[c_random(0, len(queens) - 1)]
-    actions: cython.list = get_legal_moves_for_amazon(random_queen[0], random_queen[1], board)
+    actions: cython.list = []
+
+    while actions == []:
+        random_queen = queens[c_random(0, len(queens) - 1)]
+        actions = get_legal_moves_for_amazon(random_queen[0], random_queen[1], board)
+
     return actions[c_random(0, len(actions) - 1)]
 
 

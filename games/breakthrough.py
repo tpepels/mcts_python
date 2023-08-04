@@ -18,8 +18,8 @@ else:
 
 @cython.cclass
 class BreakthroughGameState:
-    players_bitstrings = [random.randint(1, 2**32 - 1) for _ in range(3)]  # 0 is for the empty player
-    zobrist_table = [[[random.randint(1, 2**32 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
+    players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
+    zobrist_table = [[[random.randint(1, 2**60 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
 
     player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cnp.ndarray, visibility="public")

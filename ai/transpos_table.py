@@ -163,7 +163,7 @@ class TranspositionTable:
             board = 'board_state'
             transposition_table.put(key, value, depth, player, best_move, board)
         """
-        stored_depth: cython.int
+        stored_depth: cython.uint
         try:
             (
                 _,
@@ -233,7 +233,7 @@ class TranspositionTableMCTS:
 
         :param size: The maximum number of entries the transposition table can hold.
         """
-        self.size = size
+        # TODO Hier kun je beter een memoryview van maken
         self.table = dict()
         self.visited = set()  # Hashes of the visited states
         # Metrics for debugging and experimental purposes
@@ -311,8 +311,10 @@ class TranspositionTableMCTS:
 
     def evict(self):
         # Replace the table with a new table that only includes keys in the visited set
+        entries_before = len(self.table)
         self.table = {key: self.table[key] for key in set(self.visited)}
-        self.num_entries = sum(len(entries) for entries in self.table.values())  # Update num_entries
+        self.num_entries = len(self.table)  # Update num_entries
+        self.evicted = entries_before - self.num_entries  # Update evicted
         self.visited.clear()  # Clear the visited set
 
     def reset_metrics(self):
@@ -336,16 +338,10 @@ class TranspositionTableMCTS:
             "tt_cache_misses": self.cache_misses,
             "tt_entries": len(self.table),
             "tt_visited": len(self.visited),
-            "tt_size": self.size,
             "tt_collisions": self.collisions,
             "tt_cleanups": self.cleanups,
+            "tt_evicted": self.evicted,
         }
 
     def get_cumulative_metrics(self):
-        return {
-            "tt_total_cache_hits": self.c_cache_hits,
-            "tt_total_cache_misses": self.c_cache_misses,
-            "tt_total_collisions": self.c_collisions,
-            "tt_total_cleanups": self.c_cleanups,
-            "tt_size": self.size,
-        }
+        pass

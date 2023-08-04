@@ -119,6 +119,12 @@ class Node:
             child: Node = self.children[ci]
             # 0: v1, 1: v2, 2: visits, 3: solved_player, 4: is_expanded, 5: eval_value
             child_stats = child.stats()
+
+            # Make sure that every child is seen at least once.
+            if child_stats[2] == 0:
+                return child
+
+            # Check for solved children
             if child_stats[3] != 0:
                 if child_stats[3] == self.player:  # Winning move, let's go champ
                     # Just in case that the child was solved elsewhere in the tree, update this node.
@@ -275,6 +281,7 @@ class Node:
         actions = init_state.get_legal_actions()
         n_actions = len(actions)
         self.expanded = 1
+
         for a in range(n_actions):
             action = actions[a]
             new_state = init_state.apply_action(action)
@@ -520,7 +527,10 @@ class MCTSPlayer:
             )
 
         # retrieve the node with the most visits
-        assert len(self.root.children) > 0, "No children found for root node"
+        assert (
+            len(self.root.children) > 0
+        ), f"No children found for root node {self.root}, after {i} simulations"
+
         max_node = self.root.children[0]  # TODO Hier gaat het mis (segmentation error)
         max_value = max_node.stats()[2]
         n_children = len(self.root.children)
@@ -543,16 +553,22 @@ class MCTSPlayer:
 
         # Clean the transposition table
         self.tt.evict()
-
+        self.tt.reset_metrics()
         return max_node.action, max_value  # return the most visited state
 
     @cython.cfunc
     def simulate(self, init_state: cython.object):
+        # Make sure that the root is expanded
+        if not self.root.expanded:
+            self.root.add_all_children(init_state)
+
+        # The root is solved and expanded, no need to look any further, since we have a winning move
+        if self.root.stats()[3] != 0:
+            return
+
         node: Node = self.root
         selected: cython.list = [self.root]
-
         next_state: cython.object = init_state
-
         is_terminal: cython.bint = 0
 
         # Select: non-terminal, non-solved, expanded nodes

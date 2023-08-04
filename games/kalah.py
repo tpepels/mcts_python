@@ -12,9 +12,9 @@ MAX_SEEDS = 72  # maximum number of seeds in one position, it's 72 as it's the t
 
 
 class KalahGameState(GameState):
-    players_bitstrings = [random.randint(1, 2**32 - 1) for _ in range(3)]  # 0 is for the empty player
+    players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_table = [
-        [random.randint(1, 2**32 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)
+        [random.randint(1, 2**60 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)
     ]  # 14 slots
 
     def __init__(self, board=None, player=1):

@@ -22,7 +22,7 @@ else:
 
 class TicTacToeGameState(GameState):
     zobrist_tables = {
-        size: [[[random.randint(1, 2**32 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
+        size: [[[random.randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
         for size in range(3, 10)
     }
 

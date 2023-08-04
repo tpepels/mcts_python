@@ -33,12 +33,14 @@ PLAYER_BOARD: cnp.ndarray = np.array(
 )
 
 
-BOARD_CORNERS: cython.list = [
-    (0, 0),
-    (0, BOARD_SIZE - 1),
-    (BOARD_SIZE - 1, 0),
-    (BOARD_SIZE - 1, BOARD_SIZE - 1),
-]
+BOARD_CORNERS: cython.set = set(
+    [
+        (0, 0),
+        (0, BOARD_SIZE - 1),
+        (BOARD_SIZE - 1, 0),
+        (BOARD_SIZE - 1, BOARD_SIZE - 1),
+    ]
+)
 colors = ["green", "red", "blue", "yellow"]
 
 pieces: cython.list = [
@@ -229,9 +231,9 @@ class BlokusGameState(GameState):
     # Changed zobrist_table size to include 4 players
     zobrist_table = np.random.randint(
         low=0,
-        high=np.iinfo(np.int32).max,
+        high=np.iinfo(np.int64).max,
         size=(BOARD_SIZE, BOARD_SIZE, 5),  # 4 players + 1 for empty state
-        dtype=np.uint32,
+        dtype=np.int64,
     )
 
     def __init__(self, board=None, pieces=None, player=1, n_turns=0, passed=None):
@@ -530,7 +532,7 @@ def evaluate_move(board: cython.int[:, :], x, y, piece_index, rotation, player, 
 @cython.nonecheck(False)
 @cython.wraparound(False)
 @cython.locals(x=cython.int, y=cython.int, player=cython.int)
-def calculate_board_hash(board: cython.int[:, :], zobrist_table: cython.uint[:, :, :]) -> cython.uint:
+def calculate_board_hash(board: cython.int[:, :], zobrist_table: cython.long[:, :, :]) -> cython.long:
     board_hash: cython.uint = 0
     for x in range(20):
         for y in range(20):
