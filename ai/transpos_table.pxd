@@ -1,4 +1,4 @@
-#cython: language_level=3
+#cython: language_level=3, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, infer_types=True
 
 from collections import defaultdict, OrderedDict
 
@@ -24,31 +24,13 @@ cdef class TranspositionTable:
     cpdef public dict get_metrics(self)
     cpdef public dict get_cumulative_metrics(self)
 
-# A struct that represents an entry in the transposition table
-cdef struct MCTSEntry:
-    float v1
-    float v2
-    float im_value
-    int visits
-    int solved_player
-    bint is_expanded
 
 cdef class TranspositionTableMCTS:
     cdef public unsigned long size
-    cdef dict table
-    cdef set visited
-    cdef unsigned evicted
-    cdef unsigned c_cache_hits
-    cdef unsigned c_cache_misses
-    cdef unsigned c_collisions
-    cdef unsigned c_cleanups
-    cdef unsigned cache_hits
-    cdef unsigned cache_misses
-    cdef unsigned collisions
-    cdef unsigned cleanups
-    cdef unsigned long num_entries
+    cdef double[:,:] table
+    cdef unsigned long puts, gets, uniques
 
-    cpdef public bint exists(self, long long  key)
-    cpdef public (double, double, double, int, bint, double) get(self, long long key)
-    cpdef public void put(self, long long key, double v1=*, double v2=*, double visits=*, int solved_player=*, bint is_expanded=*, double eval_value=*)
+    cpdef public double[:] get(self, long long key)
+    cpdef public void put(self, long long key, double v1=*, double v2=*, double visits=*, double solved_player=*, double is_expanded=*, double eval_value=*)
     cpdef public void reset_metrics(self)
+    cpdef public dict get_metrics(self)

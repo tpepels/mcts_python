@@ -222,11 +222,84 @@ class TranspositionTable:
         }
 
 
-# To use:
-# a = cython.declare(MCTSEntry)
+import numpy as np
 
 
 class TranspositionTableMCTS:
+    def __init__(self, size):
+        """
+        Initialize the transposition table with the given size.
+
+        :param size: The maximum number of entries the transposition table can hold.
+        """
+
+        self.table = np.zeros(shape=(size, 6), dtype=np.float64)
+        self.size = size
+        self.puts = 0
+        self.gets = 0
+        self.uniques = 0
+
+    @cython.initializedcheck(False)
+    @cython.cdivision(True)
+    @cython.nonecheck(False)
+    @cython.boundscheck(False)
+    def get(self, key):
+        self.gets += 1
+        return self.table[key % self.size]
+
+    @cython.initializedcheck(False)
+    @cython.cdivision(True)
+    @cython.nonecheck(False)
+    @cython.boundscheck(False)
+    def put(self, key, v1=0, v2=0, visits=0, solved_player=0, is_expanded=0, eval_value=0):
+        entry: cython.double[:] = self.table[key % self.size]
+        self.puts += 1
+
+        if not any(entry):  # If the entry is empty, we have a new entry
+            # Create new entry if no existing entry was found
+            entry[0] = v1
+            entry[1] = v2
+            entry[2] = visits
+            entry[3] = solved_player
+            entry[4] = is_expanded
+            entry[5] = eval_value
+            self.uniques += 1
+            return
+
+        if solved_player != 0.0:
+            assert (
+                entry[3] == 0 or entry[3] == solved_player
+            ), f"Trying to overwrite a previously solved position.. was: {entry[3]}, would become: {solved_player}"
+
+            entry[3] = solved_player
+
+        # Update existing entry
+        entry[0] += v1
+        entry[1] += v2
+        entry[2] += visits
+        if entry[4] == 0.0:  # If the entry is already expanded, don't overwrite it
+            entry[4] = is_expanded
+        if eval_value != 0.0:  # Overwrite only if a value is passed
+            entry[5] = eval_value
+
+    def reset_metrics(self):
+        self.puts = 0
+        self.gets = 0
+        self.uniques = 0
+
+    def get_metrics(self):
+        return {
+            "tt_gets": self.gets,
+            "tt_puts": self.puts,
+            "tt_uniques": self.uniques,
+            "tt_size": self.size,
+        }
+
+    def get_cumulative_metrics(self):
+        pass
+
+
+class TranspositionTableMCTSDict:
     def __init__(self, size):
         """
         Initialize the transposition table with the given size.

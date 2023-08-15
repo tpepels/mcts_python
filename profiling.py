@@ -1,68 +1,61 @@
+import argparse
 import cProfile
 import pstats
 import traceback
 
-from run_games import run_game, AIParams
+
+from run_games import AIParams, run_game
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
+parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
+args = parser.parse_args()
 
 
-# p1_params = AIParams(
-#     ai_key="alphabeta",
-#     eval_key="evaluate_ninarow",
-#     max_player=1,
-#     ai_params={"max_time": 7, "debug": True},
-# )
-# p2_params = AIParams(
-#     ai_key="alphabeta",
-#     eval_key="evaluate_ninarow_fast",
-#     max_player=2,
-#     ai_params={"max_time": 7, "debug": True},
-# )
-# # An n-in-a-row game
-# run_game(
-#     game_key="ninarow",
-#     game_params={"board_size": 9, "row_length": 5},
-#     p1_params=p1_params,
-#     p2_params=p2_params,
-# )
-
+debug = True
+algo = "mcts"
+game = "breakthrough"
+evaluation = "evaluate_breakthrough_lorenz"
+ai_params = {"num_simulations": 500000, "debug": debug}
+game_params = {}
 
 p1_params = AIParams(
-    ai_key="mcts",
-    eval_key="evaluate_breakthrough_lorenz",
+    ai_key=algo,
+    eval_key=evaluation,
     max_player=1,
-    ai_params={"num_simulations": 100000, "debug": False},
+    ai_params=ai_params,
 )
 p2_params = AIParams(
-    ai_key="mcts",
-    eval_key="evaluate_breakthrough_lorenz",
+    ai_key=algo,
+    eval_key=evaluation,
     max_player=2,
-    ai_params={"num_simulations": 100000, "debug": False},
+    ai_params=ai_params,
 )
-# run_game(
-#     game_key="breakthrough",
-#     game_params={"board_size": 9, "row_length": 5},
-#     p1_params=p1_params,
-#     p2_params=p2_params,
-# )
 
-try:
-    # Use cProfile to run the function and save the profiling results to a file
-    cProfile.run(
-        'run_game(game_key="breakthrough", game_params={}, p1_params=p1_params,p2_params=p2_params,)',
-        "profiler_results.out",
-    )
-except KeyboardInterrupt:
-    pass
-except Exception as ex:
-    print(str(ex))
-    # printing stack trace
-    traceback.print_exc()
 
-# Create a pstats.Stats object from the output of the cProfile run
-p = pstats.Stats("profiler_results.out")
+def run_game_code():
+    run_game(game_key=game, game_params=game_params, p1_params=p1_params, p2_params=p2_params)
 
-# Sort the statistics by the cumulative time spent in the function
-p.sort_stats("cumulative")
 
-# Print the first n lines of the profiled output
-p.print_stats(30)
+if args.no_profile:
+    print(" --- Running without profiler ---")
+    try:
+        run_game_code()
+    except KeyboardInterrupt:
+        pass
+    except Exception as ex:
+        print(str(ex))
+        traceback.print_exc()
+else:
+    print(" --- Profiling ---")
+    try:
+        cProfile.run("run_game_code()", "profiler_results.out")
+    except KeyboardInterrupt:
+        pass
+    except Exception as ex:
+        print(str(ex))
+        traceback.print_exc()
+
+    p = pstats.Stats("profiler_results.out")
+    p.sort_stats("tottime")
+    p.print_stats(30)

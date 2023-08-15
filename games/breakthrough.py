@@ -1,4 +1,6 @@
-# cython: language_level=3, initializedcheck=False, boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, infer_types=True
+# cython: language_level=3, nonecheck=False
+# cython: profile=True
+
 
 import cython
 import numpy as np
@@ -6,7 +8,7 @@ from cython.cimports import numpy as cnp
 
 cnp.import_array()
 
-from games.gamestate import GameState, normalize, win, loss, draw
+from games.gamestate import normalize, win, loss, draw
 import random
 from cython.cimports.ai.c_random import c_shuffle, c_random
 
@@ -16,14 +18,41 @@ else:
     print("Breakthrough is just a lowly interpreted script.")
 
 
+# TODO Move this function elsewhere after optimisation
+@cython.ccall
+@cython.inline
+@cython.profile(False)
+@cython.infer_types(True)
+@cython.nonecheck(False)
+@cython.initializedcheck(False)
+@cython.boundscheck(False)  # Turn off bounds-checking for entire function
+@cython.wraparound(False)  # Turn off negative index wrapping for entire function
+def where_is_k(board: cython.int[:], k: cython.int) -> cython.list:
+    i: cython.int
+    n: cython.int = board.shape[0]
+    indices: cython.list = []
+
+    for i in range(n):
+        if board[i] == k:
+            indices.append(i)
+
+    return indices
+
+
+dirs: cython.tuple[cython.int, cython.int, cython.int] = (-1, 0, 1)
+
+
 @cython.cclass
+@cython.initializedcheck(False)
+@cython.nonecheck(False)
 class BreakthroughGameState:
-    players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
-    zobrist_table = [[[random.randint(1, 2**60 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
+    zobrist_table = [[[random.randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
 
     player = cython.declare(cython.int, visibility="public")
-    board = cython.declare(cnp.ndarray, visibility="public")
+    board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
+    positions = cython.declare(cython.tuple[cython.list, cython.list], visibility="public")
+
     """
     This class represents the game state for the Breakthrough board game.
     Breakthrough is a two-player game played on an 8x8 board.
@@ -41,6 +70,8 @@ class BreakthroughGameState:
         """
         self.player = player
         self.board = board if board is not None else self._init_board()
+        # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
+        self.positions = where_is_k(self.board, 1), where_is_k(self.board, 2)
         self.board_hash = board_hash if board_hash is not None else self._init_hash()
 
     def _init_board(self):
@@ -54,25 +85,30 @@ class BreakthroughGameState:
         for position in range(64):
             player = self.board[position]
             row, col = divmod(position, 8)
-            board_hash ^= self.zobrist_table[row][col][player]
-        board_hash ^= self.players_bitstrings[self.player]
+            board_hash ^= BreakthroughGameState.zobrist_table[row][col][player]
         return board_hash
 
     @cython.ccall
-    @cython.infer_types(True)
+    @cython.initializedcheck(False)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.nonecheck(False)
     @cython.locals(
         from_position=cython.int,
         to_position=cython.int,
-        new_board=cnp.ndarray,
+        new_board=cython.int[:],
         player=cython.int,
         current_player=cython.int,
+        caputured_player=cython.int,
         from_row=cython.int,
         to_row=cython.int,
         to_col=cython.int,
         from_col=cython.int,
         board_hash=cython.longlong,
     )
-    def apply_action(self, action: tuple[cython.int, cython.int]) -> BreakthroughGameState:
+    def apply_action(
+        self, action: tuple[cython.int, cython.int], playout: cython.bint = 0
+    ) -> BreakthroughGameState:
         """
         Apply the given action to create a new game state. The current state is not altered by this method.
         Actions are represented as a tuple (from_position, to_position).
@@ -81,29 +117,41 @@ class BreakthroughGameState:
         :return: A new game state with the action applied.
         """
         from_position, to_position = action
-        new_board = np.copy(self.board)
+        if playout:
+            player = self.board[from_position]
+            self.board[from_position] = 0  # Remove the piece from its current position
+            captured_player = self.board[to_position]  # Check for captures
+            self.board[to_position] = player  # Place the piece at its new position
 
-        player = new_board[from_position]
-        new_board[from_position] = 0  # Remove the piece from its current position
-        captured_player = new_board[to_position]
-        new_board[to_position] = player  # Place the piece at its new position
+            # Keep track of the pieces on the board
+            if captured_player != 0:
+                self.positions[captured_player - 1].remove(to_position)
 
-        from_row = from_position // 8
-        from_col = from_position % 8
-        to_row = to_position // 8
-        to_col = to_position % 8
+            self.positions[player - 1].remove(from_position)
+            self.positions[player - 1].append(to_position)
+            self.player = 3 - self.player
+        else:
+            new_board = self.board.copy()
 
-        board_hash = (
-            self.board_hash
-            ^ self.zobrist_table[from_row][from_col][player]
-            ^ self.zobrist_table[to_row][to_col][captured_player]
-            ^ self.zobrist_table[to_row][to_col][player]
-            ^ self.players_bitstrings[self.player]
-            ^ self.players_bitstrings[3 - self.player]
-        )
+            player = new_board[from_position]
+            new_board[from_position] = 0  # Remove the piece from its current position
+            captured_player = new_board[to_position]
+            new_board[to_position] = player  # Place the piece at its new position
 
-        return BreakthroughGameState(new_board, 3 - self.player, board_hash=board_hash)
+            from_row = from_position // 8
+            from_col = from_position % 8
+            to_row = to_position // 8
+            to_col = to_position % 8
 
+            board_hash = (
+                self.board_hash
+                ^ BreakthroughGameState.zobrist_table[from_row][from_col][player]
+                ^ BreakthroughGameState.zobrist_table[to_row][to_col][captured_player]
+                ^ BreakthroughGameState.zobrist_table[to_row][to_col][player]
+            )
+            return BreakthroughGameState(new_board, 3 - self.player, board_hash=board_hash)
+
+    @cython.ccall
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search
 
@@ -111,10 +159,15 @@ class BreakthroughGameState:
             BreakthroughGameState: A new gamestate in which the players are switched but no move performed
         """
         # Pass the same board hash since this is only used for null moves
-        return BreakthroughGameState(np.copy(self.board), 3 - self.player, board_hash=self.board_hash)
+        return BreakthroughGameState(self.board.copy(), 3 - self.player, board_hash=self.board_hash)
 
     @cython.ccall
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.nonecheck(False)
+    @cython.initializedcheck(False)
     @cython.infer_types(True)
+    @cython.cdivision(True)
     @cython.returns(tuple[cython.int, cython.int])
     def get_random_action(self):
         """
@@ -122,7 +175,39 @@ class BreakthroughGameState:
 
         :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
         """
-        return get_random_action(self.board, self.player)
+
+        dr: cython.int = -1
+        if self.player == 2:
+            dr = 1
+        positions: cython.list = self.positions[self.player - 1]
+
+        n: cython.int = len(positions)
+        start: cython.int = c_random(0, n - 1)  # This allows us to start at a random piece
+
+        i: cython.int
+        for i in range(n):
+            index: cython.int = (start + i) % n
+            position: cython.int = positions[index]
+
+            row: cython.int = position // 8
+            col: cython.int = position % 8
+            start_dc: cython.int = c_random(0, 2)  # This allows us to start at in a random direction
+            k: cython.int
+            for k in range(3):
+                dc: cython.int = dirs[(start_dc + k) % 3]
+                new_row: cython.int = row + dr
+                new_col: cython.int = col + dc
+                if not (
+                    (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
+                ):  # if the new position is not in bounds, skip to the next direction
+                    continue
+                new_position: cython.int = new_row * 8 + new_col
+                if dc == 0 and self.board[new_position] == 0 or self.board[new_position] != self.player:
+                    return (position, new_position)
+
+        # if no legal moves are found after iterating all positions and directions, return None
+        assert False, "Shouldn't get here"
+        return (0, 0)
 
     def yield_legal_actions(self):
         """
@@ -131,7 +216,7 @@ class BreakthroughGameState:
         :yield: Legal actions as tuples (from_position, to_position). In case of a terminal state, an empty sequence is returned.
         """
         # TODO It may be faster to just generate all actions using the cython function..
-        positions = np.where(self.board == self.player)[0]
+        positions = where_is_k(self.board, self.player)
         c_shuffle(positions)  # Shuffle positions
 
         dr = -1 if self.player == 1 else 1
@@ -163,24 +248,54 @@ class BreakthroughGameState:
         return get_legal_actions(self.player, self.board)
 
     @cython.ccall
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.infer_types(True)
+    @cython.boundscheck(False)
+    @cython.initializedcheck(False)
     def is_terminal(self) -> cython.bint:
         """
         Check if the current game state is terminal (i.e., a player has won).
 
         :return: True if the game state is terminal, False otherwise.
         """
-        return (self.board[:8] == 1).any() or (self.board[56:] == 2).any()
+        i: cython.int
+        # Check if any of the positions of player 1 pieces are in the first 8 elements
+        for i in range(8):
+            if self.board[i] == 1 or self.board[56 + i] == 2:
+                return 1
+
+        # Check if any player has no more pieces
+        if len(self.positions[0]) == 0 or len(self.positions[1]) == 0:
+            return 1
+
+        return 0
 
     @cython.ccall
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
     @cython.infer_types(True)
-    def get_reward(self, player) -> cython.int:
-        if (self.board[:8] == 1).any():
-            return win if player == 1 else loss
-        elif (self.board[56:] == 2).any():
-            return win if player == 2 else loss
+    @cython.boundscheck(False)
+    @cython.initializedcheck(False)
+    def get_reward(self, player: cython.int) -> cython.int:
+        i: cython.int
+
+        # Check if any of the positions of player 1 pieces are in the first 8 elements
+        if self.player == 1:  # Player 2 just moved, so check p2 wins.
+            for i in range(56, 64):
+                if self.board[i] == 2:
+                    return win if player == 2 else loss
         else:
-            return draw
+            for i in range(8):
+                if self.board[i] == 1:
+                    return win if player == 1 else loss
+        # Check if a player has no more pieces
+        if len(self.positions[0]) == 0:
+            return loss if player == 1 else win
+        if len(self.positions[1]) == 0:
+            return loss if player == 2 else win
+        # Check if the game is a draw
+        return 0
 
     def is_capture(self, move):
         """
@@ -251,8 +366,8 @@ class BreakthroughGameState:
             output += f"Simple evaluation: {evaluate_breakthrough(self, 1, norm=False)}/{evaluate_breakthrough(self, 2, norm=False)}\n"
             output += f"Lorenz evaluation: {evaluate_breakthrough_lorenz(self, 1, norm=False)}/{evaluate_breakthrough_lorenz(self, 2, norm=False)}\n"
 
-            white_pieces = np.where(self.board == 1)[0]
-            black_pieces = np.where(self.board == 2)[0]
+            white_pieces = self.positions[0]
+            black_pieces = self.positions[1]
 
             output += f"# white pieces: {len(white_pieces)} | # black pieces: {len(black_pieces)}\n"
             # ---------------------------Endgame-------------------------------------------
@@ -343,7 +458,7 @@ class BreakthroughGameState:
     @property
     def transposition_table_size(self):
         # return an appropriate size based on the game characteristics
-        return 2**19
+        return 2**23
 
     def __repr__(self) -> str:
         return "breakthrough"
@@ -353,70 +468,6 @@ def to_chess_notation(index):
     """Transform a board index into chess notation."""
     row, col = divmod(index, 8)
     return f"{chr(col + 65)}{row + 1}"
-
-
-@cython.ccall
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
-@cython.locals(
-    positions=cython.long[:],
-    position=cython.int,
-    row=cython.int,
-    i=cython.int,
-    col=cython.int,
-    dr=cython.int,
-    dc=cython.int,
-    ran=cython.list,
-    new_row=cython.int,
-    new_col=cython.int,
-    in_bounds=cython.bint,
-    new_position=cython.int,
-    board=cnp.ndarray,
-    player=cython.int,
-    start=cython.int,
-    index=cython.int,
-    n=cython.int,
-)
-def get_random_action(board, player) -> tuple[cython.int, cython.int]:
-    """
-    Generate a single legal action for the current player.
-
-    :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
-    """
-    positions = np.where(board == player)[0]
-    # c_shuffle_array(positions)  # shuffle the positions to add randomness
-
-    dr = -1
-    if player == 2:
-        dr = 1
-    n = positions.shape[0]
-    start = c_random(0, n - 1)
-
-    for i in range(n):
-        index = (start + i) % n
-        position = positions[index]
-
-        row = position // 8
-        col = position % 8
-        ran = list(range(-1, 2))
-        c_shuffle(ran)
-        for dc in ran:
-            new_row, new_col = row + dr, col + dc
-            if not (
-                (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
-            ):  # if the new position is not in bounds, skip to the next direction
-                continue
-            new_position = new_row * 8 + new_col
-            if dc == 0:  # moving straight
-                if board[new_position] == 0:
-                    return (position, new_position)
-            else:  # capturing
-                if board[new_position] != player:
-                    return (position, new_position)
-
-    # if no legal moves are found after iterating all positions and directions, return None
-    return (0, 0)
 
 
 @cython.ccall
@@ -546,7 +597,7 @@ def evaluate_breakthrough(
     opponent_near_opponent_side: cython.int = 7
     opponent_blocked: cython.int = 0
     board: cython.int[:] = state.board
-    pieces: cython.long[:] = np.where(state.board > 0)[0]  # get all pieces from the board
+    positions: cython.list = state.positions[0] + state.positions[1]
     new_position: cython.int
     new_col: cython.int
     new_row: cython.int
@@ -556,10 +607,10 @@ def evaluate_breakthrough(
     dr: cython.int
     dc: cython.int
 
-    for i in range(pieces.shape[0]):
-        piece = board[pieces[i]]
-        x = pieces[i] // 8
-        y = pieces[i] % 8
+    for i in range(positions.shape[0]):
+        piece = board[positions[i]]
+        x = positions[i] // 8
+        y = positions[i] % 8
 
         if piece == player:
             player_pieces += 1
@@ -659,7 +710,7 @@ def evaluate_breakthrough_lorenz(
     caps: cython.double = 0
     opponent: cython.int = 3 - player
     board: cython.int[:] = state.board
-    positions: cython.long[:] = np.where(state.board > 0)[0]  # get all pieces from the board
+    positions: cython.list = state.positions[0] + state.positions[1]
     multiplier: cython.double
     piece_value: cython.double
     mob_val: cython.double
@@ -711,8 +762,8 @@ def evaluate_breakthrough_lorenz(
             antidecisive_values -= m_antidecisive if player_1_antidecisive else 0
 
     if m_cap >= 0:
-        caps = count_capture_moves(board, np.where(state.board == player)[0], player) - count_capture_moves(
-            board, np.where(state.board == opponent)[0], opponent
+        caps = count_capture_moves(board, state.positions[player - 1], player) - count_capture_moves(
+            board, state.positions[opponent - 1], opponent
         )
 
     eval_value: cython.double = (
@@ -752,7 +803,7 @@ bef_last_rows_1: cnp.ndarray = np.arange(8, 16)
     pos=cython.int,
     i=cython.int,
     board=cnp.ndarray,
-    player_positions=cython.long[:],  # to specify a 1-D memoryview type, can be more efficient
+    player_positions=cython.int[:],
 )
 def is_decisive(
     state: cython.object,
@@ -761,7 +812,7 @@ def is_decisive(
     player_1_decisive = player_2_decisive = player_1_antidecisive = player_2_antidecisive = 0
 
     # Check for player 1
-    player_positions = np.where(board[bef_last_rows_1] == 1)[0] + bef_last_rows_1[0]
+    player_positions = where_is_k(board[bef_last_rows_1], 1) + bef_last_rows_1[0]
 
     for i in range(player_positions.shape[0]):
         pos = player_positions[i]
@@ -777,7 +828,7 @@ def is_decisive(
                 break
 
     # Check for player 2
-    player_positions = np.where(board[bef_last_rows_2] == 2)[0] + bef_last_rows_2[0]
+    player_positions = where_is_k(board[bef_last_rows_2], 2) + bef_last_rows_2[0]
     for i in range(player_positions.shape[0]):
         pos = player_positions[i]
         if state.player == 2:
@@ -939,7 +990,7 @@ def is_safe(position, player, board) -> cython.bint:
 @cython.boundscheck(False)
 @cython.locals(
     board=cython.int[:],
-    positions=cython.long[:],
+    positions=cython.int[:],
     player=cython.int,
     total_capture_moves=cython.int,
     position=cython.int,

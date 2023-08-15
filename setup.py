@@ -17,4 +17,18 @@ ext_modules = [
     Extension("ai.mcts", ["ai/mcts.py"]),
 ]
 
-setup(name="Cython MCTS", ext_modules=cythonize(ext_modules))
+setup(
+    name="Cython MCTS",
+    ext_modules=cythonize(
+        ext_modules,
+        compiler_directives={
+            "language_level": "3",
+            "embedsignature": True,
+            "initializedcheck": False,
+            "boundscheck": False,
+            "nonecheck": False,
+            "cdivision": True,
+            "infer_types": True,
+        },
+    ),
+)
