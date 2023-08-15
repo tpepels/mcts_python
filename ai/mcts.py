@@ -1,5 +1,4 @@
 # cython: language_level=3
-# cython: profile=True
 
 import random
 from typing import Callable
@@ -20,6 +19,8 @@ DEBUG: cython.bint = 0
 
 # TODO Compiler directives toevoegen na debuggen
 # TODO After testing, remove assert statements
+# TODO Check if tt actually adds something, collisions are probably happening and it will be a nightmare and slowdown to fix them
+# TODO Most of the games don't have tt's anyway.
 
 
 @cython.cfunc
@@ -127,7 +128,7 @@ class Node:
 
             solved_p: cython.int = int(child_stats[3])
             # Check for solved children
-            if solved_p != 0:
+            if solved_p != 0:  # TODO De solver werkt niet helemaal goed, kan aan transposities liggen
                 if solved_p == self.player:  # Winning move, let's go champ
                     # Just in case that the child was solved elsewhere in the tree, update this node.
                     self.set_solved(self.player)
@@ -325,6 +326,7 @@ class Node:
         """
         returns: 0: v1, 1: v2, 2: visits, 3: solved_player, 4: is_expanded, 5: eval_value
         """
+        # TODO Ik denk dat transposities alles alleen maar vetragen en door collisions fouten maken die niet te debuggen zijn
         return self.tt.get(self.state_hash)
 
     @cython.cfunc
@@ -605,23 +607,15 @@ class MCTSPlayer:
             result = self.play_out(next_state)
 
         else:  # TODO If a proven node is returned, we should backpropagate the result of the state
-            p1_reward: cython.double = 0.0
             if is_terminal:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
-                p1_reward = next_state.get_reward(1)
+                result = next_state.get_result_tuple()
             elif node.stats()[3] == 1:
-                p1_reward = win
-            elif node.stats()[3] == 2:
-                p1_reward = loss
-            else:
-                assert False, "This should not happen!"
-
-            if p1_reward == win:
                 result = (1.0, 0.0)
-            elif p1_reward == loss:
+            elif node.stats()[3] == 2:
                 result = (0.0, 1.0)
             else:
-                result = (0.5, 0.5)
+                assert False, "This should not happen!"
 
         i: cython.int
         c: cython.int
@@ -716,17 +710,10 @@ class MCTSPlayer:
             if best_action == ():
                 best_action = state.get_random_action()
 
-            state.apply_action(best_action, playout=True)
+            state.apply_action_playout(best_action)
 
         # Map the result to the players
-        reward = state.get_reward(1)
-
-        if reward == win:
-            return (1.0, 0.0)
-        elif reward == loss:
-            return (0.0, 1.0)
-        else:
-            return (0.5, 0.5)
+        return state.get_result_tuple()
 
     def print_cumulative_statistics(self) -> str:
         return ""

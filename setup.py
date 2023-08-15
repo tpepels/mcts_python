@@ -22,6 +22,7 @@ setup(
     ext_modules=cythonize(
         ext_modules,
         compiler_directives={
+            "profile": True,
             "language_level": "3",
             "embedsignature": True,
             "initializedcheck": False,
