@@ -9,14 +9,41 @@ from run_games import AIParams, run_game
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
 parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
+parser.add_argument("--debug", action="store_true", help="Show debug messages.")
 args = parser.parse_args()
 
+# num_simulations: int = 0,
+# max_time: int = 0,
+# c: float = 1.0,
+# dyn_early_term: bool = False,
+# dyn_early_term_cutoff: float = 0.9,
+# early_term: bool = False,
+# early_term_turns: int = 10,
+# early_term_cutoff: float = 0.05,
+# e_greedy: bool = False,
+# e_g_subset: int = 20,
+# imm_alpha: float = 0.4,
+# imm: bool = False,
+# roulette: bool = False,
+# epsilon: float = 0.05,
+# node_priors: bool = False,
+# debug: bool = False,
 
-debug = True
+
+debug = args.debug
 algo = "mcts"
 game = "breakthrough"
 evaluation = "evaluate_breakthrough_lorenz"
-ai_params = {"num_simulations": 500000, "debug": debug}
+ai_params = {
+    "max_time": 5,
+    "debug": debug,
+    "early_term": True,
+    "early_term_turns": 10,
+    "early_term_cutoff": 0.05,
+    "roulette": True,
+    "prog_bias": True,
+    "imm": True,
+}
 game_params = {}
 
 p1_params = AIParams(

@@ -1,5 +1,4 @@
 # cython: language_level=3
-
 import cython
 import numpy as np
 from cython.cimports import numpy as cnp
@@ -50,6 +49,8 @@ class BreakthroughGameState:
     board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     positions = cython.declare(cython.tuple[cython.list, cython.list], visibility="public")
+    last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
+
     winner: cython.int
     n_pieces_1: cython.int
     n_pieces_2: cython.int
@@ -70,6 +71,7 @@ class BreakthroughGameState:
         winner=0,
         n_pieces_1=None,
         n_pieces_2=None,
+        last_action=None,  # TODO Dit heb je toegevoegd
     ):
         """
         Initialize the game state with the given board configuration.
@@ -92,6 +94,11 @@ class BreakthroughGameState:
         else:
             self.n_pieces_1 = n_pieces_1
             self.n_pieces_2 = n_pieces_2
+
+        if last_action is None:
+            self.last_action = (-1, -1)
+        else:
+            self.last_action = last_action  # The last action performed
 
         self.winner = winner
         self.board_hash = board_hash if board_hash is not None else self._init_hash()
@@ -154,6 +161,7 @@ class BreakthroughGameState:
                 self.winner = 2
 
         self.player = 3 - self.player
+        self.last_action = action
 
     @cython.ccall
     @cython.initializedcheck(False)
@@ -237,6 +245,7 @@ class BreakthroughGameState:
             winner=winner,
             n_pieces_1=n_pieces_1,
             n_pieces_2=n_pieces_2,
+            last_action=action,
         )
 
     @cython.ccall
@@ -250,12 +259,6 @@ class BreakthroughGameState:
         return BreakthroughGameState(self.board.copy(), 3 - self.player, board_hash=self.board_hash)
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.wraparound(False)
-    @cython.nonecheck(False)
-    @cython.initializedcheck(False)
-    @cython.infer_types(True)
-    @cython.cdivision(True)
     @cython.returns(tuple[cython.int, cython.int])
     def get_random_action(self):
         """
@@ -273,14 +276,20 @@ class BreakthroughGameState:
         start: cython.int = c_random(0, n - 1)  # This allows us to start at a random piece
 
         i: cython.int
+
+        safe_captures: cython.list = []
+        all_moves: cython.list = []
+        captures: cython.list = []
         for i in range(n):
             index: cython.int = (start + i) % n
             position: cython.int = positions[index]
 
             row: cython.int = position // 8
             col: cython.int = position % 8
+
             start_dc: cython.int = c_random(0, 2)  # This allows us to start at in a random direction
             k: cython.int
+
             for k in range(3):
                 dc: cython.int = dirs[(start_dc + k) % 3]
                 new_row: cython.int = row + dr
@@ -290,29 +299,76 @@ class BreakthroughGameState:
                 ):  # if the new position is not in bounds, skip to the next direction
                     continue
                 new_position: cython.int = new_row * 8 + new_col
-                if dc == 0 and self.board[new_position] == 0 or self.board[new_position] != self.player:
-                    return (position, new_position)
 
-        # if no legal moves are found after iterating all positions and directions, return None
-        assert False, "Shouldn't get here"
-        return (0, 0)
+                # Straight, no capture or diagonal capture / empty cell
+                if (dc == 0 and self.board[new_position] == 0) or (self.board[new_position] != self.player):
+                    # Decisive moves
+                    if (self.player == 1 and new_position < 8) or (self.player == 2 and new_position >= 56):
+                        return (position, new_position)
+
+                    # Captures
+                    if new_position == (3 - self.player):
+                        # Anti-decisive moves (captures from the last row)
+                        if (self.player == 1 and position < 56) or (self.player == 2 and position < 8):
+                            return (position, new_position)
+
+                        # Prioritize safe captures
+                        if is_safe(position, self.player, self.board):
+                            safe_captures.append((position, new_position))
+                        else:
+                            # give captures higher chance of being selected
+                            captures.append((position, new_position))
+
+                    # Safe captures are prioritized anyway so no need to add non-captures
+                    if safe_captures == [] and captures == []:
+                        all_moves.append((position, new_position))
+
+        # Always do a safe capture if you can
+        if safe_captures != []:
+            if len(safe_captures) > 1:
+                return safe_captures[c_random(0, len(safe_captures) - 1)]
+            return safe_captures[0]
+        if captures != []:
+            if len(captures) > 1:
+                return captures[c_random(0, len(captures) - 1)]
+            return captures[0]
+        # All_moves includes captures, they'll be selected with a higher probability
+        return all_moves[c_random(0, len(all_moves) - 1)]
 
     @cython.ccall
-    @cython.infer_types(True)
     def get_legal_actions(self) -> cython.list:
         """
         Get all legal actions for the current player.
 
-        :return: A list of legal actions as tuples (from_position, to_position). In case of a terminal state, an empty list is returned.
+        :return: A list of legal actions as tuples (from_position, to_position).
+        In case of a terminal state, an empty list is returned.
         """
-        return get_legal_actions(self.player, self.board)
+        legal_actions: cython.list = []
+        dr: cython.int = -1
+        if self.player == 2:
+            dr = 1
+        i: cython.int
+        for i in range(len(self.positions[self.player - 1])):
+            position: cython.int = self.positions[self.player - 1][i]
+            row: cython.int = position // 8
+            col: cython.int = position % 8
+            dc: cython.int
+            for dc in range(-1, 2):
+                new_row: cython.int = row + dr
+                new_col: cython.int = col + dc
+                if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if the new position is within the board
+                    new_position: cython.int = new_row * 8 + new_col
+
+                    if dc == 0:  # moving straight
+                        if self.board[new_position] == 0:
+                            legal_actions.append((position, new_position))
+
+                    else:  # diagonal capture / move
+                        if self.board[new_position] != self.player:
+                            legal_actions.append((position, new_position))
+        return legal_actions
 
     @cython.ccall
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
-    @cython.infer_types(True)
-    @cython.boundscheck(False)
-    @cython.initializedcheck(False)
     def is_terminal(self) -> cython.bint:
         """
         Check if the current game state is terminal (i.e., a player has won).
@@ -324,11 +380,6 @@ class BreakthroughGameState:
         return 0
 
     @cython.ccall
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
-    @cython.infer_types(True)
-    @cython.boundscheck(False)
-    @cython.initializedcheck(False)
     def get_reward(self, player: cython.int) -> cython.int:
         if self.winner == player:
             return win
@@ -348,7 +399,8 @@ class BreakthroughGameState:
 
         return (0.5, 0.5)
 
-    def is_capture(self, move):
+    @cython.cfunc
+    def is_capture(self, move: cython.tuple[cython.int, cython.int]):
         """
         Check if the given move results in a capture.
 
@@ -358,7 +410,8 @@ class BreakthroughGameState:
         # Check if the destination cell contains an opponent's piece
         return self.board[move[1]] == 3 - self.player
 
-    def evaluate_moves(self, moves):
+    @cython.ccall
+    def evaluate_moves(self, moves: cython.list):
         """
         Evaluate the given moves using a simple heuristic: each step forward is worth 1 point,
         and capturing an opponent's piece is worth 2 points.
@@ -366,18 +419,22 @@ class BreakthroughGameState:
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic values of the moves.
         """
-        scores: list[tuple] = [()] * len(moves)
+        scores: cython.list = [()] * len(moves)
+        i: cython.int
         for i in range(len(moves)):
-            scores[i] = (moves[i], evaluate_move(self.board, moves[i][0], moves[i][1], self.player))
+            scores[i] = (moves[i], self.evaluate_move(moves[i]))
         return scores
 
-    def move_weights(self, moves):
-        scores = [0] * len(moves)
+    @cython.ccall
+    def move_weights(self, moves: cython.list):
+        scores: cython.list = [0] * len(moves)
+        i: cython.int
         for i in range(len(moves)):
-            scores[i] = evaluate_move(self.board, moves[i][0], moves[i][1], self.player)
+            scores[i] = self.evaluate_move(moves[i])
         return scores
 
-    def evaluate_move(self, move):
+    @cython.ccall
+    def evaluate_move(self, move: cython.tuple[cython.int, cython.int]) -> cython.int:
         """
         Evaluate the given move using a simple heuristic: each step forward is worth 1 point,
         and capturing an opponent's piece is worth 2 points.
@@ -385,8 +442,32 @@ class BreakthroughGameState:
         :param move: The move to evaluate.
         :return: The heuristic value of the move.
         """
+        score: cython.int = 0
 
-        return evaluate_move(self.board, move[0], move[1], self.player)
+        # Use lorentz_values for base_value, the max value is 36, so we add 36 to the score to make sure it is non-negative
+        if self.player == 2:
+            score = 36 + (lorentz_values[move[1]] - lorentz_values[move[0]])
+        else:
+            # Player 1 views the lorenz_values in reverse
+            score = 36 + (lorentz_values[63 - move[1]] - lorentz_values[63 - move[0]])
+
+        # Reward capturing
+        if self.board[move[1]] == 3 - self.player:
+            score = int(score**2)  # square score if it's a capture
+            # An antidecisive move
+            if (self.player == 1 and move[0] >= 56) or (self.player == 2 and move[0] < 8):
+                score += 1000000  # Add a very high score if the move is antidecisive
+
+        # Reward safe positions
+        if is_safe(move[1], self.player, self.board):
+            score *= 2  # Add base_value again if the position is safe
+
+        # Reward decisive moves
+        # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
+        if (self.player == 1 and (8 <= move[0] <= 16)) or (self.player == 2 and (48 <= move[0] <= 56)):
+            score += 1000000  # Add a very high score if the move is decisive
+
+        return score
 
     def visualize(self, full_debug=False):
         """
@@ -416,6 +497,9 @@ class BreakthroughGameState:
             # ---------------------------Evaluations---------------------------------
             output += f"Simple evaluation: {evaluate_breakthrough(self, 1, norm=False)}/{evaluate_breakthrough(self, 2, norm=False)}\n"
             output += f"Lorenz evaluation: {evaluate_breakthrough_lorenz(self, 1, norm=False)}/{evaluate_breakthrough_lorenz(self, 2, norm=False)}\n"
+            output += f"Normalized:"
+            output += f"Simple evaluation: {evaluate_breakthrough(self, 1, norm=True)}/{evaluate_breakthrough(self, 2, norm=True)}\n"
+            output += f"Lorenz evaluation: {evaluate_breakthrough_lorenz(self, 1, norm=True)}/{evaluate_breakthrough_lorenz(self, 2, norm=True)}\n"
 
             white_pieces = self.positions[0]
             black_pieces = self.positions[1]
@@ -439,8 +523,8 @@ class BreakthroughGameState:
                     output += f"{self.readable_location(piece)} - white is not safe\n"
             output += "..." * 60 + "\n"
             # ---------------------------Decisiveness---------------------------------
-            p1_decisive, p2_decisive, p1_antidecisive, p2_antidecisive = is_decisive(self)
-            output += f"Player 1 decisive: {p1_decisive}, Player 2 decisive: {p2_decisive}, Player 1 antidecisive: {p1_antidecisive}, Player 2 antidecisive: {p2_antidecisive}\n"
+            p1_decisive, p2_decisive = is_decisive(self)
+            output += f"Player 1 decisive: {p1_decisive}, Player 2 decisive: {p2_decisive}\n"
             output += "..." * 60 + "\n"
 
             if len(moves) > 0:
@@ -522,88 +606,6 @@ def to_chess_notation(index):
 
 
 @cython.ccall
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
-@cython.locals(
-    player=cython.int,
-    dr=cython.int,
-    dc=cython.int,
-    new_row=cython.int,
-    new_col=cython.int,
-    position=cython.int,
-    row=cython.int,
-    col=cython.int,
-    board=cython.int[:],
-)
-def get_legal_actions(player, board) -> cython.list:
-    """
-    Get all legal actions for the current player.
-
-    :return: A list of legal actions as tuples (from_position, to_position).
-    In case of a terminal state, an empty list is returned.
-    """
-    legal_actions: cython.list = []
-    dr = -1
-    if player == 2:
-        dr = 1
-
-    for position in range(board.shape[0]):
-        if board[position] == player:
-            row = position // 8
-            col = position % 8
-            for dc in range(-1, 2):
-                new_row, new_col = row + dr, col + dc
-                if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if the new position is within the board
-                    new_position = new_row * 8 + new_col
-
-                    if dc == 0:  # moving straight
-                        if board[new_position] == 0:
-                            legal_actions.append((position, new_position))
-
-                    else:  # diagonal capture / move
-                        if board[new_position] != player:
-                            legal_actions.append((position, new_position))
-    return legal_actions
-
-
-@cython.ccall
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
-def evaluate_move(
-    board: cython.int[:], from_position: cython.int, to_position: cython.int, player: cython.int
-) -> cython.int:
-    score: cython.int = 0
-
-    # Use lorentz_values for base_value, the max value is 36, so we add 36 to the score to make sure it is non-negative
-    if player == 2:
-        score = 36 + (lorentz_values[to_position] - lorentz_values[from_position])
-    else:
-        # Player 1 views the lorenz_values in reverse
-        score = 36 + (lorentz_values[63 - to_position] - lorentz_values[63 - from_position])
-
-    # Reward capturing
-    if board[to_position] == 3 - player:
-        score = int(score**2)  # square score if it's a capture
-        # An antidecisive move
-        if (player == 1 and from_position > 56) or (player == 2 and from_position < 8):
-            score += 1000000  # Add a very high score if the move is antidecisive
-
-    # Reward safe positions
-    if is_safe(to_position, player, board):
-        score *= 2  # Add base_value again if the position is safe
-
-    # Reward decisive moves
-    # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
-    if (player == 1 and (8 <= from_position <= 16)) or (player == 2 and (48 <= from_position <= 56)):
-        score += 1000000  # Add a very high score if the move is decisive
-
-    return score
-
-
-@cython.ccall
 @cython.infer_types(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -617,7 +619,7 @@ def evaluate_breakthrough(
     m_near: cython.double = 1.0,
     m_blocked: cython.double = 0.25,
     m_opp_disc: cython.double = 0.9,
-    a: cython.int = 100,
+    a: cython.int = 20,
     norm: cython.bint = 0,
 ) -> cython.double:
     """
@@ -658,7 +660,7 @@ def evaluate_breakthrough(
     dr: cython.int
     dc: cython.int
 
-    for i in range(positions.shape[0]):
+    for i in range(len(positions)):
         piece = board[positions[i]]
         x = positions[i] // 8
         y = positions[i] % 8
@@ -719,16 +721,15 @@ def evaluate_breakthrough(
 def evaluate_breakthrough_lorenz(
     state: BreakthroughGameState,
     player: cython.int,
-    m_lorenz: cython.double = 1.0,
-    m_mobility: cython.double = 1.0,
-    m_safe: cython.double = 1.0,
-    m_endgame: cython.double = 1.0,
-    m_cap: cython.double = 2.0,
-    m_piece_diff: cython.double = 1.0,
-    m_opp_disc: cython.double = 0.9,
-    m_decisive: cython.double = 100.0,
-    m_antidecisive: cython.double = 100.0,
-    a: cython.int = 200,
+    m_lorenz: cython.double = 20.0,
+    m_mobility: cython.double = 2.0,
+    m_safe: cython.double = 15.0,
+    m_endgame: cython.double = 11.0,
+    m_cap: cython.double = 10.0,
+    m_piece_diff: cython.double = 13.0,
+    m_opp_disc: cython.double = 1.1,
+    m_decisive: cython.double = 800.0,
+    a: cython.int = 2000,
     norm: cython.bint = 0,
 ) -> cython.double:
     """
@@ -757,7 +758,6 @@ def evaluate_breakthrough_lorenz(
     piece_diff: cython.double = 0
     pieces: cython.int = 0
     decisive_values: cython.double = 0
-    antidecisive_values: cython.double = 0
     caps: cython.double = 0
     opponent: cython.int = 3 - player
     board: cython.int[:] = state.board
@@ -768,7 +768,7 @@ def evaluate_breakthrough_lorenz(
     position: cython.int
     piece: cython.int
 
-    for i in range(positions.shape[0]):
+    for i in range(len(positions)):
         position = positions[i]
         piece = board[position]
         # Player or opponent
@@ -796,21 +796,15 @@ def evaluate_breakthrough_lorenz(
     if m_endgame != 0.0 and pieces < 12:
         endgame_values = m_endgame * piece_diff
 
-    if m_decisive != 0.0 or m_antidecisive != 0.0:
-        player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive = is_decisive(
-            state
-        )
+    if m_decisive != 0.0:
+        player_1_decisive, player_2_decisive = is_decisive(state)
 
         if player == 1:
             decisive_values = m_decisive if player_1_decisive else 0
             decisive_values -= m_decisive if player_2_decisive else 0
-            antidecisive_values = m_antidecisive if player_1_antidecisive else 0
-            antidecisive_values -= m_antidecisive if player_2_antidecisive else 0
         else:  # self.player == 2
             decisive_values = m_decisive if player_2_decisive else 0
             decisive_values -= m_decisive if player_1_decisive else 0
-            antidecisive_values = m_antidecisive if player_2_antidecisive else 0
-            antidecisive_values -= m_antidecisive if player_1_antidecisive else 0
 
     if m_cap >= 0:
         caps = count_capture_moves(board, state.positions[player - 1], player) - count_capture_moves(
@@ -819,7 +813,6 @@ def evaluate_breakthrough_lorenz(
 
     eval_value: cython.double = (
         decisive_values
-        + antidecisive_values
         + endgame_values
         + m_lorenz * board_values
         + m_mobility * mobility_values
@@ -844,56 +837,29 @@ bef_last_rows_1: cnp.ndarray = np.arange(8, 16)
 
 
 @cython.cfunc
-@cython.infer_types(True)
 @cython.locals(
-    state=cython.object,
-    player_1_decisive=cython.bint,
-    player_2_decisive=cython.bint,
-    player_1_antidecisive=cython.bint,
-    player_2_antidecisive=cython.bint,
+    player_1_decisive=cython.int,
+    player_2_decisive=cython.int,
     pos=cython.int,
     i=cython.int,
-    board=cnp.ndarray,
-    player_positions=cython.int[:],
 )
-def is_decisive(
-    state: cython.object,
-) -> tuple[cython.int, cython.int, cython.int, cython.int]:
-    board = state.board
-    player_1_decisive = player_2_decisive = player_1_antidecisive = player_2_antidecisive = 0
+@cython.returns(tuple[cython.int, cython.int])
+def is_decisive(state: BreakthroughGameState):
+    player_1_decisive = player_2_decisive = 0
 
-    # Check for player 1
-    player_positions = where_is_k(board[bef_last_rows_1], 1) + bef_last_rows_1[0]
+    for i in range(len(state.positions[0])):
+        pos = state.positions[0][i]
+        # Decisive moves
+        if 8 <= pos < 16:
+            player_1_decisive += 1
 
-    for i in range(player_positions.shape[0]):
-        pos = player_positions[i]
-        if state.player == 1:
-            player_1_decisive = 1
-            break
-        else:
-            if (pos % 8 > 0 and board[pos - 7] == 2) or (pos % 8 < 7 and board[pos - 9] == 2):
-                player_2_antidecisive = 1
-                break
-            else:
-                player_1_decisive = 1
-                break
+    for i in range(len(state.positions[1])):
+        pos = state.positions[1][i]
+        # Decisive moves
+        if 48 < pos <= 56:
+            player_2_decisive += 1
 
-    # Check for player 2
-    player_positions = where_is_k(board[bef_last_rows_2], 2) + bef_last_rows_2[0]
-    for i in range(player_positions.shape[0]):
-        pos = player_positions[i]
-        if state.player == 2:
-            player_2_decisive = 1
-            break
-        else:
-            if (pos % 8 > 0 and board[pos + 7] == 1) or (pos % 8 < 7 and board[pos + 9] == 1):
-                player_1_antidecisive = 1
-                break
-            else:
-                player_2_decisive = 1
-                break
-
-    return player_1_decisive, player_2_decisive, player_1_antidecisive, player_2_antidecisive
+    return player_1_decisive, player_2_decisive
 
 
 BL_DIR: cython.int[:, :] = np.array([[1, 0], [1, -1], [1, 1]], dtype=np.dtype("i"))
@@ -1041,7 +1007,7 @@ def is_safe(position, player, board) -> cython.bint:
 @cython.boundscheck(False)
 @cython.locals(
     board=cython.int[:],
-    positions=cython.int[:],
+    positions=cython.list,
     player=cython.int,
     total_capture_moves=cython.int,
     position=cython.int,
@@ -1067,7 +1033,7 @@ def count_capture_moves(board, positions, player) -> cython.int:
     """
     total_capture_moves = 0
     opponent = 3 - player
-    n: cython.int = positions.shape[0]
+    n: cython.int = len(positions)
 
     for i in range(n):
         position = positions[i]
