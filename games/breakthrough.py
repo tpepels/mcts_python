@@ -5,9 +5,11 @@ from cython.cimports import numpy as cnp
 
 cnp.import_array()
 
-from games.gamestate import normalize, win, loss, draw
 import random
-from cython.cimports.ai.c_random import c_shuffle, c_random
+
+from cython.cimports.c_util import c_random, normalize, where_is_k
+from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
+from cython.cimports.games.gamestate import win, loss, draw, GameState
 
 if cython.compiled:
     print("Breakthrough is compiled.")
@@ -15,34 +17,8 @@ else:
     print("Breakthrough is just a lowly interpreted script.")
 
 
-# TODO Move this function elsewhere after optimisation
-@cython.ccall
-@cython.inline
-@cython.profile(False)
-@cython.infer_types(True)
-@cython.nonecheck(False)
-@cython.initializedcheck(False)
-@cython.boundscheck(False)  # Turn off bounds-checking for entire function
-@cython.wraparound(False)  # Turn off negative index wrapping for entire function
-def where_is_k(board: cython.int[:], k: cython.int) -> cython.list:
-    i: cython.int
-    n: cython.int = board.shape[0]
-    indices: cython.list = []
-
-    for i in range(n):
-        if board[i] == k:
-            indices.append(i)
-
-    return indices
-
-
-dirs: cython.tuple[cython.int, cython.int, cython.int] = (-1, 0, 1)
-
-
 @cython.cclass
-@cython.initializedcheck(False)
-@cython.nonecheck(False)
-class BreakthroughGameState:
+class BreakthroughGameState(GameState):
     zobrist_table = [[[random.randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
 
     player = cython.declare(cython.int, visibility="public")
@@ -62,6 +38,18 @@ class BreakthroughGameState:
     The goal is to move one of your pieces to the opponent's home row.
     """
 
+    def __cinit__(self, board, player, board_hash, positions, winner, n_pieces_1, n_pieces_2, last_action):
+        # This is called for both Python and Cython initializations
+        # But when called from Cython, you provide all the arguments
+        self.board = board
+        self.player = player
+        self.board_hash = board_hash
+        self.positions = positions
+        self.winner = winner
+        self.n_pieces_1 = n_pieces_1
+        self.n_pieces_2 = n_pieces_2
+        self.last_action = last_action
+
     def __init__(
         self,
         board=None,
@@ -71,7 +59,7 @@ class BreakthroughGameState:
         winner=0,
         n_pieces_1=None,
         n_pieces_2=None,
-        last_action=None,  # TODO Dit heb je toegevoegd
+        last_action=None,  # TODO Dit heb je toegevoegd, moet ook nog in de andere games
     ):
         """
         Initialize the game state with the given board configuration.
@@ -117,15 +105,8 @@ class BreakthroughGameState:
             board_hash ^= BreakthroughGameState.zobrist_table[row][col][player]
         return board_hash
 
-    @cython.ccall
-    @cython.initializedcheck(False)
-    @cython.boundscheck(False)
-    @cython.wraparound(False)
-    @cython.nonecheck(False)
-    @cython.locals(
-        caputured_player=cython.int,
-    )
-    def apply_action_playout(self, action: tuple[cython.int, cython.int]) -> BreakthroughGameState:
+    @cython.cfunc
+    def apply_action_playout(self, action: cython.tuple) -> cython.void:
         """
         Apply the given action to create a new game state. The current state is not altered by this method.
         Actions are represented as a tuple (from_position, to_position).
@@ -133,9 +114,9 @@ class BreakthroughGameState:
         :param action: The action to apply.
         :return: A new game state with the action applied.
         """
-        # TODO Deze heb je toegevoegd
+        # TODO Deze heb je toegevoegd, moet nog voor de andere games
         self.board[action[0]] = 0  # Remove the piece from its current position
-        captured_player = self.board[action[1]]  # Check for captures
+        captured_player: cython.int = self.board[action[1]]  # Check for captures
         self.board[action[1]] = self.player  # Place the piece at its new position
 
         # Keep track of the pieces on the board
@@ -164,24 +145,7 @@ class BreakthroughGameState:
         self.last_action = action
 
     @cython.ccall
-    @cython.initializedcheck(False)
-    @cython.boundscheck(False)
-    @cython.wraparound(False)
-    @cython.nonecheck(False)
-    @cython.locals(
-        from_position=cython.int,
-        to_position=cython.int,
-        new_board=cython.int[:],
-        player=cython.int,
-        current_player=cython.int,
-        caputured_player=cython.int,
-        from_row=cython.int,
-        to_row=cython.int,
-        to_col=cython.int,
-        from_col=cython.int,
-        board_hash=cython.longlong,
-    )
-    def apply_action(self, action: tuple[cython.int, cython.int]) -> BreakthroughGameState:
+    def apply_action(self, action: cython.tuple) -> GameState:
         """
         Apply the given action to create a new game state. The current state is not altered by this method.
         Actions are represented as a tuple (from_position, to_position).
@@ -189,22 +153,23 @@ class BreakthroughGameState:
         :param action: The action to apply.
         :return: A new game state with the action applied.
         """
-        new_board = self.board.copy()
+        new_board: cython.int[:] = self.board.copy()
         n_pieces_1: cython.int = self.n_pieces_1
         n_pieces_2: cython.int = self.n_pieces_2
 
-        winner: cython.int = 0
-
         new_board[action[0]] = 0  # Remove the piece from its current position
-        captured_player = new_board[action[1]]
+        captured_player: cython.int = new_board[action[1]]
         new_board[action[1]] = self.player  # Place the piece at its new position
 
         new_positions: cython.tuple[cython.list, cython.list] = (
             self.positions[0].copy(),
             self.positions[1].copy(),
         )
+
+        winner: cython.int = 0
         # Keep track of the pieces on the board
         if captured_player != 0:
+            # Remove the to-position from the positions list
             new_positions[captured_player - 1].remove(action[1])
             # Keep track of the number of pieces of each player
             if captured_player == 2:
@@ -219,14 +184,12 @@ class BreakthroughGameState:
         new_positions[self.player - 1].remove(action[0])
         new_positions[self.player - 1].append(action[1])
 
-        from_row = action[0] // 8
-        from_col = action[0] % 8
-        to_row = action[1] // 8
-        to_col = action[1] % 8
+        to_row: cython.int = action[1] // 8
+        to_col: cython.int = action[1] % 8
 
         board_hash = (
             self.board_hash
-            ^ BreakthroughGameState.zobrist_table[from_row][from_col][self.player]
+            ^ BreakthroughGameState.zobrist_table[action[0] // 8][action[0] % 8][self.player]
             ^ BreakthroughGameState.zobrist_table[to_row][to_col][captured_player]
             ^ BreakthroughGameState.zobrist_table[to_row][to_col][self.player]
         )
@@ -249,22 +212,28 @@ class BreakthroughGameState:
         )
 
     @cython.ccall
-    def skip_turn(self):
+    def skip_turn(self) -> GameState:
         """Used for the null-move heuristic in alpha-beta search
 
         Returns:
             BreakthroughGameState: A new gamestate in which the players are switched but no move performed
         """
         # Pass the same board hash since this is only used for null moves
-        return BreakthroughGameState(self.board.copy(), 3 - self.player, board_hash=self.board_hash)
+        return BreakthroughGameState(
+            self.board.copy(),
+            3 - self.player,
+            board_hash=self.board_hash,
+            n_pieces_1=self.n_pieces_1,
+            n_pieces_2=self.n_pieces_2,
+            last_action=self.last_action,
+        )
 
-    @cython.ccall
-    @cython.returns(tuple[cython.int, cython.int])
-    def get_random_action(self):
+    @cython.cfunc
+    def get_random_action(self) -> cython.tuple:
         """
         Generate a single legal action for the current player.
 
-        :return: A tuple representing a legal action (from_position, to_position). If there are no legal actions, returns None.
+        :return: A tuple representing a legal action (from_position, to_position).
         """
 
         dr: cython.int = -1
@@ -336,7 +305,7 @@ class BreakthroughGameState:
         return all_moves[c_random(0, len(all_moves) - 1)]
 
     @cython.ccall
-    def get_legal_actions(self) -> cython.list:
+    def get_legal_actions(self) -> cython.list[cython.tuple]:
         """
         Get all legal actions for the current player.
 
@@ -388,10 +357,9 @@ class BreakthroughGameState:
 
         return draw
 
-    @cython.ccall
-    @cython.returns(cython.tuple[cython.double, cython.double])
-    def get_result_tuple(self):
-        # TODO Deze heb je toegevoegd
+    @cython.cfunc
+    def get_result_tuple(self) -> cython.tuple:
+        # TODO Deze heb je toegevoegd, moet nog in de andere games
         if self.winner == 1:
             return (1.0, 0.0)
         elif self.winner == 2:
@@ -400,7 +368,7 @@ class BreakthroughGameState:
         return (0.5, 0.5)
 
     @cython.cfunc
-    def is_capture(self, move: cython.tuple[cython.int, cython.int]):
+    def is_capture(self, move: cython.tuple) -> cython.bint:
         """
         Check if the given move results in a capture.
 
@@ -410,8 +378,18 @@ class BreakthroughGameState:
         # Check if the destination cell contains an opponent's piece
         return self.board[move[1]] == 3 - self.player
 
+    @cython.cfunc
+    def evaluate(self, function_i: cython.int, player: cython.int, norm: cython.bint) -> cython.double:
+        # TODO Deze heb je toegevoegd, moet nog voor de andere games
+        if function_i == 1:
+            return evaluate_breakthrough(self, player, norm=norm)
+        elif function_i == 2:
+            return evaluate_breakthrough_lorenz(self, player, norm=norm)
+
+        assert False, "Incorrect evaluation index (1 or 2 are allowed)."
+
     @cython.ccall
-    def evaluate_moves(self, moves: cython.list):
+    def evaluate_moves(self, moves: cython.list) -> cython.list:
         """
         Evaluate the given moves using a simple heuristic: each step forward is worth 1 point,
         and capturing an opponent's piece is worth 2 points.
@@ -426,7 +404,7 @@ class BreakthroughGameState:
         return scores
 
     @cython.ccall
-    def move_weights(self, moves: cython.list):
+    def move_weights(self, moves: cython.list) -> cython.list:
         scores: cython.list = [0] * len(moves)
         i: cython.int
         for i in range(len(moves)):
@@ -434,7 +412,7 @@ class BreakthroughGameState:
         return scores
 
     @cython.ccall
-    def evaluate_move(self, move: cython.tuple[cython.int, cython.int]) -> cython.int:
+    def evaluate_move(self, move: cython.tuple) -> cython.int:
         """
         Evaluate the given move using a simple heuristic: each step forward is worth 1 point,
         and capturing an opponent's piece is worth 2 points.
@@ -830,12 +808,6 @@ def evaluate_breakthrough_lorenz(
         return eval_value
 
 
-# indices of the penultimate row for player 1
-bef_last_rows_2: cnp.ndarray = np.arange(48, 56)
-# indices of the penultimate row for player 2
-bef_last_rows_1: cnp.ndarray = np.arange(8, 16)
-
-
 @cython.cfunc
 @cython.locals(
     player_1_decisive=cython.int,
@@ -852,18 +824,18 @@ def is_decisive(state: BreakthroughGameState):
         # Decisive moves
         if 8 <= pos < 16:
             player_1_decisive += 1
+            if state.player == 1:  # Sure win
+                player_1_decisive += 10
 
     for i in range(len(state.positions[1])):
         pos = state.positions[1][i]
         # Decisive moves
         if 48 < pos <= 56:
             player_2_decisive += 1
+            if state.player == 2:  # Sure win
+                player_2_decisive += 10
 
     return player_1_decisive, player_2_decisive
-
-
-BL_DIR: cython.int[:, :] = np.array([[1, 0], [1, -1], [1, 1]], dtype=np.dtype("i"))
-WH_DIR: cython.int[:, :] = np.array([[-1, 0], [-1, -1], [-1, 1]], dtype=np.dtype("i"))
 
 
 @cython.cfunc
@@ -1066,75 +1038,3 @@ def count_capture_moves(board, positions, player) -> cython.int:
         total_capture_moves += piece_capture_moves
 
     return int(total_capture_moves)
-
-
-# List of values representing the importance of each square on the board. In view of player 2.
-lorentz_values: cython.int[:] = np.array(
-    [
-        5,
-        15,
-        15,
-        5,
-        5,
-        15,
-        15,
-        5,
-        2,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        2,
-        4,
-        6,
-        6,
-        6,
-        6,
-        6,
-        6,
-        4,
-        7,
-        10,
-        10,
-        10,
-        10,
-        10,
-        10,
-        7,
-        11,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        11,
-        16,
-        21,
-        21,
-        21,
-        21,
-        21,
-        21,
-        16,
-        20,
-        28,
-        28,
-        28,
-        28,
-        28,
-        28,
-        20,
-        36,
-        36,
-        36,
-        36,
-        36,
-        36,
-        36,
-        36,
-    ],
-    dtype=np.int32,
-)

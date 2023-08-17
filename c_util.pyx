@@ -7,17 +7,18 @@
 #cython: overflowcheck=False
 
 from libc.stdlib cimport srand, rand, RAND_MAX
+from libc.math cimport tanh
 
-cdef void c_random_seed(unsigned int seed):
+cdef inline void c_random_seed(unsigned int seed):
     srand(seed)
 
-cdef double c_uniform_random(double low, double high):
+cdef inline double c_uniform_random(double low, double high):
     return low + (rand() / RAND_MAX) * (high - low)
 
-cdef int c_random(int _min, int _max):
+cdef inline int c_random(int _min, int _max):
     return _min + rand() % (_max - _min + 1)
 
-cdef void c_shuffle(list arr):
+cdef inline void c_shuffle(list arr):
     cdef int n = len(arr)
     cdef int swap_idx
     cdef object tmp
@@ -28,7 +29,7 @@ cdef void c_shuffle(list arr):
         arr[i] = arr[swap_idx]
         arr[swap_idx] = tmp
 
-cdef void c_shuffle_array(long[:] arr):
+cdef inline void c_shuffle_array(long[:] arr):
     cdef int n = arr.shape[0]
     cdef int swap_idx
     cdef long tmp
@@ -38,3 +39,23 @@ cdef void c_shuffle_array(long[:] arr):
         tmp = arr[i]
         arr[i] = arr[swap_idx]
         arr[swap_idx] = tmp
+
+cdef inline double normalize(double value, double a):
+    """
+    Normalize value with range [-a,a] to [-1, 1] using tanh
+
+    Args:
+        value (float): the value to normalize
+        a (float): absolute max
+    """
+    return tanh(value / a)
+
+cdef inline list where_is_k(int[:] board , int k):
+    cdef int i
+    cdef list indices = []
+
+    for i in range(board.shape[0]):
+        if board[i] == k:
+            indices.append(i)
+
+    return indices

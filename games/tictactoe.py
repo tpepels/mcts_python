@@ -9,7 +9,8 @@ from cython.cimports import numpy as cnp
 
 cnp.import_array()
 import numpy as np
-from games.gamestate import GameState, win, loss, draw, normalize
+from games.gamestate import GameState, win, loss
+from c_util import normalize
 from termcolor import colored
 
 # MARKS = {0: " ", 1: "X", 2: "O"}

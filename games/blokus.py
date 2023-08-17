@@ -5,13 +5,14 @@ from typing import Generator, Tuple
 
 import cython
 from cython.cimports import numpy as cnp
-from cython.cimports.ai.c_random import c_random
+from cython.cimports.c_util import c_random
 
 cnp.import_array()
 import numpy as np
 from termcolor import colored
 
-from games.gamestate import GameState, draw, loss, normalize, win
+from games.gamestate import GameState, draw, loss, win
+from c_util import normalize
 
 if cython.compiled:
     print("Blokus is compiled.")

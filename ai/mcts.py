@@ -1,4 +1,4 @@
-# cython: language_level=3, cdivision=True, boundscheck=False, wraparound=False, nonecheck=False
+# cython: language_level=3
 
 import random
 from typing import Callable
@@ -10,9 +10,10 @@ import cython
 
 from games.gamestate import loss, win
 
-from cython.cimports.ai.c_random import c_uniform_random, c_random, c_random_seed, c_shuffle
+from cython.cimports.c_util import c_uniform_random, c_random, c_random_seed, c_shuffle
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log
+from cython.cimports.games.gamestate import GameState
 
 from util import abbreviate, format_time
 
@@ -30,6 +31,7 @@ def curr_time() -> cython.long:
 c_random_seed(curr_time())
 
 
+@cython.freelist(10000)
 @cython.cclass
 class Node:
     children = cython.declare(cython.list, visibility="public")
@@ -130,14 +132,13 @@ class Node:
 
         return max_child  # A random child was chosen at the beginning of the method, hence this will never be None
 
-    # TODO Make "evaluate" a function pointer
     @cython.cfunc
     def expand(
         self,
-        init_state: cython.object,
+        init_state: GameState,
         prog_bias: cython.bint = 0,
         imm: cython.bint = 0,
-        evaluate: cython.object = None,
+        eval_i: cython.int = 0,
     ) -> Node:
         assert not self.expanded, f"Trying to re-expand an already expanded node, you madman. {str(self)}"
 
@@ -150,7 +151,7 @@ class Node:
             # Get a random action from the list of previously generated actions
             action: cython.tuple = self.actions.pop(c_random(0, len(self.actions) - 1))
 
-            new_state: cython.object = init_state.apply_action(action)
+            new_state: GameState = init_state.apply_action(action)
             child: Node = Node(new_state.player, action, self.max_player)
 
             # This works because we pop the actions
@@ -171,7 +172,12 @@ class Node:
             # No use to evaluate terminal or solved nodes.
             elif prog_bias or imm:
                 # * eval_value is always in view of max_player
-                eval_value: cython.double = evaluate(new_state, self.max_player, norm=True)
+                eval_value: cython.double = new_state.evaluate(
+                    player=self.max_player,
+                    norm=True,
+                    function_i=eval_i,
+                )
+
                 child.eval_value = eval_value
                 if imm:
                     child.im_value = eval_value
@@ -198,16 +204,16 @@ class Node:
     @cython.cfunc
     def add_all_children(
         self,
-        init_state: cython.object,
+        init_state: GameState,
         prog_bias: cython.bint = 0,
         imm: cython.bint = 0,
-        evaluate: cython.object = None,
+        eval_i: cython.int = 0,
     ):
         """
         Adds a previously expanded node's children to the tree
         """
         while not self.expanded:
-            self.expand(init_state, prog_bias=prog_bias, imm=imm, evaluate=evaluate)
+            self.expand(init_state, prog_bias=prog_bias, imm=imm, eval_i=eval_i)
 
     @cython.cfunc
     def check_loss_node(self):
@@ -279,14 +285,15 @@ class MCTSPlayer:
     c: cython.double
     epsilon: cython.double
     max_time: cython.double
-    evaluate: cython.object
+    eval_i: cython.int
     root: Node
 
     def __init__(
         self,
         player: int,
-        evaluate: Callable,
+        evaluate: Callable,  # TODO Dit kan weg, je moet een functieindex gebruiken en dan state.evaluate doen
         transposition_table_size: int = 2**16,  # This parameter is unused but is passed by run_game
+        eval_i=2,  # TODO Dit moet je nog aanpassen in run_games (ook voor AlphaBeta)
         num_simulations: int = 0,
         max_time: int = 0,
         c: float = 1.0,
@@ -306,8 +313,6 @@ class MCTSPlayer:
         debug: bool = False,
     ):
         self.player = player
-        self.evaluate: Callable = evaluate
-
         self.dyn_early_term = dyn_early_term
         self.dyn_early_term_cutoff = dyn_early_term_cutoff
         self.early_term_cutoff = early_term_cutoff
@@ -318,6 +323,7 @@ class MCTSPlayer:
         self.early_term_turns = early_term_turns
         self.roulette = roulette
         self.c = c
+        self.eval_i = eval_i
 
         self.imm = imm
         if self.imm:
@@ -373,7 +379,7 @@ class MCTSPlayer:
             self.root: Node = Node(state.player, (), self.player)
 
         if not self.root.expanded:
-            self.root.add_all_children(state, self.prog_bias, self.imm, self.evaluate)
+            self.root.add_all_children(state, self.prog_bias, self.imm, self.eval_i)
 
         start_time: cython.long = curr_time()
         i: cython.int = 0
@@ -425,7 +431,7 @@ class MCTSPlayer:
             print("--*--" * 20)
             print(f"BEST NODE: {max_node}")
             print("--*--" * 20)
-            print(f"Evaluation: {self.evaluate(state, self.player)}")
+            print(f"Evaluation: {state.evaluate(self.eval_i, self.player, norm=True)}")
             print("--*--" * 20)
 
         if DEBUG:
@@ -464,7 +470,7 @@ class MCTSPlayer:
         # If the node is neither terminal nor solved, then we need a playout
         if not is_terminal and node.solved_player == 0:
             # Expansion returns the expanded node
-            next_node: Node = node.expand(next_state, self.prog_bias, self.imm, self.evaluate)
+            next_node: Node = node.expand(next_state, self.prog_bias, self.imm, self.eval_i)
 
             # This is the point where the last action was previously added to the node, so in fact the node is just marked as expanded
             if next_node == None:
@@ -525,11 +531,11 @@ class MCTSPlayer:
             if self.early_term and turns >= self.early_term_turns:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation: cython.double = self.evaluate(state, state.player, norm=True)
+                evaluation: cython.double = state.evaluate(self.eval_i, 1, norm=True)
                 if evaluation > self.early_term_cutoff:
-                    return (1.0, 0.0) if state.player == 1 else (0.0, 1.0)
+                    return (1.0, 0.0)
                 elif evaluation < -self.early_term_cutoff:
-                    return (0.0, 1.0) if state.player == 1 else (1.0, 0.0)
+                    return (0.0, 1.0)
                 else:
                     return (0.5, 0.5)
 
@@ -537,12 +543,12 @@ class MCTSPlayer:
             if self.dyn_early_term == 1 and turns % 5 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation = self.evaluate(state, state.player, norm=True)
+                evaluation = state.evaluate(self.eval_i, 1, norm=True)
 
                 if evaluation > self.dyn_early_term_cutoff:
-                    return (1.0, 0.0) if state.player == 1 else (0.0, 1.0)
+                    return (1.0, 0.0)
                 elif evaluation < -self.dyn_early_term_cutoff:
-                    return (0.0, 1.0) if state.player == 1 else (1.0, 0.0)
+                    return (0.0, 1.0)
 
             best_action: cython.tuple = ()
             # With probability epsilon choose the best action from a subset of moves
@@ -553,7 +559,8 @@ class MCTSPlayer:
 
                 max_value = -99999.99
                 for i in range(self.e_g_subset):
-                    value = self.evaluate(state.apply_action(actions[i]), state.player)
+                    # Evaluate the new state in view of the player to move
+                    value = state.apply_action(actions[i]).evaluate(self.eval_i, state.player, norm=True)
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
@@ -576,14 +583,8 @@ class MCTSPlayer:
         return ""
 
     def __repr__(self):
-        # Try to get the name of the evaluation function, which can be a partial
-        try:
-            eval_name = self.evaluate.__name__
-        except AttributeError:
-            eval_name = self.evaluate.func.__name__
-
         return abbreviate(
-            f"MCTS(p={self.player}, evaluate={eval_name}, "
+            f"MCTS(p={self.player}, evaluate={self.eval_i}, "
             f"num_simulations={self.num_simulations}, "
             f"max_time={self.max_time}, c={self.c}, dyn_early_term={self.dyn_early_term}, "
             f"dyn_early_term_cutoff={self.dyn_early_term_cutoff}, early_term={self.early_term}, "

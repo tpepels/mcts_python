@@ -1,6 +1,7 @@
 # cython: language_level=3
 import cython
-from games.gamestate import GameState, normalize, win, loss, draw
+from games.gamestate import GameState, win, loss, draw
+from c_util import normalize
 import random
 
 if cython.compiled:

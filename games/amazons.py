@@ -11,8 +11,8 @@ import math
 import random
 import numpy as np
 from collections import deque
-from games.gamestate import GameState, normalize, win, loss, draw
-from cython.cimports.ai.c_random import c_shuffle, c_random
+from games.gamestate import GameState, win, loss, draw
+from cython.cimports.c_util import c_shuffle, c_random, normalize
 
 if cython.compiled:
     print("Amazons is compiled.")
