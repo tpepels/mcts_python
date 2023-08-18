@@ -1,6 +1,7 @@
 #cython: language_level=3
 # gamestate.pyx
 import cython
+#TODO Hier was je gebleven, de andere games moeten deze nog overnemen
 
 @cython.freelist(100)
 cdef class GameState:
