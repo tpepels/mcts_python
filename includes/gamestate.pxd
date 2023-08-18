@@ -1,11 +1,11 @@
 #cython: language_level=3
+# gamestate.pxd
 import cython
 
 cdef int win = 9999999
 cdef int loss = -9999999
 cdef int draw = 0
 
-@cython.freelist(100)
 cdef class GameState:
     """
     An abstract base class representing a generic game state.
@@ -29,19 +29,10 @@ cdef class GameState:
 
     cdef public bint is_capture(self, tuple move)
 
-    cpdef public list[tuple] evaluate_moves(self, list[tuple] moves)
+    cdef public list[tuple] evaluate_moves(self, list[tuple] moves)
 
-    cpdef public list move_weights(self, list moves)
+    cdef public list move_weights(self, list moves)
 
-    cpdef public int evaluate_move(self, tuple move)
+    cdef public int evaluate_move(self, tuple move)
 
     cdef public double evaluate(self, int function_i, int player, bint norm)
-
-
-@cython.freelist(10000)
-cdef class Move:
-    pass
-
-cdef class BTMove(Move):
-    cdef int from_position
-    cdef int to_position

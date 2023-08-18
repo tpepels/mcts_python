@@ -1,10 +1,4 @@
 #cython: language_level=3
-#cython: boundscheck=False
-#cython: wraparound=False
-#cython: nonecheck=False
-#cython: cdivision=True
-#cython: initializedcheck=False
-#cython: overflowcheck=False
 
 from libc.stdlib cimport srand, rand, RAND_MAX
 from libc.math cimport tanh

@@ -37,12 +37,12 @@ evaluation = "evaluate_breakthrough_lorenz"
 ai_params = {
     "max_time": 5,
     "debug": debug,
-    "early_term": True,
-    "early_term_turns": 10,
-    "early_term_cutoff": 0.05,
+    # "early_term": True,
+    # "early_term_turns": 10,
+    # "early_term_cutoff": 0.05,
     "roulette": True,
-    "prog_bias": True,
-    "imm": True,
+    # "prog_bias": True,
+    # "imm": True,
 }
 game_params = {}
 

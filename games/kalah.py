@@ -1,7 +1,7 @@
 # cython: language_level=3
 import cython
-from games.gamestate import GameState, win, loss, draw
-from c_util import normalize
+from cython.cimports.includes import GameState, win, loss, draw, normalize
+
 import random
 
 if cython.compiled:
@@ -12,6 +12,7 @@ else:
 MAX_SEEDS = 72  # maximum number of seeds in one position, it's 72 as it's the total seeds in the game
 
 
+@cython.cclass
 class KalahGameState(GameState):
     players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_table = [

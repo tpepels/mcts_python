@@ -1,12 +1,12 @@
 # cython: language_level=3, infer_types=True, cdivision=True, boundscheck=False, wraparound=False, nonecheck=False
 
 import cython
-from ai.ai_player import AIPlayer
 
 from ai.transpos_table import TranspositionTable
 from ai.transpos_table import MoveHistory
 
-from games.gamestate import GameState, win, loss, draw
+from includes cimport GameState, win, loss, draw
+
 from util import pretty_print_dict, abbreviate
 from operator import itemgetter
 
@@ -47,12 +47,12 @@ cdef dict best_value_labels = {win: "WIN", draw: "DRAW", loss: "LOSS"}
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef float value(
-    object state,
+    GameState state,
     float alpha,
     float beta,
     int depth,
     int max_player,
-    object evaluate,
+    int eval_i,
     TranspositionTable trans_table,
     MoveHistory move_history,
     dict killer_moves,
@@ -95,12 +95,12 @@ cdef float value(
             is_interrupted = True
 
     if depth == 0 and allow_null_move and use_quiescence and not is_interrupted:
-        v = quiescence(state, alpha, beta,max_player, evaluate)
+        v = quiescence(state, alpha, beta,max_player, eval_i)
 
     # If we are interrupted, cut off the search and return evaluations straight away
     if depth == 0:
         stat_n_eval += 1
-        v = evaluate(state, max_player)
+        v = state.evaluate(function_i=eval_i, player=max_player, norm=False)
         return v
 
     # Apply a null move to check if skipping turns results in better results than making a move
@@ -114,7 +114,7 @@ cdef float value(
             beta=beta,
             depth=(depth - R) - 1,
             max_player=max_player,
-            evaluate=evaluate,
+            eval_i=eval_i,
             trans_table=trans_table,
             move_history=move_history,
             killer_moves=killer_moves,
@@ -177,7 +177,7 @@ cdef float value(
                 beta=beta,
                 depth=depth - 1,
                 max_player=max_player,
-                evaluate=evaluate,
+                eval_i=eval_i,
                 trans_table=trans_table,
                 move_history=move_history,
                 killer_moves=killer_moves,
@@ -239,7 +239,7 @@ cdef float value(
                 board=None
             )
 
-cdef float quiescence(object state, float alpha, float beta, int max_player, object evaluate):
+cdef float quiescence(GameState state, float alpha, float beta, int max_player, int eval_i):
     # This is the quiescence function, which aims to mitigate the horizon effect by
     # conducting a more exhaustive search on volatile branches of the game tree,
     # such as those involving captures.
@@ -248,7 +248,7 @@ cdef float quiescence(object state, float alpha, float beta, int max_player, obj
     cdef tuple move
     cdef float score
     cdef float stand_pat
-    stand_pat = evaluate(state, max_player)
+    stand_pat = state.evaluate(function_i=eval_i, player=max_player, norm=False)
     # Call the evaluation function to get a base score for the current game state.
     # This score is used as a baseline to compare with the potential outcomes of captures.
 
@@ -279,7 +279,7 @@ cdef float quiescence(object state, float alpha, float beta, int max_player, obj
             new_state = state.apply_action(move)
             # Apply the capture move to generate the new game state that results from this move.
 
-            score = -quiescence(new_state, -beta, -alpha, max_player, evaluate)
+            score = -quiescence(new_state, -beta, -alpha, max_player, eval_i)
             # Perform a recursive quiescence search on the new game state to evaluate its score.
             # Note the negation of the score and the swapping of alpha and beta. This is a common
             # technique in adversarial search algorithms (like Alpha-Beta Pruning and Negamax),
@@ -305,7 +305,7 @@ cdef class AlphaBetaPlayer:
 
     cdef int player
     cdef int max_depth
-    cdef object evaluate
+    cdef int eval_i
     cdef bint use_null_moves
     cdef bint use_quiescence
     cdef bint use_kill_moves
@@ -324,7 +324,8 @@ cdef class AlphaBetaPlayer:
         self,
         int player,
         double max_time,
-        object evaluate,
+        object evaluate, # TODO This can be removed because we pass the eval_i to the gamestate.evaluate
+        int eval_i=2,
         int max_depth=25,
         unsigned transposition_table_size=2**16,
         bint use_null_moves=False,
@@ -339,7 +340,7 @@ cdef class AlphaBetaPlayer:
         # Set the maximum depth for the iterative deepening search
         self.max_depth = max_depth
         # The evaluation function to be used
-        self.evaluate = evaluate
+        self.eval_i = eval_i
         # Whether or not to use the null-move heuristic
         self.use_null_moves = use_null_moves
         # Whether or not to use quiescence search
@@ -398,7 +399,7 @@ cdef class AlphaBetaPlayer:
         is_interrupted = False
         is_first = True
 
-    cpdef best_action(self, object state):
+    cpdef best_action(self, GameState state):
         cdef float v
         cdef list best_values
         cdef tuple last_best_move
@@ -465,7 +466,7 @@ cdef class AlphaBetaPlayer:
                     depth=depth,
                     max_player=self.player,
                     max_d=depth,
-                    evaluate=self.evaluate,
+                    eval_i=self.eval_i,
                     trans_table=self.trans_table,
                     move_history=move_history,
                     killer_moves=killer_moves,
@@ -539,13 +540,9 @@ cdef class AlphaBetaPlayer:
                 n_moves[self.player] += 1
                 depth_reached[self.player] += stat_depth_reached
 
-                try:
-                    eval_name = self.evaluate.__name__
-                except AttributeError:
-                    eval_name = self.evaluate.func.__name__
                 stat_dict = {
                     f"{self.player}_max_player": self.player,
-                    f"{self.player}_eval_func": eval_name,
+                    f"{self.player}_eval_func": self.eval_i,
                     "nodes_best_mv_ord.": stat_tt_orders,
                     "nodes_visited": stat_visited,
                     "nodes_evaluated": stat_n_eval,
@@ -653,19 +650,12 @@ cdef class AlphaBetaPlayer:
             pretty_print_dict(self.c_stats)
 
     def __repr__(self):
-        # Try to get the name of the evaluation function, which can be a partial
-        try:
-            eval_name = self.evaluate.__name__
-        except AttributeError:
-            eval_name = self.evaluate.func.__name__
-        
-        eval_name = abbreviate(eval_name)
         return (
             f"a/b("
             f"p={self.player}, "
             f"max_d={self.max_depth}, "
             f"max_t={self.max_time}, "
-            f"eval={eval_name}, "
+            f"eval={self.eval_i}, "
             f"null={self.use_null_moves}, "
             f"qs={self.use_quiescence}, "
             f"hist={self.use_history}, "

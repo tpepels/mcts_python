@@ -8,7 +8,7 @@ import cython
 from ai.transpos_table import TranspositionTableMCTS
 from games.gamestate import loss, win
 
-from cython.cimports.c_util import c_uniform_random, c_random, c_random_seed
+from cython.cimports.includes import c_uniform_random, c_random, c_random_seed
 from cython.cimports.ai.transpos_table import TranspositionTableMCTS
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log

@@ -9,8 +9,7 @@ from cython.cimports import numpy as cnp
 
 cnp.import_array()
 import numpy as np
-from games.gamestate import GameState, win, loss
-from c_util import normalize
+from cython.cimports.includes import GameState, win, loss, normalize
 from termcolor import colored
 
 # MARKS = {0: " ", 1: "X", 2: "O"}
@@ -404,7 +403,7 @@ def evaluate_ninarow_fast(
     m_centre_bonus: cython.double = 1.7,
     norm: cython.bint = 0,
     a: cython.int = 100,
-) -> cython.int:
+) -> cython.double:
     row_length = state.row_length
     board = state.board
     center = board.shape[0] // 2

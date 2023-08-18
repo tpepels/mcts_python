@@ -8,12 +8,11 @@ init(autoreset=True)
 
 import cython
 
-from games.gamestate import loss, win
-
-from cython.cimports.c_util import c_uniform_random, c_random, c_random_seed, c_shuffle
+from cython.cimports.includes import c_uniform_random, c_random, c_shuffle
+from cython.cimports.includes.c_util import c_random_seed
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log
-from cython.cimports.games.gamestate import GameState
+from cython.cimports.includes import GameState, win, loss
 
 from util import abbreviate, format_time
 
@@ -180,6 +179,7 @@ class Node:
 
                 child.eval_value = eval_value
                 if imm:
+                    # At first, the im value of the child is the same as the evaluation value, when searching deeper, it becomes the min/max of the subtree
                     child.im_value = eval_value
                     # This means that player 2 is minimizing the evaluated value and player 1 is maximizing it
                     if (self.player != self.max_player and eval_value < self.im_value) or (
@@ -195,6 +195,22 @@ class Node:
                         # * Je kan zelfs Ni dieper zoeken totdate je de imValue verbeterd hebt en dan pas een node returnen
 
             return child  # Return the chlid, this is the node we will explore next.
+
+        if imm:
+            # Do the full minimax back-up
+            best_im: cython.double
+            if self.player == self.max_player:
+                best_im = -99999999.9
+            else:
+                best_im = 99999999.9
+
+            i: cython.int
+            for i in range(len(self.children)):
+                child = self.children[i]
+                if self.player == self.max_player:  # * Maximize my im value over all children
+                    self.im_value = max(best_im, child.im_value)
+                else:  # * Minimize my im value over all children
+                    self.im_value = min(best_im, child.im_value)
 
         # If we've reached this point, then the node is fully expanded so we can switch to UCT selection
         self.expanded = 1
@@ -355,8 +371,9 @@ class MCTSPlayer:
             DEBUG = 1
 
     @cython.ccall
-    def best_action(self, state: cython.object) -> cython.tuple:
+    def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
+
         # Check if we can reutilize the root
         # If the root is None then this is either the first move, or something else..
         if self.root is not None:
@@ -431,7 +448,10 @@ class MCTSPlayer:
             print("--*--" * 20)
             print(f"BEST NODE: {max_node}")
             print("--*--" * 20)
-            print(f"Evaluation: {state.evaluate(self.eval_i, self.player, norm=True)}")
+            print(f"Evaluation: {state.evaluate(function_i=self.eval_i, player=self.player, norm=False)}")
+            print(
+                f"Evaluation (normalized): {state.evaluate(function_i=self.eval_i, player=self.player, norm=True)}"
+            )
             print("--*--" * 20)
 
         if DEBUG:
@@ -446,7 +466,7 @@ class MCTSPlayer:
         return max_node.action, max_value  # return the most visited state
 
     @cython.cfunc
-    def simulate(self, init_state: cython.object):
+    def simulate(self, init_state: GameState):
         # The root is solved, no need to look any further, since we have a winning/losing move
         if self.root.solved_player != 0:
             return
@@ -454,7 +474,7 @@ class MCTSPlayer:
         node: Node = self.root
         selected: cython.list = [self.root]
 
-        next_state: cython.object = init_state
+        next_state: GameState = init_state
         is_terminal: cython.bint = init_state.is_terminal()
 
         # Select: non-terminal, non-solved, expanded nodes
@@ -521,8 +541,8 @@ class MCTSPlayer:
             node.v[1] += result[1]
             node.n_visits += 1
 
-    @cython.ccall
-    def play_out(self, state: cython.object) -> cython.tuple[cython.double, cython.double]:
+    @cython.cfunc
+    def play_out(self, state: GameState) -> cython.tuple[cython.double, cython.double]:
         turns: cython.int = 0
 
         while not state.is_terminal():
@@ -531,7 +551,7 @@ class MCTSPlayer:
             if self.early_term and turns >= self.early_term_turns:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation: cython.double = state.evaluate(self.eval_i, 1, norm=True)
+                evaluation: cython.double = state.evaluate(function_i=self.eval_i, player=1, norm=True)
                 if evaluation > self.early_term_cutoff:
                     return (1.0, 0.0)
                 elif evaluation < -self.early_term_cutoff:
@@ -543,7 +563,7 @@ class MCTSPlayer:
             if self.dyn_early_term == 1 and turns % 5 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation = state.evaluate(self.eval_i, 1, norm=True)
+                evaluation = state.evaluate(function_i=self.eval_i, player=1, norm=True)
 
                 if evaluation > self.dyn_early_term_cutoff:
                     return (1.0, 0.0)
@@ -566,7 +586,7 @@ class MCTSPlayer:
                         best_action = actions[i]
 
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
-            if self.roulette == 1 and c_uniform_random(0, 1) < self.epsilon:
+            elif self.roulette == 1 and c_uniform_random(0, 1) < self.epsilon:
                 actions = state.get_legal_actions()
                 best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
 

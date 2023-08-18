@@ -1,4 +1,5 @@
 # cython: language_level=3
+
 import cython
 import numpy as np
 from cython.cimports import numpy as cnp
@@ -7,9 +8,9 @@ cnp.import_array()
 
 import random
 
-from cython.cimports.c_util import c_random, normalize, where_is_k
+# from cython.cimports.libcpp.vector import vector
+from cython.cimports.includes import c_random, normalize, where_is_k, win, loss, draw, GameState
 from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
-from cython.cimports.games.gamestate import win, loss, draw, GameState
 
 if cython.compiled:
     print("Breakthrough is compiled.")
@@ -28,8 +29,6 @@ class BreakthroughGameState(GameState):
     last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
 
     winner: cython.int
-    n_pieces_1: cython.int
-    n_pieces_2: cython.int
 
     """
     This class represents the game state for the Breakthrough board game.
@@ -38,28 +37,14 @@ class BreakthroughGameState(GameState):
     The goal is to move one of your pieces to the opponent's home row.
     """
 
-    def __cinit__(self, board, player, board_hash, positions, winner, n_pieces_1, n_pieces_2, last_action):
-        # This is called for both Python and Cython initializations
-        # But when called from Cython, you provide all the arguments
-        self.board = board
-        self.player = player
-        self.board_hash = board_hash
-        self.positions = positions
-        self.winner = winner
-        self.n_pieces_1 = n_pieces_1
-        self.n_pieces_2 = n_pieces_2
-        self.last_action = last_action
-
     def __init__(
         self,
         board=None,
         player=1,
-        board_hash=None,
+        board_hash=0,
         positions=None,
         winner=0,
-        n_pieces_1=None,
-        n_pieces_2=None,
-        last_action=None,  # TODO Dit heb je toegevoegd, moet ook nog in de andere games
+        last_action=(0, 0),
     ):
         """
         Initialize the game state with the given board configuration.
@@ -68,28 +53,21 @@ class BreakthroughGameState(GameState):
         :param board: An optional board configuration.
         :param player: The player whose turn it is (1 or 2).
         """
-        self.player = player
-        self.board = board if board is not None else self._init_board()
-
-        # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
-        if positions is None:
+        if board is None:
+            self.board = self._init_board()
+            # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
             self.positions = where_is_k(self.board, 1), where_is_k(self.board, 2)
-        else:
-            self.positions = positions
-        if n_pieces_1 is None and n_pieces_2 is None:
-            self.n_pieces_1 = 16
-            self.n_pieces_2 = 16
-        else:
-            self.n_pieces_1 = n_pieces_1
-            self.n_pieces_2 = n_pieces_2
-
-        if last_action is None:
             self.last_action = (-1, -1)
+            self.player = 1
+            self.winner = 0
+            self.board_hash = self._init_hash()
         else:
-            self.last_action = last_action  # The last action performed
-
-        self.winner = winner
-        self.board_hash = board_hash if board_hash is not None else self._init_hash()
+            self.board = board
+            self.positions = positions
+            self.player = player
+            self.board_hash = board_hash
+            self.winner = winner
+            self.last_action = last_action
 
     def _init_board(self):
         board = np.zeros(64, dtype=np.int32)
@@ -123,14 +101,8 @@ class BreakthroughGameState(GameState):
         if captured_player != 0:
             self.positions[captured_player - 1].remove(action[1])
             # Keep track of the number of pieces of each player
-            if captured_player == 2:
-                self.n_pieces_2 -= 1
-                if self.n_pieces_2 == 0:
-                    self.winner = 1
-            elif captured_player == 1:
-                self.n_pieces_1 -= 1
-                if self.n_pieces_1 == 0:
-                    self.winner = 2
+            if len(self.positions[captured_player - 1]) == 0:
+                self.winner = 3 - captured_player
 
         self.positions[self.player - 1].remove(action[0])
         self.positions[self.player - 1].append(action[1])
@@ -154,8 +126,6 @@ class BreakthroughGameState(GameState):
         :return: A new game state with the action applied.
         """
         new_board: cython.int[:] = self.board.copy()
-        n_pieces_1: cython.int = self.n_pieces_1
-        n_pieces_2: cython.int = self.n_pieces_2
 
         new_board[action[0]] = 0  # Remove the piece from its current position
         captured_player: cython.int = new_board[action[1]]
@@ -171,15 +141,8 @@ class BreakthroughGameState(GameState):
         if captured_player != 0:
             # Remove the to-position from the positions list
             new_positions[captured_player - 1].remove(action[1])
-            # Keep track of the number of pieces of each player
-            if captured_player == 2:
-                n_pieces_2 -= 1
-                if n_pieces_2 == 0:
-                    winner = 1
-            elif captured_player == 1:
-                n_pieces_1 -= 1
-                if n_pieces_1 == 0:
-                    winner = 2
+            if len(new_positions[captured_player - 1]) == 0:
+                winner = 3 - captured_player  # The captured player has lost all pieces...
 
         new_positions[self.player - 1].remove(action[0])
         new_positions[self.player - 1].append(action[1])
@@ -201,13 +164,11 @@ class BreakthroughGameState(GameState):
                 winner = 2
 
         return BreakthroughGameState(
-            new_board,
-            3 - self.player,
+            board=new_board,
+            player=3 - self.player,
             board_hash=board_hash,
             positions=new_positions,
             winner=winner,
-            n_pieces_1=n_pieces_1,
-            n_pieces_2=n_pieces_2,
             last_action=action,
         )
 
@@ -223,8 +184,10 @@ class BreakthroughGameState(GameState):
             self.board.copy(),
             3 - self.player,
             board_hash=self.board_hash,
-            n_pieces_1=self.n_pieces_1,
-            n_pieces_2=self.n_pieces_2,
+            positions=(
+                self.positions[0].copy(),
+                self.positions[1].copy(),
+            ),
             last_action=self.last_action,
         )
 
@@ -249,6 +212,7 @@ class BreakthroughGameState(GameState):
         safe_captures: cython.list = []
         all_moves: cython.list = []
         captures: cython.list = []
+
         for i in range(n):
             index: cython.int = (start + i) % n
             position: cython.int = positions[index]
@@ -388,7 +352,7 @@ class BreakthroughGameState(GameState):
 
         assert False, "Incorrect evaluation index (1 or 2 are allowed)."
 
-    @cython.ccall
+    @cython.cfunc
     def evaluate_moves(self, moves: cython.list) -> cython.list:
         """
         Evaluate the given moves using a simple heuristic: each step forward is worth 1 point,
@@ -403,7 +367,7 @@ class BreakthroughGameState(GameState):
             scores[i] = (moves[i], self.evaluate_move(moves[i]))
         return scores
 
-    @cython.ccall
+    @cython.cfunc
     def move_weights(self, moves: cython.list) -> cython.list:
         scores: cython.list = [0] * len(moves)
         i: cython.int
@@ -411,7 +375,7 @@ class BreakthroughGameState(GameState):
             scores[i] = self.evaluate_move(moves[i])
         return scores
 
-    @cython.ccall
+    @cython.cfunc
     def evaluate_move(self, move: cython.tuple) -> cython.int:
         """
         Evaluate the given move using a simple heuristic: each step forward is worth 1 point,
@@ -447,6 +411,7 @@ class BreakthroughGameState(GameState):
 
         return score
 
+    @cython.ccall
     def visualize(self, full_debug=False):
         """
         Visualize the board for the Breakthrough game.
@@ -507,7 +472,7 @@ class BreakthroughGameState(GameState):
 
             if len(moves) > 0:
                 actions = self.evaluate_moves(self.get_legal_actions())
-                actions = sorted(actions, key=lambda x: x[1], reverse=True)
+                # actions = sorted(actions, key=lambda x: x[1], reverse=True)
                 output += "..." * 60 + "\n"
                 output += str([(self.readable_move(a[0]), a[1]) for a in actions]) + "\n"
 

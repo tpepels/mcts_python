@@ -1,10 +1,11 @@
+# cython: language_level=3
+
 import inspect
 import time
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any, Dict, Optional, Tuple
 
-from ai.ai_player import AIPlayer
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
 
@@ -15,7 +16,9 @@ from games.breakthrough import (
     evaluate_breakthrough,
     evaluate_breakthrough_lorenz,
 )
-from games.gamestate import GameState, loss, win
+
+from cython.cimports.includes import GameState, loss, win
+
 from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_enhanced
 from games.tictactoe import (
     TicTacToeGameState,
@@ -24,6 +27,15 @@ from games.tictactoe import (
     evaluate_ninarow_fast,
 )
 from util import log_exception_handler
+
+
+class AIPlayer:
+    def best_action(self, state):
+        pass
+
+    def print_cumulative_statistics(self):
+        pass
+
 
 # Contains all possible evaluation functions for use in factory
 eval_dict = {

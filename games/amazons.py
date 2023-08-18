@@ -11,8 +11,7 @@ import math
 import random
 import numpy as np
 from collections import deque
-from games.gamestate import GameState, win, loss, draw
-from cython.cimports.c_util import c_shuffle, c_random, normalize
+from cython.cimports.includes import c_shuffle, c_random, normalize, GameState, win, loss, draw
 
 if cython.compiled:
     print("Amazons is compiled.")
@@ -23,6 +22,7 @@ else:
 DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 
+@cython.cclass
 class AmazonsGameState(GameState):
     players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_tables = {

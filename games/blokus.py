@@ -5,14 +5,11 @@ from typing import Generator, Tuple
 
 import cython
 from cython.cimports import numpy as cnp
-from cython.cimports.c_util import c_random
+from cython.cimports.includes import c_random, normalize, GameState, draw, loss, win
 
 cnp.import_array()
 import numpy as np
 from termcolor import colored
-
-from games.gamestate import GameState, draw, loss, win
-from c_util import normalize
 
 if cython.compiled:
     print("Blokus is compiled.")
@@ -227,7 +224,7 @@ class BlokusPieces:
                 output.append(f"\tAvailable pieces: {available_pieces}")
         return "\n".join(output)
 
-
+@cython.cclass
 class BlokusGameState(GameState):
     # Changed zobrist_table size to include 4 players
     zobrist_table = np.random.randint(
