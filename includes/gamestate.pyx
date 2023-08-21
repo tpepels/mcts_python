@@ -13,7 +13,6 @@ cdef class GameState:
     An abstract base class representing a generic game state.
     """
 
-    # TODO Deze heb je toegevoegd, moet nog in de andere games
     cdef public void apply_action_playout(self, tuple action):
         pass
 
@@ -32,7 +31,6 @@ cdef class GameState:
     cpdef public int get_reward(self, int player):
         pass
 
-    # TODO Deze heb je toegevoegd, moet nog in de andere games
     cdef public tuple get_result_tuple(self):
         pass
 

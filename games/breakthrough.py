@@ -1,6 +1,7 @@
 # cython: language_level=3
 # distutils: language=c++
 import array
+from typing import Tuple
 import cython
 import numpy as np
 from cython.cimports import numpy as cnp
@@ -9,12 +10,9 @@ cnp.import_array()
 
 import random
 
-# TODO Dit heb je aangepast, het gaat vaak sneller als je vectors gebruikt (maar niet altijd)
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.pair import pair
 from cython.cimports.includes import c_random, normalize, where_is_k, win, loss, draw, GameState
-
-# TODO Dit heb je aangepast, alle constanten moeten in pxd files gedefiniëerd worden zodat je ze als c-typen kan gebruiken
 from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
 
 dirs = [-1, 0, 1]
@@ -173,7 +171,6 @@ class BreakthroughGameState(GameState):
         act_from: cython.int = action[0]
         act_to: cython.int = action[1]
 
-        # TODO Deze heb je toegevoegd, moet nog voor de andere games
         self.board[act_from] = 0  # Remove the piece from its current position
         captured_player: cython.int = self.board[act_to]  # Check for captures
         self.board[act_to] = self.player  # Place the piece at its new position
@@ -413,7 +410,6 @@ class BreakthroughGameState(GameState):
 
     @cython.cfunc
     def get_result_tuple(self) -> cython.tuple:
-        # TODO Deze heb je toegevoegd, moet nog in de andere games
         if self.winner == 1:
             return (1.0, 0.0)
         elif self.winner == 2:
@@ -433,7 +429,6 @@ class BreakthroughGameState(GameState):
         i: cython.int = move[1]
         return self.board[i] == 3 - self.player
 
-    # TODO Dit heb je toegevoegd, moet nog bij de andere games
     # These dictionaries are used by run_games to set the parameter values
     param_order: dict = {
         "m_lorenz": 0,

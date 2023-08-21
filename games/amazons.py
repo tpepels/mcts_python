@@ -1,5 +1,6 @@
 # cython: language_level=3, initializedcheck=False
 
+import array
 import cython
 
 from cython.cimports import numpy as cnp
@@ -11,24 +12,40 @@ import math
 import random
 import numpy as np
 from collections import deque
-from cython.cimports.includes import c_shuffle, c_random, normalize, GameState, win, loss, draw
+from cython.cimports.includes import c_random, normalize, GameState, win, loss, draw
+
 
 if cython.compiled:
     print("Amazons is compiled.")
 else:
     print("Amazons is just a lowly interpreted script.")
 
-# Constants
-DIRECTIONS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-
 
 @cython.cclass
 class AmazonsGameState(GameState):
-    players_bitstrings = [random.randint(1, 2**60 - 1) for _ in range(3)]  # 0 is for the empty player
     zobrist_tables = {
         size: [[[random.randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size)] for _ in range(size)]
         for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
     }
+
+    # Public fields
+    player = cython.declare(cython.int, visibility="public")
+    board = cython.declare(cython.int[:, :], visibility="public")
+    board_hash = cython.declare(cython.longlong, visibility="public")
+    last_action = cython.declare(
+        cython.tuple[cython.int, cython.int, cython.int, cython.int, cython.int, cython.int],
+        visibility="public",
+    )
+    white_queens = cython.declare(cython.list, visibility="public")
+    black_queens = cython.declare(cython.list, visibility="public")
+    # Private fields
+    n_moves_per_queen: cython.dict
+
+    player_has_legal_moves: cython.bint
+    board_size: cython.int
+    mid: cython.int
+    n_moves: cython.int
+    zobrist_table: cython.list
 
     def __init__(
         self,
@@ -39,6 +56,7 @@ class AmazonsGameState(GameState):
         white_queens=None,
         black_queens=None,
         board_hash=None,
+        last_action=(),
     ):
         """
         Initialize the game state with the given board, player, and action.
@@ -51,35 +69,23 @@ class AmazonsGameState(GameState):
         self.player = player
         self.mid = math.ceil(self.board_size / 2)
         self.n_moves = n_moves
-
-        self.board_hash = board_hash
+        # We can update these whenever we generate moves. When we apply an action then the lists are invalid
+        self.n_moves_per_queen = {}
         self.zobrist_table = self.zobrist_tables[self.board_size]
 
-        # We can update these whenever we generate moves. When we apply an action then the lists are invalid
-        self.n_moves_per_black_queen = {}
-        self.n_moves_per_white_queen = {}
-        # Keep track of the queen positions so we can avoid having to scan the board for them
-        if black_queens is None:
-            self.black_queens = []
-        else:
+        if board is not None:
+            self.board_hash = board_hash
             self.black_queens = black_queens
-            assert len(black_queens) == 4
-
-        if white_queens is None:
-            self.white_queens = []
-        else:
             self.white_queens = white_queens
-            assert len(white_queens) == 4
-
-        self.board = board if board is not None else self.initialize_board()
-
-        if self.board_hash is None:
+            self.last_action = last_action
+        else:
+            self.board = self.initialize_board()
             self.board_hash = 0
+            self.last_action = (-1, -1, -1, -1, -1, -1)
             for i in range(self.board_size):
                 for j in range(self.board_size):
                     # Inititally, the board contains empty spaces (0), and four queens
                     self.board_hash ^= self.zobrist_table[i][j][self.board[i][j]]
-            self.board_hash ^= self.players_bitstrings[self.player]
 
     def initialize_board(self):
         """
@@ -117,16 +123,44 @@ class AmazonsGameState(GameState):
 
         return board
 
-    def apply_action(self, action):
+    @cython.cfunc
+    @cython.locals(x1=cython.int, y1=cython.int, x2=cython.int, y2=cython.int, x3=cython.int, y3=cython.int)
+    @cython.returns(cython.void)
+    def apply_action_playout(self, action: cython.tuple):
+        x1, y1, x2, y2, x3, y3 = action
+
+        self.board[x2, y2] = self.board[x1, y1]  # Move the piece to the new position
+        self.board[x1, y1] = 0  # Remove the piece from its old position
+        self.board[x3, y3] = -1  # Block the position where the arrow was shot
+
+        if self.player == 1:
+            # Get the index of the moving queen in the list
+            queen_index: cython.int = self.white_queens.index((x1, y1))
+            # Update the position of the queen in the list
+            self.white_queens[queen_index] = (x2, y2)
+        elif self.player == 2:
+            # Get the index of the moving queen in the list
+            queen_index: cython.int = self.black_queens.index((x1, y1))
+            # Update the position of the queen in the list
+            self.black_queens[queen_index] = (x2, y2)
+
+        self.player = 3 - self.player
+        self.player_has_legal_moves = self.has_legal_moves()
+        self.last_action = action
+        self.n_moves += 1
+
+    @cython.ccall
+    @cython.locals(x1=cython.int, y1=cython.int, x2=cython.int, y2=cython.int, x3=cython.int, y3=cython.int)
+    def apply_action(self, action: cython.tuple) -> AmazonsGameState:
         """
         Apply the given action to the current game state, creating a new game state.
         An action is a tuple (x1, y1, x2, y2, x3, y3) representing the move and shot of an Amazon piece.
         """
         x1, y1, x2, y2, x3, y3 = action
         # Use numpy for the new_board
-        new_board = np.copy(self.board)
+        new_board: cython.int[:, :] = np.copy(self.board)
 
-        new_board[x2][y2] = new_board[x1][y1]  # Move the piece to the new position
+        new_board[x2, y2] = new_board[x1, y1]  # Move the piece to the new position
         new_board[x1][y1] = 0  # Remove the piece from its old position
         new_board[x3][y3] = -1  # Block the position where the arrow was shot
 
@@ -135,40 +169,40 @@ class AmazonsGameState(GameState):
             self.board_hash
             ^ self.zobrist_table[x1][y1][self.player]
             ^ self.zobrist_table[x2][y2][self.player]
-            ^ self.zobrist_table[x3][y3][-1]
-            ^ self.players_bitstrings[self.player]
-            ^ self.players_bitstrings[3 - self.player]
+            ^ self.zobrist_table[x3][y3][3]  # 3 is the arrow (to prevent wraparaound)
         )
-        # Copy the lists of queen positions, and update the position of the moving queen
 
-        new_white_queens = self.white_queens.copy()
-        new_black_queens = self.black_queens.copy()
+        # Copy the lists of queen positions, and update the position of the moving queen
+        new_white_queens: cython.list = self.white_queens.copy()
+        new_black_queens: cython.list = self.black_queens.copy()
 
         if self.player == 1:
             # Get the index of the moving queen in the list
-            queen_index = new_white_queens.index((x1, y1))
+            queen_index: cython.int = new_white_queens.index((x1, y1))
             # Update the position of the queen in the list
             new_white_queens[queen_index] = (x2, y2)
         elif self.player == 2:
             # Get the index of the moving queen in the list
-            queen_index = new_black_queens.index((x1, y1))
+            queen_index: cython.int = new_black_queens.index((x1, y1))
             # Update the position of the queen in the list
             new_black_queens[queen_index] = (x2, y2)
 
         new_state = AmazonsGameState(
-            new_board,
-            3 - self.player,
-            self.board_size,
-            self.n_moves + 1,
+            board=new_board,
+            player=3 - self.player,
+            board_size=self.board_size,
+            n_moves=self.n_moves + 1,
             white_queens=new_white_queens,
             black_queens=new_black_queens,
             board_hash=board_hash,
+            last_action=action,
         )
         # Update player_has_legal_moves for the new state
         new_state.player_has_legal_moves = new_state.has_legal_moves()
         return new_state
 
-    def skip_turn(self):
+    @cython.ccall
+    def skip_turn(self) -> AmazonsGameState:
         """Used for the null-move heuristic in alpha-beta search
 
         Returns:
@@ -178,110 +212,98 @@ class AmazonsGameState(GameState):
 
         # Pass the same board hash since this is only used for null moves
         return AmazonsGameState(
-            np.copy(self.board),
-            3 - self.player,
+            board=self.board.copy(),
+            player=3 - self.player,
+            board_size=self.board_size,
             board_hash=self.board_hash,
             white_queens=self.white_queens.copy(),
             black_queens=self.black_queens.copy(),
             n_moves=self.n_moves + 1,
+            last_action=self.last_action,
         )
 
-    def get_random_action(self):
+    @cython.cfunc
+    def get_random_action(self) -> cython.tuple:
         """
         Get a single random legal action for the current player.
         """
         assert self.player_has_legal_moves, "Getting or making a move should not be possible"
 
-        queens = self.white_queens if self.player == 1 else self.black_queens
+        queens: cython.list = self.white_queens if self.player == 1 else self.black_queens
+        actions: cython.list = []
 
-        return get_random_action(self.board, queens)
+        while actions == []:
+            random_queen: cython.tuple[cython.int, cython.int] = queens[c_random(0, len(queens) - 1)]
+            actions = get_legal_moves_for_amazon(random_queen[0], random_queen[1], self.board)
 
-    def yield_legal_actions(self):
-        """
-        Get a generator of legal actions for the current player.
-        """
-        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
-        queens = self.white_queens if self.player == 1 else self.black_queens
-        c_shuffle(queens)
-        for queen in queens:
-            # TODO It might be faster to just use the cython function here instead of the generator...
-            for move in self.get_legal_moves_for_amazon(*queen):
-                yield move
+        return actions[c_random(0, len(actions) - 1)]
 
-    def get_legal_actions(self):
+    @cython.ccall
+    def get_legal_actions(self) -> cython.list:
         """
         Get a list of legal actions for the current player and also updates the moves per queen.
         """
         assert self.player_has_legal_moves, "Getting or making a move should not be possible"
-        queens = self.white_queens if self.player == 1 else self.black_queens
-        n_moves_per_queen = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
 
-        legal_actions = []
-        for queen in queens:
-            queen_moves = list(get_legal_moves_for_amazon(queen[0], queen[1], self.board))
+        queens: cython.list = self.white_queens if self.player == 1 else self.black_queens
+        legal_actions: cython.list = []
+        i: cython.int
+        for i in range(4):  # There are always 4 queens on the board
+            queen_moves: cython.list = get_legal_moves_for_amazon(queens[i][0], queens[i][1], self.board)
             legal_actions.extend(queen_moves)
-            n_moves_per_queen[queen] = len(queen_moves)
+
+            # TODO If we find no moves then we know the position is terminal
+            self.n_moves_per_queen[queens[i]] = len(queen_moves)
 
         return legal_actions
 
-    def get_legal_moves_for_amazon(self, x, y):
-        """
-        Get a generator of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
-        """
-        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
-        for dx, dy in DIRECTIONS:
-            nx, ny = x + dx, y + dy  # the next cell in the direction
-
-            while 0 <= nx < self.board_size and 0 <= ny < self.board_size:
-                if self.board[nx, ny] == 0:  # free cell
-                    # Find all legal arrow shots in the current direction.
-                    for a_nx, a_ny in self.generate_arrow_shots(nx, ny, x, y):
-                        yield (x, y, nx, ny, a_nx, a_ny)
-                    nx += dx
-                    ny += dy  # keep exploring in the direction
-
-                else:  # blocked cell
-                    break
-
-    def generate_arrow_shots(self, nx, ny, x, y):
-        """
-        Generate all legal arrow shots from the position (nx, ny).
-        """
-        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
-        for adx, ady in DIRECTIONS:
-            a_nx, a_ny = nx + adx, ny + ady  # the next cell in the direction
-
-            while 0 <= a_nx < self.board_size and 0 <= a_ny < self.board_size:
-                if self.board[a_nx, a_ny] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
-                    yield a_nx, a_ny
-
-                elif self.board[a_nx, a_ny] != 0:  # blocked cell
-                    break
-
-                a_nx += adx
-                a_ny += ady
-
+    @cython.cfunc
     def has_legal_moves(self):
         """
         Check if the current player has any legal moves left.
 
         :return: True if the current player has legal moves, False otherwise.
         """
-        queens = self.white_queens if self.player == 1 else self.black_queens
-        for queen in queens:
-            x, y = queen
-            for dx, dy in DIRECTIONS:
-                nx, ny = x + dx, y + dy  # the next cell in the direction
+        queens: cython.list = self.white_queens if self.player == 1 else self.black_queens
+        i: cython.int
+        size: cython.int = self.board.shape[0]
+        dx: cython.int
+        dy: cython.int
+        ny: cython.int
+        nx: cython.int
+        x_limit: cython.int
+        y_limit: cython.int
 
-                while 0 <= nx < self.board_size and 0 <= ny < self.board_size:
-                    if self.board[nx, ny] == 0:  # free cell
-                        return True
+        for i in range(4):
+            x = queens[i][0]
+            y = queens[i][1]
 
-                    elif self.board[nx, ny] != 0:  # blocked cell
-                        break
+            for dx in range(-1, 2):
+                for dy in range(-1, 2):
+                    if dx == dy == 0:
+                        continue
 
-                    nx += dx
-                    ny += dy
+                    nx, ny = x + dx, y + dy
+
+                    # Precompute the limits based on the direction
+                    if dx > 0:
+                        x_limit = size
+                    elif dx < 0:
+                        x_limit = -1
+                    else:
+                        x_limit = nx + 1  # unchanged
+
+                    if dy > 0:
+                        y_limit = size
+                    elif dy < 0:
+                        y_limit = -1
+                    else:
+                        y_limit = ny + 1  # unchanged
+
+                    # TODO Hier was je gebleven segmentation fault hiero
+                    if nx != x_limit and ny != y_limit:
+                        if self.board[nx, ny] == 0:
+                            return True
 
         # If no valid move is found for any queen, return False
         return False
@@ -291,13 +313,15 @@ class AmazonsGameState(GameState):
         # return an appropriate size based on the game characteristics
         return 2**17
 
-    def is_terminal(self):
+    @cython.ccall
+    def is_terminal(self) -> cython.bint:
         """
         Check if the current game state is terminal (i.e., one player has no legal moves left).
         """
         return not self.player_has_legal_moves
 
-    def get_reward(self, player):
+    @cython.ccall
+    def get_reward(self, player: cython.int) -> cython.int:
         """
         Get the reward for the player in the current game state.
 
@@ -307,7 +331,18 @@ class AmazonsGameState(GameState):
             return win if self.player != player else loss
         return draw
 
-    def is_capture(self, move):
+    @cython.cfunc
+    def get_result_tuple(self) -> cython.tuple:
+        if not self.player_has_legal_moves:  # The player who has no more legal moves loses
+            if self.player == 1:
+                return (0.0, 1.0)
+            elif self.player == 2:
+                return (1.0, 1.0)
+
+        return (0.5, 0.5)
+
+    @cython.cfunc
+    def is_capture(self, move: cython.tuple) -> cython.bint:
         """
         Check if the given move results in a capture.
 
@@ -317,7 +352,82 @@ class AmazonsGameState(GameState):
 
         return False
 
-    def evaluate_moves(self, moves):
+    # These dictionaries are used by run_games to set the parameter values
+    param_order: dict = {
+        "n_moves_cutoff": 0,
+        "m_ter": 1,
+        "m_kill_s": 2,
+        "m_imm": 3,
+        "m_mob": 4,
+        "m_opp_disc": 5,
+        "a": 6,
+    }
+
+    default_params = array.array("d", [10, 2.0, 1.5, 13.0, 2.0, 1.0, 50.0])
+
+    @cython.cfunc
+    def evaluate(
+        self,
+        player: cython.int,
+        params: cython.double[:],
+        norm: cython.bint = 0,
+    ) -> cython.double:
+        """
+        Evaluates the current game state for Game of the Amazons using Lieberum's evaluation function,
+        which takes into account territory control, the potential to capture or save queens, mobility of queens,
+        and the phase of the game.
+
+        :return: The evaluation score for the given player.
+        """
+
+        # "n_moves_cutoff": 0,
+        # "m_ter": 1,
+        # "m_kill_s": 2,
+        # "m_imm": 3,
+        # "m_mob": 4,
+        # "m_opp_disc": 5,
+        # "a": 6,
+
+        if self.n_moves < params[0]:
+            return evaluate_amazons(self, player, m_opp_disc=params[5], norm=norm)
+
+        # The queens to iterate over
+        player_queens: cython.list = self.white_queens if player == 1 else self.black_queens
+        opp_queens: cython.list = self.white_queens if player == 2 else self.black_queens
+
+        if params[1] > 0:
+            max_depth: cython.uint = 3  # TODO No idea what this does for the performance
+            terr: cython.int = territory_heuristic(opp_queens, player_queens, self.board, max_depth=max_depth)
+        else:
+            terr: cython.int = 0
+
+        kill_save: cython.double
+        imm_mob: cython.double
+        if params[2] > 0 or params[3] > 0:
+            kill_save, imm_mob = kill_save_queens_immediate_moves(opp_queens, player_queens, self.board)
+        else:
+            kill_save = imm_mob = 0
+
+        if params[4] > 0:
+            mob_heur: cython.int = mobility_heuristic(opp_queens, player_queens, self.board)
+        else:
+            mob_heur: cython.int = 0
+
+        # Calculate the utility of the current board state using a combination of heuristics.
+        utility: cython.double = (
+            params[1] * terr + params[2] * kill_save + params[3] * imm_mob + params[4] * mob_heur
+        )
+
+        if self.player == 3 - player:
+            utility *= params[5]
+
+        if norm:
+            return normalize(utility, params[6])
+        else:
+            return utility
+
+    @cython.cfunc
+    def evaluate_moves(self, moves: cython.list) -> cython.list:
         """
         Evaluate the given moves using a simple heuristic:
         Each move to a location closer to the center of the board is valued.
@@ -327,18 +437,15 @@ class AmazonsGameState(GameState):
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic values of the moves.
         """
-        scores = [0] * len(moves)
-        nmpq = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
-
+        scores: cython.list = [0] * len(moves)
+        i: cython.int
         for i in range(len(moves)):
-            scores[i] = (
-                moves[i],
-                evaluate_move(nmpq, moves[i], self.mid, self.board, self.player),
-            )
+            scores[i] = (moves[i], self.evaluate_move(moves[i]))
 
         return scores
 
-    def move_weights(self, moves):
+    @cython.cfunc
+    def move_weights(self, moves: cython.list) -> cython.list:
         """
         Evaluate the given moves using a simple heuristic:
         Each move to a location closer to the center of the board is valued.
@@ -348,15 +455,16 @@ class AmazonsGameState(GameState):
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic values of the moves.
         """
-        scores = [0] * len(moves)
-        nmpq = self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen
+        scores: cython.list = [0] * len(moves)
 
+        i: cython.int
         for i in range(len(moves)):
-            scores[i] = evaluate_move(nmpq, moves[i], self.mid, self.board, self.player)
+            scores[i] = self.evaluate_move(moves[i])
 
         return scores
 
-    def evaluate_move(self, move):
+    @cython.cfunc
+    def evaluate_move(self, move: cython.tuple) -> cython.int:
         """
         Evaluate the given move using a simple heuristic:
         Each move to a location closer to the center of the board is valued.
@@ -365,14 +473,56 @@ class AmazonsGameState(GameState):
         :param move: The move to evaluate.
         :return: The heuristic value of the move.
         """
-        return move, evaluate_move(
-            self.n_moves_per_white_queen if self.player == 1 else self.n_moves_per_black_queen,
-            move,
-            self.mid,
-            self.board,
-            self.player,
-        )
+        score: cython.int = 0
 
+        start_x: cython.int
+        start_y: cython.int
+        end_x: cython.int
+        end_y: cython.int
+        arrow_x: cython.int
+        arrow_y: cython.int
+        dx: cython.int
+        dy: cython.int
+        ny: cython.int
+        nx: cython.int
+
+        # Extract the start and end positions of the amazon and the arrow shot from the move
+        start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
+
+        # If we can throw an arrow at an opponent's queen, increase the score
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = arrow_x + dx, arrow_y + dy
+                if (
+                    0 <= nx < self.board.shape[0]
+                    and 0 <= ny < self.board.shape[0]
+                    and self.board[nx, ny] == 3 - self.player
+                ):
+                    score += 40
+                # Prefer moves where we still have room to move
+                nx, ny = end_x + dx, end_y + dy
+                if (
+                    0 <= nx < self.board.shape[0]
+                    and 0 <= ny < self.board.shape[0]
+                    and self.board[nx, ny] == 0
+                ):
+                    score += 5
+
+        if score < 40:
+            # Calculate score based on the distance of the Amazon's move from the center
+            score += (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
+
+            # Add value to the score based on the distance of the arrow shot from the Amazon
+            score += abs(end_x - arrow_x) + abs(end_y - arrow_y)
+
+        # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
+        score -= int(math.log(max(1, self.n_moves_per_queen[(start_x, start_y)])))
+
+        return 1000 + score  # Score cannot be negative for the roulette selection
+
+    @cython.ccall
     def visualize(self, full_debug=False):
         output = "Player: " + str(self.player) + "\n"
         cell_representation = {
@@ -381,7 +531,11 @@ class AmazonsGameState(GameState):
             -1: "-",
             0: ".",
         }
-        output += "  " + " ".join(str(j) for j in range(self.board_size)) + "\n"  # column indices
+        output += "  "
+        for j in range(self.board_size):
+            output += str(j) + " "
+        output += "\n"  # column indices
+
         for i in range(self.board_size):
             row = [cell_representation[piece] for piece in self.board[i]]
             output += str(i) + " " * (2 - len(str(i))) + " ".join(row) + "\n"  # row index and the row content
@@ -394,11 +548,12 @@ class AmazonsGameState(GameState):
             n_moves = 0
             if self.player_has_legal_moves:
                 n_moves = len(self.get_legal_actions())
+
             output += f"Player: {self.player} has legal moves: {str(self.has_legal_moves())} | Turn: {self.n_moves} | # of moves: {n_moves}\n"
             output += f"Reward: {self.get_reward(1)}/{self.get_reward(2)}, Terminal: {self.is_terminal()}\n"
             output += "..." * 60 + "\n"
-            output += f"Evaluation w:{evaluate_amazons(self, 1)} (b: {evaluate_amazons(self, 2)})\n"
-            output += f"Lieberum Evaluation w:{evaluate_amazons_lieberum(self, 1)} (b: {evaluate_amazons_lieberum(self, 2)})\n"
+            output += f"evaluation: {self.evaluate(1, norm=False, params=self.default_params):.3f}/{self.evaluate(2, norm=False, params=self.default_params):.3f}"
+            output += f" | normalized: {self.evaluate(1, norm=True, params=self.default_params):.4f}/{self.evaluate(2, norm=True, params=self.default_params):.4f}\n"
 
             white_queens = self.white_queens
             black_queens = self.black_queens
@@ -419,38 +574,16 @@ class AmazonsGameState(GameState):
             output += f"White territory: {territory_heuristic(black_queens, white_queens, self.board, max_depth=3)}\n"
             output += f"Black territory: {territory_heuristic(white_queens, black_queens, self.board, max_depth=3)}\n"
 
-            if n_moves > 0:
-                actions = self.evaluate_moves(self.get_legal_actions())
-                actions = sorted(actions, key=lambda x: x[1], reverse=True)
-                output += "..." * 60 + "\n"
-                output += str(actions)
+            # if n_moves > 0:
+            #     actions = self.evaluate_moves(self.get_legal_actions())
+            #     actions = sorted(actions, key=lambda x: x[1], reverse=True)
+            #     output += "..." * 60 + "\n"
+            #     output += str(actions)
 
         return output
 
     def __repr__(self) -> str:
         return "amazons" + str(self.board_size)
-
-
-@cython.ccall
-@cython.boundscheck(False)
-@cython.returns(
-    tuple[
-        cython.int,
-        cython.int,
-        cython.int,
-        cython.int,
-        cython.int,
-        cython.int,
-    ]
-)
-def get_random_action(board: cython.int[:, :], queens: cython.list):
-    actions: cython.list = []
-
-    while actions == []:
-        random_queen = queens[c_random(0, len(queens) - 1)]
-        actions = get_legal_moves_for_amazon(random_queen[0], random_queen[1], board)
-
-    return actions[c_random(0, len(actions) - 1)]
 
 
 @cython.ccall
@@ -516,76 +649,6 @@ def generate_arrow_shots(
 
 
 @cython.ccall
-@cython.infer_types(True)
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
-@cython.cdivision(True)
-def evaluate_move(
-    n_moves_per_queen: cython.dict,
-    move: tuple[
-        cython.int,
-        cython.int,
-        cython.int,
-        cython.int,
-        cython.int,
-        cython.int,
-    ],
-    mid: cython.uint,
-    board: cython.int[:, :],
-    player: cython.int,
-) -> cython.int:
-    """
-    Evaluate the given move using a simple heuristic:
-    Each move to a location closer to the center of the board is valued.
-    If the move involves shooting an arrow that restricts the mobility of an opponent's Amazon, the value is increased.
-
-    :param move: The move to evaluate.
-    :return: The heuristic value of the move.
-    """
-    score: cython.int = 0
-
-    start_x: cython.int
-    start_y: cython.int
-    end_x: cython.int
-    end_y: cython.int
-    arrow_x: cython.int
-    arrow_y: cython.int
-    dx: cython.int
-    dy: cython.int
-    ny: cython.int
-    nx: cython.int
-
-    # Extract the start and end positions of the amazon and the arrow shot from the move
-    start_x, start_y, end_x, end_y, arrow_x, arrow_y = move
-
-    # If we can throw an arrow at an opponent's queen, increase the score
-    for dx in range(-1, 2):
-        for dy in range(-1, 2):
-            if dx == 0 and dy == 0:
-                continue
-            nx, ny = arrow_x + dx, arrow_y + dy
-            if 0 <= nx < board.shape[0] and 0 <= ny < board.shape[0] and board[nx, ny] == 3 - player:
-                score += 40
-            # Prefer moves where we still have room to move
-            nx, ny = end_x + dx, end_y + dy
-            if 0 <= nx < board.shape[0] and 0 <= ny < board.shape[0] and board[nx, ny] == 0:
-                score += 5
-
-    if score < 40:
-        # Calculate score based on the distance of the Amazon's move from the center
-        score += (mid - abs(mid - end_x)) + (mid - abs(mid - end_y))
-
-        # Add value to the score based on the distance of the arrow shot from the Amazon
-        score += abs(end_x - arrow_x) + abs(end_y - arrow_y)
-
-    # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
-    score -= int(math.log(max(1, n_moves_per_queen[(start_x, start_y)])))
-
-    return 1000 + score  # Score cannot be negative for the roulette selection
-
-
-@cython.ccall
 @cython.cdivision(True)
 @cython.nonecheck(False)
 @cython.wraparound(False)
@@ -607,7 +670,7 @@ def evaluate_amazons(
     # Variables for the heuristics
     player_controlled_squares: cython.double = 0
     opponent_controlled_squares: cython.double = 0
-    board: cnp.ndarray = state.board
+    board: cython.int[:, :] = state.board
 
     # The queens to iterate over
     player_queens: cython.list = state.white_queens
@@ -646,86 +709,6 @@ def evaluate_amazons(
         return controlled_squares_difference
 
 
-@cython.ccall
-@cython.cdivision(True)
-@cython.nonecheck(False)
-@cython.wraparound(False)
-@cython.overflowcheck(False)
-@cython.locals(
-    max_depth=cython.uint,
-    player_queens=cython.list,
-    opp_queens=cython.list,
-    terr=cython.float,
-    kill_save=cython.float,
-    imm_mob=cython.float,
-    mob_heur=cython.float,
-    utility=cython.double,
-)
-def evaluate_amazons_lieberum(
-    state: AmazonsGameState,
-    player: cython.int,
-    n_moves_cutoff: cython.int = 10,
-    m_ter: cython.float = 2,
-    m_kill_s: cython.float = 1.5,
-    m_imm: cython.float = 13,
-    m_mob: cython.float = 2,
-    m_opp_disc: cython.float = 1,
-    a: cython.uint = 50,
-    norm: cython.bint = 0,
-) -> cython.double:
-    """
-    Evaluates the current game state for Game of the Amazons using Lieberum's evaluation function,
-    which takes into account territory control, the potential to capture or save queens, mobility of queens,
-    and the phase of the game.
-
-    :param state: The game state to evaluate.
-    :param player: The player to evaluate for (1 or 2).
-    :param n_moves_cutoff: Number of moves cutoff to switch to Lieberum's evaluation.
-    :param m_ter: Weight assigned to the territory control heuristic.
-    :param m_kill_s: Weight assigned to the potential to capture or save queens heuristic.
-    :param m_imm: Weight assigned to the immediate moves heuristic.
-    :param m_mob: Weight assigned to the mobility of the queens heuristic.
-    :param m_opp_disc: Multiplier for the evaluation score if it's the opponent's turn.
-    :param a: Normalization factor for the evaluation score.
-    :param norm: If True, the function will return a normalized evaluation score.
-
-    :return: The evaluation score for the given player.
-    """
-    max_depth: cython.uint = 3
-    board: cnp.ndarray = state.board
-    if state.n_moves < n_moves_cutoff:
-        return evaluate_amazons(state, player, m_opp_disc=m_opp_disc, norm=norm)
-    # The queens to iterate over
-    player_queens = state.white_queens if player == 1 else state.black_queens
-    opp_queens = state.white_queens if player == 2 else state.black_queens
-
-    if m_ter > 0:
-        terr = territory_heuristic(opp_queens, player_queens, board, max_depth=max_depth)
-    else:
-        terr = 0
-
-    if m_kill_s > 0 or m_imm > 0:
-        kill_save, imm_mob = kill_save_queens_immediate_moves(opp_queens, player_queens, board)
-    else:
-        kill_save = imm_mob = 0
-
-    if m_mob > 0:
-        mob_heur = mobility_heuristic(opp_queens, player_queens, board)
-    else:
-        mob_heur = 0
-
-    # Calculate the utility of the current board state using a combination of heuristics.
-    utility: cython.double = m_ter * terr + m_kill_s * kill_save + m_imm * imm_mob + m_mob * mob_heur
-
-    if state.player == 3 - player:
-        utility *= m_opp_disc
-
-    if norm:
-        return normalize(utility, a)
-    else:
-        return utility
-
-
 @cython.cfunc
 @cython.boundscheck(False)
 @cython.nonecheck(False)
@@ -739,7 +722,7 @@ def evaluate_amazons_lieberum(
     imm_moves=cython.int,
     their_queen_positions=cython.list,
     my_queen_positions=cython.list,
-    board=cnp.ndarray,
+    board=cython.int[:, :],
 )
 def kill_save_queens_immediate_moves(
     their_queen_positions: cython.list, my_queen_positions: cython.list, board
@@ -778,7 +761,7 @@ def kill_save_queens_immediate_moves(
 @cython.nonecheck(False)
 @cython.wraparound(False)
 def mobility_heuristic(
-    their_queen_positions: cython.list, my_queen_positions: cython.list, board: cnp.ndarray
+    their_queen_positions: cython.list, my_queen_positions: cython.list, board: cython.int[:, :]
 ) -> cython.int:
     """
     Calculate the mobility heuristic, which is the difference between the number of reachable squares for
@@ -848,7 +831,7 @@ def flood_fill(board: cython.int[:, :], x: cython.int, y: cython.int) -> cython.
 def territory_heuristic(
     their_queen_positions: cython.list,
     my_queen_positions: cython.list,
-    board: cnp.ndarray,
+    board: cython.int[:, :],
     max_depth: cython.uint,
 ) -> cython.int:
     """
@@ -928,6 +911,7 @@ def territory_helper(
 
 
 @cython.cfunc
+@cython.inline
 def territory_compare(ours: cython.double[:, :], theirs: cython.double[:, :]) -> cython.int:
     diff_matrix: cnp.ndarray = np.subtract(ours, theirs)
     return np.count_nonzero(diff_matrix < 0) - np.count_nonzero(diff_matrix > 0)

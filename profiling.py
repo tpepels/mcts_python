@@ -30,18 +30,18 @@ args = parser.parse_args()
 # debug: bool = False,
 
 
-algo = "mcts"
-game = "breakthrough"
+algo = "alphabeta"
+game = "amazons"
 eval_params = {}
 ai_params = {
     "max_time": 10,
     "debug": args.debug,
-    "early_term": True,
-    "early_term_turns": 10,
-    "early_term_cutoff": 0.05,
-    # "roulette": True,
-    "prog_bias": True,
-    "imm": True,
+    # "early_term": True,
+    # "early_term_turns": 10,
+    # "early_term_cutoff": 0.05,
+    # # "roulette": True,
+    # "prog_bias": True,
+    # "imm": True,
 }
 game_params = {}
 
