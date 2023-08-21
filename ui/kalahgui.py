@@ -64,12 +64,12 @@ def main():
     ai_player = 2
     ai_params = AIParams(
         ai_key="alphabeta",
-        eval_key="evaluate_kalah",
+        eval_params={},
         max_player=2,
         ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
         transposition_table_size=game_state.transposition_table_size,
     )
-    ai = init_ai_player(ai_params, ai_player)
+    ai = init_ai_player(ai_params, KalahGameState.param_order, KalahGameState.default_params)
 
     while run:
         CLOCK.tick(60)

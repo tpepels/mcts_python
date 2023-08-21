@@ -1,17 +1,13 @@
-# cython: language_level=3, infer_types=True, cdivision=True, boundscheck=False, wraparound=False, nonecheck=False
+# cython: language_level=3
 
 import cython
-
-from ai.transpos_table import TranspositionTable
-from ai.transpos_table import MoveHistory
-
-from includes cimport GameState, win, loss, draw
 
 from util import pretty_print_dict, abbreviate
 from operator import itemgetter
 
-from ai.transpos_table cimport TranspositionTable, MoveHistory
 from libc.time cimport time
+from includes cimport GameState, win, loss, draw
+from ai.transpos_table cimport TranspositionTable, MoveHistory
 
 cdef double curr_time():
     return time(NULL)
@@ -42,17 +38,14 @@ cdef dict n_moves = {1: 0, 2: 0}
 cdef dict depth_reached = {1: 0, 2: 0}
 cdef dict best_value_labels = {win: "WIN", draw: "DRAW", loss: "LOSS"}
 
-@cython.cdivision(True)
-@cython.nonecheck(False)
 @cython.wraparound(False)
-@cython.boundscheck(False)
 cdef float value(
     GameState state,
     float alpha,
     float beta,
     int depth,
     int max_player,
-    int eval_i,
+    double[:] eval_params,
     TranspositionTable trans_table,
     MoveHistory move_history,
     dict killer_moves,
@@ -81,7 +74,7 @@ cdef float value(
     reached = max(reached, max_d - depth)
 
     if state.is_terminal():
-        v = state.get_reward(max_player)  # evaluate in the view of the player to move
+        v = state.get_reward(max_player)
         return v
 
     if not is_interrupted:
@@ -95,12 +88,12 @@ cdef float value(
             is_interrupted = True
 
     if depth == 0 and allow_null_move and use_quiescence and not is_interrupted:
-        v = quiescence(state, alpha, beta,max_player, eval_i)
+        v = quiescence(state, alpha, beta,max_player, eval_params)
 
     # If we are interrupted, cut off the search and return evaluations straight away
     if depth == 0:
         stat_n_eval += 1
-        v = state.evaluate(function_i=eval_i, player=max_player, norm=False)
+        v = state.evaluate(params=eval_params, player=max_player, norm=False)
         return v
 
     # Apply a null move to check if skipping turns results in better results than making a move
@@ -114,7 +107,7 @@ cdef float value(
             beta=beta,
             depth=(depth - R) - 1,
             max_player=max_player,
-            eval_i=eval_i,
+            eval_params=eval_params,
             trans_table=trans_table,
             move_history=move_history,
             killer_moves=killer_moves,
@@ -177,7 +170,7 @@ cdef float value(
                 beta=beta,
                 depth=depth - 1,
                 max_player=max_player,
-                eval_i=eval_i,
+                eval_params=eval_params,
                 trans_table=trans_table,
                 move_history=move_history,
                 killer_moves=killer_moves,
@@ -220,7 +213,7 @@ cdef float value(
 
             if is_interrupted:
                 return v
-
+        
         return v
 
     finally:
@@ -239,7 +232,7 @@ cdef float value(
                 board=None
             )
 
-cdef float quiescence(GameState state, float alpha, float beta, int max_player, int eval_i):
+cdef float quiescence(GameState state, float alpha, float beta, int max_player, double[:] eval_params):
     # This is the quiescence function, which aims to mitigate the horizon effect by
     # conducting a more exhaustive search on volatile branches of the game tree,
     # such as those involving captures.
@@ -248,7 +241,7 @@ cdef float quiescence(GameState state, float alpha, float beta, int max_player, 
     cdef tuple move
     cdef float score
     cdef float stand_pat
-    stand_pat = state.evaluate(function_i=eval_i, player=max_player, norm=False)
+    stand_pat = state.evaluate(params=eval_params, player=max_player, norm=False)
     # Call the evaluation function to get a base score for the current game state.
     # This score is used as a baseline to compare with the potential outcomes of captures.
 
@@ -279,7 +272,7 @@ cdef float quiescence(GameState state, float alpha, float beta, int max_player, 
             new_state = state.apply_action(move)
             # Apply the capture move to generate the new game state that results from this move.
 
-            score = -quiescence(new_state, -beta, -alpha, max_player, eval_i)
+            score = -quiescence(new_state, -beta, -alpha, max_player, eval_params)
             # Perform a recursive quiescence search on the new game state to evaluate its score.
             # Note the negation of the score and the swapping of alpha and beta. This is a common
             # technique in adversarial search algorithms (like Alpha-Beta Pruning and Negamax),
@@ -305,7 +298,7 @@ cdef class AlphaBetaPlayer:
 
     cdef int player
     cdef int max_depth
-    cdef int eval_i
+    cdef double[:] eval_params
     cdef bint use_null_moves
     cdef bint use_quiescence
     cdef bint use_kill_moves
@@ -318,14 +311,14 @@ cdef class AlphaBetaPlayer:
     cdef list stats
     cdef list last_move_search_times
     cdef dict c_stats
+    cdef str mv_str
     cdef TranspositionTable trans_table
 
     def __init__(
         self,
         int player,
         double max_time,
-        object evaluate, # TODO This can be removed because we pass the eval_i to the gamestate.evaluate
-        int eval_i=2,
+        double[:] eval_params,
         int max_depth=25,
         unsigned transposition_table_size=2**16,
         bint use_null_moves=False,
@@ -340,7 +333,7 @@ cdef class AlphaBetaPlayer:
         # Set the maximum depth for the iterative deepening search
         self.max_depth = max_depth
         # The evaluation function to be used
-        self.eval_i = eval_i
+        self.eval_params = eval_params
         # Whether or not to use the null-move heuristic
         self.use_null_moves = use_null_moves
         # Whether or not to use quiescence search
@@ -373,6 +366,7 @@ cdef class AlphaBetaPlayer:
             "total_killers",
             "total_tt_orders"
         ]}  # Initialize to 0
+        self.mv_str = ', '.join(str(val) for val in self.eval_params)
         self.trans_table = None
         if use_tt:  # Store evaluation resuls
             self.trans_table = TranspositionTable(transposition_table_size)
@@ -451,7 +445,7 @@ cdef class AlphaBetaPlayer:
                         break
                 else:
                     # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
-                    if ((start_depth_time - start_time) + (last_search_time * 8) >= (self.max_time + self.grace_time)):
+                    if ((start_depth_time - start_time) + (last_search_time * 4) >= (self.max_time + self.grace_time)):
                         if self.debug:
                             print(f"Time limit exceeded, stopping search at depth {depth}.")
                             print(f"start_depth_time - start_time = {start_depth_time - start_time:.2f} seconds, last_search_time = {last_search_time:.2f} seconds, max_time = {self.max_time:.2f} seconds, grace_time = {self.grace_time:.2f} seconds")
@@ -466,7 +460,7 @@ cdef class AlphaBetaPlayer:
                     depth=depth,
                     max_player=self.player,
                     max_d=depth,
-                    eval_i=self.eval_i,
+                    eval_params=self.eval_params,
                     trans_table=self.trans_table,
                     move_history=move_history,
                     killer_moves=killer_moves,
@@ -510,25 +504,12 @@ cdef class AlphaBetaPlayer:
                 print("." * 80)
 
             if is_interrupted:
-                # if search_times[-1] <= search_times[-2]:
                 if self.debug:
-                    # print(f"Last search time was {search_times[-1]} < {search_times[-2]} so we keep the last move found.")
                     print(f"-->> Finished best move: {last_best_move} with v={last_best_v}")
                     print(f"Interrupted best move: {best_move} with v={v}")
                     print(f"I saw {root_seen} moves at the root level (out of {len(state.get_legal_actions())}) and reached {reached} depths.")
                     print(f"So I saw {root_seen / len(state.get_legal_actions()) * 100:.2f}% of the moves at the root level.")
                     print("." * 80)
-                    
-                #    best_move = last_best_move
-                #    v = last_best_v
-
-                #elif self.debug:
-                #    print(f"Last search time was {search_times[-1]} >= {search_times[-2]} so we keep the previous move found.")
-                #    print(f"Finished best move: {last_best_move} with v={last_best_v}")
-                #    print(f"-->> Interrupted best move: {best_move} with v={v}")
-                #    print(f"I saw {root_seen} moves at the root level (out of {len(state.get_legal_actions())}) and reached {reached} depths.")
-                #    print(f"So I saw {root_seen / len(state.get_legal_actions()) * 100:.2f}% of the moves at the root level.")
-                #    print("." * 80)
                 
                 best_move = last_best_move
                 v = last_best_v
@@ -539,10 +520,10 @@ cdef class AlphaBetaPlayer:
                 total_search_time[self.player] += curr_time() - start_time
                 n_moves[self.player] += 1
                 depth_reached[self.player] += stat_depth_reached
-
+                
                 stat_dict = {
                     f"{self.player}_max_player": self.player,
-                    f"{self.player}_eval_func": self.eval_i,
+                    f"{self.player}_eval_params": self.mv_str,
                     "nodes_best_mv_ord.": stat_tt_orders,
                     "nodes_visited": stat_visited,
                     "nodes_evaluated": stat_n_eval,
@@ -655,7 +636,7 @@ cdef class AlphaBetaPlayer:
             f"p={self.player}, "
             f"max_d={self.max_depth}, "
             f"max_t={self.max_time}, "
-            f"eval={self.eval_i}, "
+            f"eval_params={self.mv_str}, "
             f"null={self.use_null_moves}, "
             f"qs={self.use_quiescence}, "
             f"hist={self.use_history}, "

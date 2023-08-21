@@ -2,10 +2,10 @@ import os
 import shutil
 
 # Directories to clean
-directories = [".", "ai", "games"]
+directories = [".", "ai", "games", "includes"]
 
 # File extensions to remove
-extensions = [".c", ".so", ".html"]
+extensions = [".c", ".so", ".html", ".cpp"]
 
 # Remove files with specified extensions
 for directory in directories:

@@ -2,9 +2,7 @@
 # gamestate.pxd
 import cython
 
-cdef int win = 9999999
-cdef int loss = -9999999
-cdef int draw = 0
+cdef int win, loss, draw
 
 cdef class GameState:
     """
@@ -35,4 +33,4 @@ cdef class GameState:
 
     cdef public int evaluate_move(self, tuple move)
 
-    cdef public double evaluate(self, int function_i, int player, bint norm)
+    cdef public double evaluate(self, int player, double[:] params, bint norm=*)

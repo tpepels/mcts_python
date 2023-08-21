@@ -3,13 +3,13 @@ import cProfile
 import pstats
 import traceback
 
-
 from run_games import AIParams, run_game
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
 parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
 parser.add_argument("--debug", action="store_true", help="Show debug messages.")
+parser.add_argument("--pause", action="store_true", help="Pause after each turn.")
 args = parser.parse_args()
 
 # num_simulations: int = 0,
@@ -30,17 +30,16 @@ args = parser.parse_args()
 # debug: bool = False,
 
 
-debug = args.debug
 algo = "mcts"
 game = "breakthrough"
-evaluation = "evaluate_breakthrough_lorenz"
+eval_params = {}
 ai_params = {
     "max_time": 5,
-    "debug": debug,
+    "debug": args.debug,
     # "early_term": True,
     # "early_term_turns": 10,
     # "early_term_cutoff": 0.05,
-    "roulette": True,
+    # "roulette": True,
     # "prog_bias": True,
     # "imm": True,
 }
@@ -48,20 +47,27 @@ game_params = {}
 
 p1_params = AIParams(
     ai_key=algo,
-    eval_key=evaluation,
+    eval_params=eval_params,
     max_player=1,
     ai_params=ai_params,
 )
 p2_params = AIParams(
     ai_key=algo,
-    eval_key=evaluation,
+    eval_params=eval_params,
     max_player=2,
     ai_params=ai_params,
 )
 
 
 def run_game_code():
-    run_game(game_key=game, game_params=game_params, p1_params=p1_params, p2_params=p2_params)
+    run_game(
+        game_key=game,
+        game_params=game_params,
+        p1_params=p1_params,
+        p2_params=p2_params,
+        pause=args.pause,
+        debug=args.debug,
+    )
 
 
 if args.no_profile:
@@ -73,6 +79,7 @@ if args.no_profile:
     except Exception as ex:
         print(str(ex))
         traceback.print_exc()
+
 else:
     print(" --- Profiling ---")
     try:

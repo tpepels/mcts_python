@@ -1,55 +1,34 @@
 # cython: language_level=3
 
+from array import array
 import inspect
 import time
 from dataclasses import dataclass
-from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
 
-from games.amazons import AmazonsGameState, evaluate_amazons, evaluate_amazons_lieberum
-from games.blokus import BlokusGameState, evaluate_blokus
-from games.breakthrough import (
-    BreakthroughGameState,
-    evaluate_breakthrough,
-    evaluate_breakthrough_lorenz,
-)
+from games.amazons import AmazonsGameState
+from games.blokus import BlokusGameState
+from games.breakthrough import BreakthroughGameState
 
 from cython.cimports.includes import GameState, loss, win
 
-from games.kalah import KalahGameState, evaluate_kalah_simple, evaluate_kalah_enhanced
-from games.tictactoe import (
-    TicTacToeGameState,
-    evaluate_tictactoe,
-    evaluate_ninarow,
-    evaluate_ninarow_fast,
-)
+from games.kalah import KalahGameState
+from games.tictactoe import TicTacToeGameState
 from util import log_exception_handler
 
 
 class AIPlayer:
+    """Base class for AI players."""
+
     def best_action(self, state):
         pass
 
     def print_cumulative_statistics(self):
         pass
 
-
-# Contains all possible evaluation functions for use in factory
-eval_dict = {
-    evaluate_tictactoe.__name__: evaluate_tictactoe,
-    evaluate_ninarow.__name__: evaluate_ninarow,
-    evaluate_ninarow_fast.__name__: evaluate_ninarow_fast,
-    evaluate_breakthrough.__name__: evaluate_breakthrough,
-    evaluate_breakthrough_lorenz.__name__: evaluate_breakthrough_lorenz,
-    evaluate_amazons.__name__: evaluate_amazons,
-    evaluate_amazons_lieberum.__name__: evaluate_amazons_lieberum,
-    evaluate_kalah_simple.__name__: evaluate_kalah_simple,
-    evaluate_kalah_enhanced.__name__: evaluate_kalah_enhanced,
-    evaluate_blokus.__name__: evaluate_blokus,
-}
 
 # Contains all possible games for use in factory
 game_dict = {
@@ -78,10 +57,9 @@ class AIParams:
     """
 
     ai_key: str
-    eval_key: str
     max_player: int
+    eval_params: Dict[str, Any]
     ai_params: Optional[Dict[str, Any]] = None
-    eval_params: Optional[Dict[str, Any]] = None
     transposition_table_size: int = 2**16
 
     def __str__(self):
@@ -119,8 +97,8 @@ def init_game_and_players(
     game = init_game(game_key, game_params)
     p1_params.transposition_table_size = game.transposition_table_size
     p2_params.transposition_table_size = game.transposition_table_size
-    p1 = init_ai_player(p1_params)
-    p2 = init_ai_player(p2_params)
+    p1 = init_ai_player(p1_params, game.param_order, game.default_params)
+    p2 = init_ai_player(p2_params, game.param_order, game.default_params)
     return game, p1, p2
 
 
@@ -139,7 +117,11 @@ def init_game(game_key: str, game_params: Optional[Dict[str, Any]]) -> GameState
     return game
 
 
-def init_ai_player(params: AIParams) -> AIPlayer:
+def init_ai_player(
+    params: AIParams,
+    eval_param_order: dict[str, float],
+    default_params,
+) -> AIPlayer:
     """Initialize an AI player based on given parameters.
 
     Args:
@@ -151,12 +133,15 @@ def init_ai_player(params: AIParams) -> AIPlayer:
         AIPlayer: The initialized AI player.
     """
     ai_class = player_dict[params.ai_key]
-    eval_function = eval_dict[params.eval_key]
-    if params.eval_params is not None:
-        eval_function = partial(eval_function, **params.eval_params)
+
+    # Create a python double array containing the evaluation function parameters in the order given in eval_param_order
+    eval_params = array("d", [0.0] * len(eval_param_order))  # Initialize with zeros
+    for param_name, index in eval_param_order.items():
+        eval_params[index] = params.eval_params.get(param_name, default_params[index])
+
     player: AIPlayer = ai_class(
         player=params.max_player,
-        evaluate=eval_function,
+        eval_params=eval_params,
         transposition_table_size=params.transposition_table_size,
         **params.ai_params,
     )
@@ -193,7 +178,14 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     return game.get_reward(1)
 
 
-def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams) -> float:
+def run_game(
+    game_key: str,
+    game_params: Dict[str, Any],
+    p1_params: AIParams,
+    p2_params: AIParams,
+    pause=False,
+    debug=False,
+) -> float:
     """Run the game with two AI players.
 
     Args:
@@ -204,7 +196,11 @@ def run_game(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2
     """
 
     def callback(player, action, game: GameState, time):
-        print(f"{player} -> mv.: {action}.\n{game.visualize()}")
+        print(f"{player} -> mv.: {action}.\n{game.visualize(full_debug=debug)}")
+
+        if pause:
+            input("Press Enter to continue...")
+
         if game.is_terminal():
             if game.get_reward(1) == win:
                 print("Game Over. Winner: P1")
@@ -314,7 +310,8 @@ def print_class_init_params(class_dict):
 # Use this to get a useful overview of all relevant parameters and their names.
 if __name__ == "__main__":
     print("\nEvaluation functions parameters:")
-    print_function_params(eval_dict)
+    for k, v in game_dict.items():
+        print(f"{k}: {v.default_params}")
     print("..." * 40)
     print("\nGame classes __init__ parameters:")
     print_class_init_params(game_dict)

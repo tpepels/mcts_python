@@ -75,12 +75,12 @@ def main():
     ai_player = 2
     ai_params = AIParams(
         ai_key="alphabeta",
-        eval_key="evaluate_n_in_a_row",
+        eval_params={},
         max_player=2,
         ai_params={"max_depth": 20, "max_time": 5, "debug": True},
         transposition_table_size=game_state.transposition_table_size,
     )
-    ai = init_ai_player(ai_params)
+    ai = init_ai_player(ai_params, TicTacToeGameState.param_order, TicTacToeGameState.default_params)
 
     while run:
         CLOCK.tick(60)

@@ -1,7 +1,6 @@
 # cython: language_level=3
 
 import random
-from typing import Callable
 from colorama import Back, Fore, init, Style
 
 init(autoreset=True)
@@ -135,9 +134,9 @@ class Node:
     def expand(
         self,
         init_state: GameState,
+        eval_params: cython.double[:],
         prog_bias: cython.bint = 0,
         imm: cython.bint = 0,
-        eval_i: cython.int = 0,
     ) -> Node:
         assert not self.expanded, f"Trying to re-expand an already expanded node, you madman. {str(self)}"
 
@@ -174,7 +173,7 @@ class Node:
                 eval_value: cython.double = new_state.evaluate(
                     player=self.max_player,
                     norm=True,
-                    function_i=eval_i,
+                    params=eval_params,
                 )
 
                 child.eval_value = eval_value
@@ -221,15 +220,15 @@ class Node:
     def add_all_children(
         self,
         init_state: GameState,
+        eval_params: cython.double[:],
         prog_bias: cython.bint = 0,
         imm: cython.bint = 0,
-        eval_i: cython.int = 0,
     ):
         """
         Adds a previously expanded node's children to the tree
         """
         while not self.expanded:
-            self.expand(init_state, prog_bias=prog_bias, imm=imm, eval_i=eval_i)
+            self.expand(init_state, prog_bias=prog_bias, imm=imm, eval_params=eval_params)
 
     @cython.cfunc
     def check_loss_node(self):
@@ -301,15 +300,14 @@ class MCTSPlayer:
     c: cython.double
     epsilon: cython.double
     max_time: cython.double
-    eval_i: cython.int
+    eval_params: cython.double[:]
     root: Node
 
     def __init__(
         self,
         player: int,
-        evaluate: Callable,  # TODO Dit kan weg, je moet een functieindex gebruiken en dan state.evaluate doen
+        eval_params: cython.double[:],
         transposition_table_size: int = 2**16,  # This parameter is unused but is passed by run_game
-        eval_i=2,  # TODO Dit moet je nog aanpassen in run_games (ook voor AlphaBeta)
         num_simulations: int = 0,
         max_time: int = 0,
         c: float = 1.0,
@@ -339,7 +337,7 @@ class MCTSPlayer:
         self.early_term_turns = early_term_turns
         self.roulette = roulette
         self.c = c
-        self.eval_i = eval_i
+        self.eval_params = eval_params
 
         self.imm = imm
         if self.imm:
@@ -396,7 +394,12 @@ class MCTSPlayer:
             self.root: Node = Node(state.player, (), self.player)
 
         if not self.root.expanded:
-            self.root.add_all_children(state, self.prog_bias, self.imm, self.eval_i)
+            self.root.add_all_children(
+                init_state=state,
+                prog_bias=self.prog_bias,
+                imm=self.imm,
+                eval_params=self.eval_params,
+            )
 
         start_time: cython.long = curr_time()
         i: cython.int = 0
@@ -448,9 +451,9 @@ class MCTSPlayer:
             print("--*--" * 20)
             print(f"BEST NODE: {max_node}")
             print("--*--" * 20)
-            print(f"Evaluation: {state.evaluate(function_i=self.eval_i, player=self.player, norm=False)}")
+            print(f"Evaluation: {state.evaluate(params=self.eval_params, player=self.player, norm=False)}")
             print(
-                f"Evaluation (normalized): {state.evaluate(function_i=self.eval_i, player=self.player, norm=True)}"
+                f"Evaluation (normalized): {state.evaluate(params=self.eval_params, player=self.player, norm=True)}"
             )
             print("--*--" * 20)
 
@@ -490,7 +493,9 @@ class MCTSPlayer:
         # If the node is neither terminal nor solved, then we need a playout
         if not is_terminal and node.solved_player == 0:
             # Expansion returns the expanded node
-            next_node: Node = node.expand(next_state, self.prog_bias, self.imm, self.eval_i)
+            next_node: Node = node.expand(
+                init_state=next_state, prog_bias=self.prog_bias, imm=self.imm, eval_params=self.eval_params
+            )
 
             # This is the point where the last action was previously added to the node, so in fact the node is just marked as expanded
             if next_node == None:
@@ -551,7 +556,7 @@ class MCTSPlayer:
             if self.early_term and turns >= self.early_term_turns:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation: cython.double = state.evaluate(function_i=self.eval_i, player=1, norm=True)
+                evaluation: cython.double = state.evaluate(params=self.eval_params, player=1, norm=True)
                 if evaluation > self.early_term_cutoff:
                     return (1.0, 0.0)
                 elif evaluation < -self.early_term_cutoff:
@@ -563,7 +568,7 @@ class MCTSPlayer:
             if self.dyn_early_term == 1 and turns % 5 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation = state.evaluate(function_i=self.eval_i, player=1, norm=True)
+                evaluation = state.evaluate(params=self.eval_params, player=1, norm=True)
 
                 if evaluation > self.dyn_early_term_cutoff:
                     return (1.0, 0.0)
@@ -580,7 +585,11 @@ class MCTSPlayer:
                 max_value = -99999.99
                 for i in range(self.e_g_subset):
                     # Evaluate the new state in view of the player to move
-                    value = state.apply_action(actions[i]).evaluate(self.eval_i, state.player, norm=True)
+                    value = state.apply_action(actions[i]).evaluate(
+                        params=self.eval_params,
+                        player=state.player,
+                        norm=False,
+                    )
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
@@ -604,7 +613,7 @@ class MCTSPlayer:
 
     def __repr__(self):
         return abbreviate(
-            f"MCTS(p={self.player}, evaluate={self.eval_i}, "
+            f"MCTS(p={self.player}, eval_params={self.eval_params}, "
             f"num_simulations={self.num_simulations}, "
             f"max_time={self.max_time}, c={self.c}, dyn_early_term={self.dyn_early_term}, "
             f"dyn_early_term_cutoff={self.dyn_early_term_cutoff}, early_term={self.early_term}, "

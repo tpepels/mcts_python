@@ -43,11 +43,9 @@ class ColName:
     GAME_PARAMS = "game_params"
     P1_AI_KEY = "p1_ai_key"
     P1_AI_PARAMS = "p1_ai_params"
-    P1_EVAL_KEY = "p1_eval_key"
     P1_EVAL_PARAMS = "p1_eval_params"
     P2_AI_KEY = "p2_ai_key"
     P2_AI_PARAMS = "p2_ai_params"
-    P2_EVAL_KEY = "p2_eval_key"
     P2_EVAL_PARAMS = "p2_eval_params"
 
 
@@ -484,7 +482,6 @@ def run_new_experiment(row: pd.Series, index: int, sheet: gspread.Worksheet, n_p
             ai_key=row[ColName.P1_AI_KEY],
             ai_params=row[ColName.P1_AI_PARAMS],
             max_player=1,
-            eval_key=row[ColName.P1_EVAL_KEY],
             eval_params=row[ColName.P1_EVAL_PARAMS],
             transposition_table_size=game.transposition_table_size,
         )
@@ -492,7 +489,6 @@ def run_new_experiment(row: pd.Series, index: int, sheet: gspread.Worksheet, n_p
             ai_key=row[ColName.P2_AI_KEY],
             ai_params=row[ColName.P2_AI_PARAMS],
             max_player=2,
-            eval_key=row[ColName.P2_EVAL_KEY],
             eval_params=row[ColName.P2_EVAL_PARAMS],
             transposition_table_size=game.transposition_table_size,
         )

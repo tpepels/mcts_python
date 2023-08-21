@@ -15,3 +15,4 @@ profiler_results.out
 *.out
 *.html
 *.o
+*.cpp
