@@ -46,24 +46,22 @@ class Node:
 
     eval_value: cython.double
     action: cython.tuple
-
-    children: cython.list
     actions: cython.list  # A list of actions that is used to expand the node
 
     def __cinit__(self, player: cython.int, action: cython.tuple, max_player: cython.int):
-        self.children = []
-        self.actions = []
         # The action that led to this state, needed for root selection
         self.action = action
         self.player = player
+        self.max_player = max_player
         # Since evaluations are stored in view of player 1, player 1 is the maximizing player
         self.im_value = -99999999.9 if self.player == 1 else 99999999.9
         self.eval_value = 0.0
         self.expanded = 0
         self.solved_player = 0
-        self.v = [0.0, 0.0]  # Values for player - 1
+        self.v = [0.0, 0.0]  # Values for player-1
         self.n_visits = 0
-        self.max_player = max_player
+        self.actions = []
+        self.children = []
 
     @cython.cfunc
     def uct(self, c: cython.double, pb_weight: cython.double = 0.0, imm_alpha: cython.double = 0.0) -> Node:
@@ -422,13 +420,13 @@ class MCTSPlayer:
         if DEBUG:
             total_time: cython.long = curr_time() - start_time
             print(
-                f"Ran {i+1} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):.1f} simulations per second."
+                f"Ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second."
             )
 
         # retrieve the node with the most visits
         assert (
             len(self.root.children) > 0
-        ), f"No children found for root node {self.root}, after {i} simulations"
+        ), f"No children found for root node {self.root}, after {i:,} simulations"
 
         max_node: Node = self.root.children[0]
         max_value: cython.double = max_node.n_visits
@@ -450,10 +448,8 @@ class MCTSPlayer:
         if DEBUG:
             print("--*--" * 20)
             print(f"BEST NODE: {max_node}")
-            print("--*--" * 20)
-            print(f"Evaluation: {state.evaluate(params=self.eval_params, player=self.player, norm=False)}")
             print(
-                f"Evaluation (normalized): {state.evaluate(params=self.eval_params, player=self.player, norm=True)}"
+                f"Last state evaluation: {state.evaluate(params=self.eval_params, player=self.player, norm=False):.4f} / (normalized): {state.evaluate(params=self.eval_params, player=self.player, norm=True):.4f}"
             )
             print("--*--" * 20)
 

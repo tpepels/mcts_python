@@ -9,8 +9,12 @@ cnp.import_array()
 
 import random
 
+# TODO Dit heb je aangepast, het gaat vaak sneller als je vectors gebruikt (maar niet altijd)
 from cython.cimports.libcpp.vector import vector
+from cython.cimports.libcpp.pair import pair
 from cython.cimports.includes import c_random, normalize, where_is_k, win, loss, draw, GameState
+
+# TODO Dit heb je aangepast, alle constanten moeten in pxd files gedefiniëerd worden zodat je ze als c-typen kan gebruiken
 from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
 
 dirs = [-1, 0, 1]
@@ -285,14 +289,15 @@ class BreakthroughGameState(GameState):
             dr = 1
         positions: cython.list = self.positions[self.player - 1]
 
-        n: cython.int = len(positions)
+        n: cython.int = positions.size()
         start: cython.int = c_random(0, n - 1)  # This allows us to start at a random piece
 
         i: cython.int
 
-        safe_captures: cython.list = []
-        all_moves: cython.list = []
-        captures: cython.list = []
+        safe_captures: vector[pair[cython.int, cython.int]]
+        all_moves: vector[pair[cython.int, cython.int]]
+        captures: vector[pair[cython.int, cython.int]]
+        all_moves.reserve(n * 3)
 
         for i in range(n):
             index: cython.int = (start + i) % n
@@ -328,26 +333,26 @@ class BreakthroughGameState(GameState):
 
                         # Prioritize safe captures
                         if is_safe(position, self.player, self.board):
-                            safe_captures.append((position, new_position))
+                            safe_captures.push_back(pair[cython.int, cython.int](position, new_position))
                         else:
                             # give captures higher chance of being selected
-                            captures.append((position, new_position))
+                            captures.push_back(pair[cython.int, cython.int](position, new_position))
 
                     # Safe captures are prioritized anyway so no need to add non-captures
                     if safe_captures == [] and captures == []:
-                        all_moves.append((position, new_position))
+                        all_moves.push_back(pair[cython.int, cython.int](position, new_position))
 
         # Always do a safe capture if you can
-        if safe_captures != []:
-            if len(safe_captures) > 1:
-                return safe_captures[c_random(0, len(safe_captures) - 1)]
+        if not safe_captures.empty():
+            if safe_captures.size() > 1:
+                return safe_captures[c_random(0, safe_captures.size() - 1)]
             return safe_captures[0]
-        if captures != []:
-            if len(captures) > 1:
-                return captures[c_random(0, len(captures) - 1)]
+        if not captures.empty():
+            if captures.size() > 1:
+                return captures[c_random(0, captures.size() - 1)]
             return captures[0]
         # All_moves includes captures, they'll be selected with a higher probability
-        return all_moves[c_random(0, len(all_moves) - 1)]
+        return all_moves[c_random(0, all_moves.size() - 1)]
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list[cython.tuple]:
@@ -357,12 +362,15 @@ class BreakthroughGameState(GameState):
         :return: A list of legal actions as tuples (from_position, to_position).
         In case of a terminal state, an empty list is returned.
         """
-        legal_actions: cython.list = []
+        n: cython.int = len(self.positions[self.player - 1])
+        legal_actions: vector[pair[cython.int, cython.int]]
+        legal_actions.reserve(n * 3)
         dr: cython.int = -1
         if self.player == 2:
             dr = 1
+
         i: cython.int
-        for i in range(len(self.positions[self.player - 1])):
+        for i in range(n):
             position: cython.int = self.positions[self.player - 1][i]
             row: cython.int = position // 8
             col: cython.int = position % 8
@@ -375,11 +383,11 @@ class BreakthroughGameState(GameState):
 
                     if dc == 0:  # moving straight
                         if self.board[new_position] == 0:
-                            legal_actions.append((position, new_position))
+                            legal_actions.push_back(pair[cython.int, cython.int](position, new_position))
 
                     else:  # diagonal capture / move
                         if self.board[new_position] != self.player:
-                            legal_actions.append((position, new_position))
+                            legal_actions.push_back(pair[cython.int, cython.int](position, new_position))
         return legal_actions
 
     @cython.ccall
@@ -619,51 +627,54 @@ class BreakthroughGameState(GameState):
         if full_debug:
             if not self.validate_actions():
                 print(" !!! Invalid actions detected !!! ")
-
-            output += "Hash: " + str(self.board_hash) + "\n"
-            output += f"Reward: {self.get_reward(1)}/{self.get_reward(2)}, Terminal: {self.is_terminal()}\n"
+            output += "..." * 10 + "debug info" + "..." * 10 + "\n"
+            output += "Hash: " + str(self.board_hash) + " | "
+            output += f"reward: {self.get_reward(1)}/{self.get_reward(2)} | terminal: {self.is_terminal()}\n"
 
             moves = self.get_legal_actions()
-            output += f"{len(moves)} actions: {','.join([self.readable_move(x) for x in moves])}\n"
+            output += f"{len(moves)} actions | "
             # ---------------------------Evaluations---------------------------------
-            output += f"Eval: {self.evaluate(1, norm=False, params=self.default_params)}/{self.evaluate(2, norm=False, params=self.default_params)}\n"
-            output += f"Normalized: {self.evaluate(1, norm=True, params=self.default_params)}/{self.evaluate(2, norm=True, params=self.default_params)}\n"
+            output += f"evaluation: {self.evaluate(1, norm=False, params=self.default_params):.3f}/{self.evaluate(2, norm=False, params=self.default_params):.3f}"
+            output += f" | normalized: {self.evaluate(1, norm=True, params=self.default_params):.4f}/{self.evaluate(2, norm=True, params=self.default_params):.4f}\n"
+            output += "..." * 20 + "\n"
 
             white_pieces = self.positions[0]
             black_pieces = self.positions[1]
-
-            output += f"# white pieces: {len(white_pieces)} | # black pieces: {len(black_pieces)}\n"
+            output += f"# white pieces: {len(white_pieces)} | # black pieces: {len(black_pieces)} | "
             # ---------------------------Endgame-------------------------------------------
-            output += f"is endgame: {np.count_nonzero(self.board) < 16}\n"
-            output += "..." * 20 + "\n"
+            output += f"is endgame: {np.count_nonzero(self.board) < 16} | "
             # ---------------------------Possible captures---------------------------------
             wh_caps = count_capture_moves(self.board, white_pieces, 1)
             bl_caps = count_capture_moves(self.board, black_pieces, 2)
-            output += f"White has {wh_caps} capture value, black has {bl_caps}.\n"
-            # ---------------------------Piece safety--------------------------------------
-            for piece in black_pieces:
-                if not is_safe(piece, 2, self.board):
-                    output += f"{self.readable_location(piece)} - black is not safe\n"
-            for piece in white_pieces:
-                if not is_safe(piece, 1, self.board):
-                    output += f"{self.readable_location(piece)} - white is not safe\n"
-
+            output += f"White has {wh_caps} capture value, black has {bl_caps} \n"
             # ---------------------------Decisiveness---------------------------------
             p1_decisive, p2_decisive = is_decisive(self)
             output += f"Player 1 decisive: {p1_decisive}, Player 2 decisive: {p2_decisive}\n"
-            output += "..." * 20 + "\n"
+            # ---------------------------Piece safety--------------------------------------
+            output += "Unsafe pieces:\n"
+            for piece in black_pieces:
+                if not is_safe(piece, 2, self.board):
+                    output += f"{self.readable_location(piece)} \n"
+            for piece in white_pieces:
+                if not is_safe(piece, 1, self.board):
+                    output += f"{self.readable_location(piece)} \n"
+
             # ---------------------------Piece mobility---------------------------------
+            output += "Blocked pieces:\n"
             for piece in black_pieces:
                 mob = piece_mobility(piece, 2, self.board)
                 if mob == 0:
-                    output += f"{self.readable_location(piece)} is blocked...\n"
+                    output += f"{self.readable_location(piece)},"
             for piece in white_pieces:
                 mob = piece_mobility(piece, 1, self.board)
                 if mob == 0:
-                    output += f"{self.readable_location(piece)} - is blocked ... \n"
+                    output += f"{self.readable_location(piece)}, "
+            output += "\n" + "..." * 20 + "\n"
 
         return output
 
+    @cython.ccall
+    @cython.infer_types(True)
     def validate_actions(self):
         """
         Check if the available actions are valid or not.
@@ -677,7 +688,8 @@ class BreakthroughGameState(GameState):
             return False
 
         for action in actions:
-            from_position, to_position = action
+            from_position: cython.int = action[0]
+            to_position: cython.int = action[1]
 
             # Check that there is a piece belonging to the current player at the 'from' position.
             if self.board[from_position] != self.player:
@@ -1010,7 +1022,8 @@ def evaluate_breakthrough(
     for k in range(2):
         positions: cython.list = state.positions[k]
         for i in range(len(positions)):
-            piece = board[positions[i]]
+            pos: cython.int = positions[i]
+            piece = board[pos]
             x = positions[i] // 8
             y = positions[i] % 8
 
