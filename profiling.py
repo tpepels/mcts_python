@@ -30,7 +30,7 @@ args = parser.parse_args()
 # debug: bool = False,
 
 
-algo = "alphabeta"
+algo = "mcts"
 game = "amazons"
 eval_params = {}
 ai_params = {

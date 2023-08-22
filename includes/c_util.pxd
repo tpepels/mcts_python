@@ -53,3 +53,10 @@ cdef inline list where_is_k(int[:] board , int k):
             indices.append(i)
 
     return indices
+
+cdef inline int f_index(int[:] arr, int value, int n):
+    cdef int i
+    for i in range(n):  # Assuming the second dimension always has size 4
+        if arr[i] == value:
+            return i
+    return -1  # Return -1 if the value is not found

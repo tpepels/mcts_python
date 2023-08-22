@@ -378,15 +378,14 @@ class MCTSPlayer:
             self.root = None  # In case we cannot find the action, mark the root as None to assert
 
             for child in children:
+                if child is None:
+                    break
                 if child.action == state.last_action:
                     self.root = child
                     if DEBUG:
                         print("Reusing root node")
                         self.root.action = ()  # This is what identifies the root node
                     break
-
-            assert self.root is not None, "Could not find the last action in the root node, which is wierd"
-            assert self.root.player == state.player, "The root node has the wrong player"
         if self.root is None:
             # Reset root for new round of MCTS
             self.root: Node = Node(state.player, (), self.player)
@@ -449,7 +448,7 @@ class MCTSPlayer:
             print("--*--" * 20)
             print(f"BEST NODE: {max_node}")
             print(
-                f"Last state evaluation: {state.evaluate(params=self.eval_params, player=self.player, norm=False):.4f} / (normalized): {state.evaluate(params=self.eval_params, player=self.player, norm=True):.4f}"
+                f"Previous state evaluation: {state.evaluate(params=self.eval_params, player=self.player, norm=False):.4f} / (normalized): {state.evaluate(params=self.eval_params, player=self.player, norm=True):.4f}"
             )
             print("--*--" * 20)
 
@@ -457,7 +456,7 @@ class MCTSPlayer:
             print(f":: {self.root} :: ")
             print(":: Children ::")
             comparator = ChildComparator()
-            sorted_children = sorted(self.root.children, key=comparator, reverse=True)
+            sorted_children = sorted(self.root.children[:20], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
 
         # For tree reuse, make sure that we can access the next action from the root

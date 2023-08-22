@@ -1,12 +1,8 @@
 # cython: language_level=3
 # distutils: language=c++
 import array
-from typing import Tuple
 import cython
 import numpy as np
-from cython.cimports import numpy as cnp
-
-cnp.import_array()
 
 import random
 
