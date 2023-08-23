@@ -444,7 +444,7 @@ class MCTSPlayer:
 
         if DEBUG:
             print(
-                f"Ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second."
+                f"\n ** ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second ** \n"
             )
 
         # retrieve the node with the most visits
@@ -497,6 +497,7 @@ class MCTSPlayer:
             comparator = ChildComparator()
             sorted_children = sorted(self.root.children[:20], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
+            print("--*--" * 20)
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node

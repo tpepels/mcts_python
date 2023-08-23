@@ -258,26 +258,26 @@ class AmazonsGameState(GameState):
         for i in range(N_DIRECTIONS):
             idx: cython.int = (start_idx + i) % N_DIRECTIONS  # Loop around using modulo
             dx, dy = DIRECTIONS[idx]
-            # dist: cython.int = get_random_distance(x, y, dx, dy, s)  # Get a random max distance, this is much slower..
-            dist: cython.int = c_random(1, s - 1)
+            # Get a random, valid max distance
+            dist: cython.int = get_random_distance(x, y, dx, dy, s)
             dist_count: cython.int = 0
             # Get the next cell in the direction
             nx, ny = x, y  # Start from the current position
             while dist_count < dist:
                 nx += dx
                 ny += dy
-
-                if 0 <= nx < s and 0 <= ny < s:
-                    if self.board[(nx * s) + ny] == 0:  # free cell
-                        dist_count += 1
-                    else:
-                        nx -= dx  # Step back to the last valid position
-                        ny -= dy
-                        break
+                # Because we pre-calculated the boundary, we no longer need to check it
+                # if 0 <= nx < s and 0 <= ny < s:
+                if self.board[(nx * s) + ny] == 0:  # free cell
+                    dist_count += 1
                 else:
                     nx -= dx  # Step back to the last valid position
                     ny -= dy
                     break
+                # else:
+                #     nx -= dx  # Step back to the last valid position
+                #     ny -= dy
+                #     break
 
             if dist_count >= 1:
                 return (nx * s) + ny
@@ -820,6 +820,10 @@ def count_reachable_squares(board: cython.int[:], pos: cython.int) -> cython.int
     s: cython.int = cython.cast(cython.int, math.sqrt(board.shape[0]))
     x: cython.int = pos // s
     y: cython.int = pos % s
+    ny: cython.int
+    nx: cython.int
+    dx: cython.int
+    dy: cython.int
 
     for i in range(N_DIRECTIONS):
         dx, dy = DIRECTIONS[i]

@@ -254,7 +254,9 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     def callback(current_player, action, game, time):
         nonlocal n_moves
         times.append(time)
-        print(f"Player {game.player}, action: {action}, time: {times[-1] - times[-2]:.1f}")
+        print(
+            f"Player {game.player}, action: {action}, time: {times[len(times) - 1] - times[len(times) - 2]:.1f}"
+        )
         print(game.visualize())
         n_moves += 1
 
