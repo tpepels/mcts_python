@@ -111,7 +111,7 @@ class Node:
             uct_val: cython.double = (
                 avg_value
                 + sqrt(c * log(self.n_visits) / child.n_visits)
-                + c_uniform_random(0.000001, 0.00001)
+                # + c_uniform_random(0.000001, 0.00001) # This was taking more time than expected
                 # Progressive bias, set pb_weight to 0 to disable
                 + (pb_weight * (pb_h / (1.0 + child.n_visits)))
             )
@@ -300,6 +300,13 @@ class MCTSPlayer:
     max_time: cython.double
     eval_params: cython.double[:]
     root: Node
+    # The highest evaluation value seen throughout the game (for normalisation purposes later on)
+    max_eval: cython.double
+    # The average depth of the playouts, for science
+    avg_po_moves: cython.double
+    # The average number of playouts per second
+    avg_pos_ps: cython.double
+    n_moves: cython.int
 
     def __init__(
         self,
@@ -365,27 +372,34 @@ class MCTSPlayer:
         if debug:
             global DEBUG
             DEBUG = 1
+        # Variables for debugging and science
+        self.avg_po_moves = 0
+        self.max_eval = -99999999.9
+        self.avg_pos_ps = 0
+        self.n_moves = 0
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
-
+        self.n_moves += 1
         # Check if we can reutilize the root
         # If the root is None then this is either the first move, or something else..
-        if self.root is not None:
+        if self.root is not None and self.root.expanded:
             child: Node
             children: cython.list = self.root.children
             self.root = None  # In case we cannot find the action, mark the root as None to assert
 
             for child in children:
-                if child is None:
-                    break
                 if child.action == state.last_action:
                     self.root = child
                     if DEBUG:
                         print("Reusing root node")
                         self.root.action = ()  # This is what identifies the root node
                     break
+        elif self.root is not None and not self.root.expanded:
+            # This sets the same condition as the one in the if statement above, make sure that a new root is generated
+            self.root = None
+
         if self.root is None:
             # Reset root for new round of MCTS
             self.root: Node = Node(state.player, (), self.player)
@@ -400,24 +414,35 @@ class MCTSPlayer:
 
         start_time: cython.long = curr_time()
         i: cython.int = 0
+
         if self.num_simulations:
             for i in range(self.num_simulations):
                 if DEBUG:
                     if (i + 1) % 100 == 0:
-                        print(f"\rSimulation: {i+1} ", end="")
+                        print(f"\rSimulation: {i+1:,} ", end="")
 
                 self.simulate(state)
+                # The root is solved, no need to look any further, since we have a winning/losing move
+                if self.root.solved_player != 0:
+                    break
         else:
             while curr_time() - start_time < self.max_time:
                 if DEBUG:
                     if (i + 1) % 100 == 0:
-                        print(f"\rSimulation: {i+1} ", end="")
+                        print(f"\rSimulation: {i+1:,} ", end="")
 
                 self.simulate(state)
                 i += 1
+                # The root is solved, no need to look any further, since we have a winning/losing move
+                if self.root.solved_player != 0:
+                    break
+
+        total_time: cython.long = curr_time() - start_time
+
+        self.avg_po_moves = self.avg_po_moves / (i + 1)
+        self.avg_pos_ps += i / float(max(1, total_time))
 
         if DEBUG:
-            total_time: cython.long = curr_time() - start_time
             print(
                 f"Ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second."
             )
@@ -430,11 +455,11 @@ class MCTSPlayer:
         max_node: Node = self.root.children[0]
         max_value: cython.double = max_node.n_visits
         n_children: cython.int = len(self.root.children)
-
+        c: cython.int
         # TODO Idea, use the im_value to decide which child to select
-        for i in range(1, n_children):
+        for c in range(1, n_children):
             # ! A none exception could happen in case there's a mistake in how the children are added to the list in expand
-            node: Node = self.root.children[i]
+            node: Node = self.root.children[c]
             if node.solved_player == self.player:  # We found a winning move, let's go champ
                 max_node = node
                 max_value = node.n_visits
@@ -447,9 +472,23 @@ class MCTSPlayer:
         if DEBUG:
             print("--*--" * 20)
             print(f"BEST NODE: {max_node}")
-            print(
-                f"Previous state evaluation: {state.evaluate(params=self.eval_params, player=self.player, norm=False):.4f} / (normalized): {state.evaluate(params=self.eval_params, player=self.player, norm=True):.4f}"
+            print("-*=*-" * 15)
+            next_state: GameState = state.apply_action(max_node.action)
+            evaluation: cython.double = next_state.evaluate(
+                params=self.eval_params, player=self.player, norm=False
             )
+            norm_eval: cython.double = next_state.evaluate(
+                params=self.eval_params, player=self.player, norm=True
+            )
+            self.max_eval = max(evaluation, self.max_eval)
+            print(
+                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f}"
+            )
+            print("--*--" * 20)
+            print(
+                f"avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
+            )
+            self.avg_po_moves = 0
             print("--*--" * 20)
 
         if DEBUG:
@@ -465,10 +504,6 @@ class MCTSPlayer:
 
     @cython.cfunc
     def simulate(self, init_state: GameState):
-        # The root is solved, no need to look any further, since we have a winning/losing move
-        if self.root.solved_player != 0:
-            return
-
         node: Node = self.root
         selected: cython.list = [self.root]
 
@@ -599,7 +634,7 @@ class MCTSPlayer:
                 best_action = state.get_random_action()
 
             state.apply_action_playout(best_action)
-
+        self.avg_po_moves += turns
         # Map the result to the players
         return state.get_result_tuple()
 

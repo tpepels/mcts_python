@@ -19,12 +19,15 @@ from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.stack import stack
 from cython.cimports.libcpp.set import set as cset
 from cython.cimports.includes import c_random, normalize, GameState, win, loss, draw, f_index
-
+from cython.cimports.games.amazons import DIRECTIONS, N_DIRECTIONS
 
 if cython.compiled:
     print("Amazons is compiled.")
 else:
     print("Amazons is just a lowly interpreted script.")
+
+DIRECTIONS = [[dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx == 0 and dy == 0)]
+N_DIRECTIONS = 8
 
 
 @cython.cclass
@@ -225,14 +228,61 @@ class AmazonsGameState(GameState):
         Get a single random legal action for the current player.
         """
         assert self.player_has_legal_moves, "Getting or making a move should not be possible"
-        # TODO Hier was je gebleven, je moet een enkele willekeurige actie genereren in plaats van ze allemaal
-        # TODO Playouts zijn nu te traag en ze zitten teveel in deze functie te wroeten
-        actions: cython.list = []
-        while actions == []:
-            random_queen: cython.int = self.queens[self.player - 1][c_random(0, 3)]
-            actions = self.get_legal_moves_for_amazon(random_queen)
 
-        return actions[c_random(0, len(actions) - 1)]
+        s_q: cython.int = c_random(0, 3)  # A random queen to start with
+        s: cython.int = self.board_size
+
+        q_i: cython.int
+        for q_i in range(4):
+            # Chose a random queen to start with
+            q_index: cython.int = (s_q + q_i) % 4
+            q_pos: cython.int = self.queens[self.player - 1][q_index]
+            # Find a direction to move in
+            m_pos: cython.int = self.find_direction(x=q_pos // s, y=q_pos % s, s=s)
+            if m_pos != -1:
+                self.board[m_pos] = self.board[q_pos]  # Move the piece to the new position temporarily
+                self.board[q_pos] = 0  # Remove the piece from its old position temporarily
+                # When a direction is found, shoot an arrow in a random direction
+                arr_pos: cython.int = self.find_direction(x=m_pos // s, y=m_pos % s, s=s)
+                self.board[q_pos] = self.board[m_pos]  # Move the piece back...
+                self.board[m_pos] = 0
+                if arr_pos != -1:
+                    return (q_pos, m_pos, arr_pos)
+        assert False, "No legal move found"
+
+    @cython.cfunc
+    @cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int, i=cython.int, idx=cython.int)
+    def find_direction(self, x: cython.int, y: cython.int, s: cython.int) -> cython.int:
+        start_idx: cython.int = c_random(0, N_DIRECTIONS - 1)  # Get a random starting index
+
+        for i in range(N_DIRECTIONS):
+            idx: cython.int = (start_idx + i) % N_DIRECTIONS  # Loop around using modulo
+            dx, dy = DIRECTIONS[idx]
+            # dist: cython.int = get_random_distance(x, y, dx, dy, s)  # Get a random max distance, this is much slower..
+            dist: cython.int = c_random(1, s - 1)
+            dist_count: cython.int = 0
+            # Get the next cell in the direction
+            nx, ny = x, y  # Start from the current position
+            while dist_count < dist:
+                nx += dx
+                ny += dy
+
+                if 0 <= nx < s and 0 <= ny < s:
+                    if self.board[(nx * s) + ny] == 0:  # free cell
+                        dist_count += 1
+                    else:
+                        nx -= dx  # Step back to the last valid position
+                        ny -= dy
+                        break
+                else:
+                    nx -= dx  # Step back to the last valid position
+                    ny -= dy
+                    break
+
+            if dist_count >= 1:
+                return (nx * s) + ny
+
+        return -1
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list:
@@ -247,11 +297,74 @@ class AmazonsGameState(GameState):
             q_p: cython.int = self.queens[self.player - 1][i]
             queen_moves: cython.list = self.get_legal_moves_for_amazon(q_p)
             legal_actions.extend(queen_moves)
-
-            # TODO If we find no moves then we know the position is terminal
-            self.n_moves_per_queen[q_p] = len(queen_moves)
+            self.n_moves_per_queen[q_p] = len(queen_moves)  # Update with the actual value
 
         return legal_actions
+
+    @cython.cfunc
+    @cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int, i=cython.int, idx=cython.int)
+    def get_legal_moves_for_amazon(self, f_p: cython.int) -> cython.list:
+        """
+        Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
+        """
+        moves: cython.list = []
+        s: cython.int = self.board_size
+        x: cython.int = f_p // s
+        y: cython.int = f_p % s
+        shot: cython.int
+
+        for i in range(N_DIRECTIONS):
+            dx, dy = DIRECTIONS[i]
+
+            nx, ny = x + dx, y + dy  # the next cell in the direction
+            while 0 <= nx < s and 0 <= ny < s:
+                idx = nx * s + ny
+                if self.board[idx] == 0:  # free cell
+                    # Find all legal arrow shots in the current direction.
+                    arrow_shots: vector[cython.int] = self.generate_arrow_shots(nx, ny, x, y, s)
+                    for shot in arrow_shots:
+                        moves.append((f_p, idx, shot))
+                    nx += dx
+                    ny += dy  # keep exploring in the direction
+
+                else:  # blocked cell
+                    break
+        return moves
+
+    @cython.cfunc
+    @cython.locals(dx=cython.int, dy=cython.int, a_nx=cython.int, a_ny=cython.int)
+    def generate_arrow_shots(
+        self,
+        nx: cython.int,
+        ny: cython.int,
+        x: cython.int,
+        y: cython.int,
+        s: cython.int,
+    ) -> vector[cython.int]:
+        """
+        Generate all legal arrow shots from the position (nx, ny).
+        """
+
+        arrow_shots: vector[cython.int]
+        arrow_shots.reserve(max(9, (s * 6) - self.n_moves))
+
+        for i in range(N_DIRECTIONS):
+            dx, dy = DIRECTIONS[i]
+
+            a_nx, a_ny = nx + dx, ny + dy  # the next cell in the direction
+
+            while 0 <= a_nx < s and 0 <= a_ny < s:
+                idx: cython.int = a_nx * s + a_ny
+                if self.board[idx] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
+                    arrow_shots.push_back(idx)
+
+                elif self.board[idx] != 0:  # blocked cell
+                    break
+
+                a_nx += dx
+                a_ny += dy
+
+        return arrow_shots
 
     @cython.cfunc
     def has_legal_moves(self):
@@ -260,45 +373,14 @@ class AmazonsGameState(GameState):
 
         :return: True if the current player has legal moves, False otherwise.
         """
-
         i: cython.int
         size: cython.int = self.board_size
-        dx: cython.int
-        dy: cython.int
-        ny: cython.int
-        nx: cython.int
-        x_limit: cython.int
-        y_limit: cython.int
 
         for i in range(4):
             x: cython.int = self.queens[self.player - 1][i] // size
             y: cython.int = self.queens[self.player - 1][i] % size
-
-            for dx in range(-1, 2):
-                for dy in range(-1, 2):
-                    if dx == dy == 0:
-                        continue
-                    nx, ny = x + dx, y + dy
-                    # Precompute the limits based on the direction
-                    if dx > 0:
-                        x_limit = size
-                    elif dx < 0:
-                        x_limit = -1
-                    else:
-                        x_limit = nx + 1  # unchanged
-
-                    if dy > 0:
-                        y_limit = size
-                    elif dy < 0:
-                        y_limit = -1
-                    else:
-                        y_limit = ny + 1  # unchanged
-
-                    # For movement we only have to check whether we can move 1 step (that also means that we can fire an arrow.)
-                    if (nx != x_limit and ny != y_limit) and self.board[(nx * size) + ny] == 0:
-                        return 1
-
-        # If no valid move is found for any queen, return False
+            if can_move(x, y, self.board, size):
+                return 1
         return 0
 
     @property
@@ -348,17 +430,16 @@ class AmazonsGameState(GameState):
     # These dictionaries are used by run_games to set the parameter values
     param_order: dict = {
         "n_moves_cutoff": 0,
-        "m_ter": 1,
-        "m_kill_s": 2,
-        "m_imm": 3,
-        "m_mob": 4,
-        "m_opp_disc": 5,
-        "a": 6,
-        "max_depth": 7,
+        "m_kill_s": 1,
+        "m_imm": 2,
+        "m_mob": 3,
+        "m_opp_disc": 4,
+        "a": 5,
+        "m_min_mob": 6,
     }
 
     # default_params = array.array("d", [10, 2.0, 1.5, 13.0, 2.0, 1.0, 50.0])
-    default_params = array.array("d", [0, 2.0, 1.5, 13.0, 2.0, 1.0, 300.0, 1])
+    default_params = array.array("d", [20, 1.5, 13.0, 2.0, 1.0, 300.0, 10])
 
     @cython.cfunc
     def evaluate(
@@ -376,18 +457,13 @@ class AmazonsGameState(GameState):
         """
 
         # "n_moves_cutoff": 0,
-        # "m_ter": 1,
-        # "m_kill_s": 2,
-        # "m_imm": 3,
-        # "m_mob": 4,
-        # "m_opp_disc": 5,
-        # "a": 6,
-        # "max_depth": 7
+        # "m_kill_s": 1,
+        # "m_imm": 2,
+        # "m_mob": 3,
+        # "m_opp_disc": 4,
+        # "a": 5,
+        # "m_min_mob": 6
 
-        if self.n_moves < params[0]:
-            return evaluate_amazons(self, player, norm=norm, m_opp_disc=params[5])
-
-        terr: cython.int = 0
         kill_save: cython.double = 0
         imm_mob: cython.double = 0
         mob_heur: cython.double = 0
@@ -395,26 +471,11 @@ class AmazonsGameState(GameState):
         opp_i: cython.int = (3 - player) - 1
         my_i: cython.int = player - 1
 
-        if params[1] > 0 and params[7] > 0:  # * Territory heuristic initialisation
-            my_territory: cython.double[:] = cvarray(
-                shape=(self.board.shape[0],), itemsize=cython.sizeof(cython.double), format="d"
-            )
-            my_territory[...] = 9999.9
-            their_territory: cython.double[:] = cvarray(
-                shape=(self.board.shape[0],), itemsize=cython.sizeof(cython.double), format="d"
-            )
-            their_territory[...] = 9999.9
+        min_mob_my_queen: cython.int = self.board.shape[0]
+        min_mob_opp_queen: cython.int = self.board.shape[0]
 
         for i in range(4):
-            if params[1] > 0 and params[7] > 0:  # * Territory heuristic
-                territory_helper(
-                    self.queens[my_i][i], self.board, my_territory, cython.cast(cython.int, params[7])
-                )
-                territory_helper(
-                    self.queens[opp_i][i], self.board, their_territory, cython.cast(cython.int, params[7])
-                )
-
-            if params[2] > 0 or params[3] > 0:  # * Kill/Save/Immobilize heuristic
+            if params[1] > 0 or params[2] > 0:  # * Kill/Save/Immobilize heuristic
                 # Player
                 count: cython.int = count_reachable_squares(self.board, self.queens[my_i][i])
                 imm_mob += count
@@ -426,23 +487,30 @@ class AmazonsGameState(GameState):
                 if count > 0:
                     kill_save -= 1
 
-            if params[4] > 0:  # * Mobility heuristic
-                mob_heur += flood_fill(self.board, self.queens[my_i][i])
-                mob_heur -= flood_fill(self.board, self.queens[opp_i][i])
+            if params[3] > 0 and self.n_moves > params[0]:  # * Mobility heuristic
+                mob_my_queen: cython.int = flood_fill(self.board, self.queens[my_i][i], self.board_size)
+                mob_opp_queen: cython.int = flood_fill(self.board, self.queens[opp_i][i], self.board_size)
+                mob_heur += mob_my_queen
+                mob_heur -= mob_opp_queen
 
-        if params[1] and params[7] > 0 > 0:  # * Territory heuristic
-            terr = territory_compare(my_territory, their_territory)
+                if mob_my_queen < min_mob_my_queen:
+                    min_mob_my_queen = mob_my_queen
+                if mob_opp_queen < min_mob_opp_queen:
+                    min_mob_opp_queen = mob_opp_queen
 
         # Calculate the utility of the current board state using a combination of heuristics.
         utility: cython.double = (
-            (params[1] * terr) + (params[2] * kill_save) + (params[3] * imm_mob) + (params[4] * mob_heur)
+            (params[1] * kill_save)
+            + (params[2] * imm_mob)
+            + (params[3] * mob_heur)
+            + (params[6] * (min_mob_opp_queen - min_mob_my_queen))
         )
 
         if self.player == 3 - player:
-            utility *= params[5]
+            utility *= params[4]
 
         if norm:
-            return normalize(utility, params[6])
+            return normalize(utility, params[5])
         else:
             return utility
 
@@ -503,8 +571,6 @@ class AmazonsGameState(GameState):
         new_arrow_y: cython.int
         new_end_x: cython.int
         new_end_y: cython.int
-        arrow_adj: cython.int
-        end_adj: cython.int
         dx: cython.int
         dy: cython.int
         s: cython.int = self.board_size
@@ -515,27 +581,19 @@ class AmazonsGameState(GameState):
         arrow: cython.int = move[2]
 
         # If we can throw an arrow at an opponent's queen, increase the score
-        for dx in range(-1, 2):
-            for dy in range(-1, 2):
-                if dx == 0 and dy == 0:
-                    continue
-
-                arrow_x, arrow_y = arrow // s, arrow % s
-                new_arrow_x, new_arrow_y = arrow_x + dx, arrow_y + dy
-
-                if 0 <= new_arrow_x < s and 0 <= new_arrow_y < s:
-                    arrow_adj = new_arrow_x * s + new_arrow_y
-                    if self.board[arrow_adj] == 3 - self.player:
-                        score += 40
-
-                # Prefer moves where we still have room to move
-                end_x, end_y = end // s, end % s
-                new_end_x, new_end_y = end_x + dx, end_y + dy
-
-                if 0 <= new_end_x < s and 0 <= new_end_y < s:
-                    end_adj = new_end_x * s + new_end_y
-                    if self.board[end_adj] == 0:
-                        score += 5
+        for i in range(N_DIRECTIONS):
+            dx, dy = DIRECTIONS[i]
+            arrow_x, arrow_y = arrow // s, arrow % s
+            new_arrow_x, new_arrow_y = arrow_x + dx, arrow_y + dy
+            if 0 <= new_arrow_x < s and 0 <= new_arrow_y < s:
+                if self.board[new_arrow_x * s + new_arrow_y] == 3 - self.player:
+                    score += 40
+            # Prefer moves where we still have room to move
+            end_x, end_y = end // s, end % s
+            new_end_x, new_end_y = end_x + dx, end_y + dy
+            if 0 <= new_end_x < s and 0 <= new_end_y < s:
+                if self.board[new_end_x * s + new_end_y] == 0:
+                    score += 5
 
         if score < 40:
             # Calculate score based on the distance of the Amazon's move from the center
@@ -576,17 +634,10 @@ class AmazonsGameState(GameState):
                 row.append(cell_representation[piece])
             output += str(i) + " " * (2 - len(str(i))) + " ".join(row) + "\n"  # row index and the row content
 
+        s: cython.int = self.board_size
         output += "hash: " + str(self.board_hash) + "\n"
-        output += (
-            "w:"
-            + ", ".join([position_to_readable(self.queens[0][i], self.board_size) for i in range(4)])
-            + "\n"
-        )
-        output += (
-            "b:"
-            + ", ".join([position_to_readable(self.queens[1][i], self.board_size) for i in range(4)])
-            + "\n"
-        )
+        output += "w:" + ", ".join([readable(self.queens[0][i], s) for i in range(4)]) + "\n"
+        output += "b:" + ", ".join([readable(self.queens[1][i], s) for i in range(4)]) + "\n"
 
         if full_debug:
             n_moves = 0
@@ -602,10 +653,13 @@ class AmazonsGameState(GameState):
             output += f" | normalized: {evaluate_amazons(self, 1, norm=True):.4f}/{evaluate_amazons(self, 2, norm=True):.4f}\n"
 
             output += "..." * 20 + "\n"
-            for queen in self.queens[0]:
-                output += f"White {position_to_readable(queen, self.board_size)} reachable squares: {count_reachable_squares(self.board, queen)}\n"
-            for queen in self.queens[1]:
-                output += f"Black {position_to_readable(queen, self.board_size)} reachable squares: {count_reachable_squares(self.board, queen)}\n"
+            for p in range(2):
+                p_str = "White" if p == 0 else "Black"
+                for queen in self.queens[p]:
+                    output += f"{p_str} {readable(queen, s)} reachable: {count_reachable_squares(self.board, queen)} | "
+                    output += f"n_moves_per_queen: {self.n_moves_per_queen[queen]} | "
+                    output += f"n_moves: {len(self.get_legal_moves_for_amazon(queen))} | "
+                    output += f"flooding: {flood_fill(self.board, queen, self.board_size)}\n"
 
             output += "..." * 20 + "\n"
 
@@ -620,73 +674,57 @@ class AmazonsGameState(GameState):
     def __repr__(self) -> str:
         return "amazons" + str(self.board_size)
 
-    @cython.cfunc
-    @cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int, i=cython.int, idx=cython.int)
-    def get_legal_moves_for_amazon(self, f_p: cython.int) -> cython.list:
-        """
-        Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
-        """
-        moves: cython.list = []
-        s: cython.int = self.board_size
-        x: cython.int = f_p // s
-        y: cython.int = f_p % s
-        shot: cython.int
 
-        for dx in range(-1, 2):
-            for dy in range(-1, 2):
-                if dx == 0 and dy == 0:
-                    continue
-                nx, ny = x + dx, y + dy  # the next cell in the direction
-                while 0 <= nx < s and 0 <= ny < s:
-                    idx = nx * s + ny
-                    if self.board[idx] == 0:  # free cell
-                        # Find all legal arrow shots in the current direction.
-                        arrow_shots: vector[cython.int] = self.generate_arrow_shots(nx, ny, x, y)
-                        for shot in arrow_shots:
-                            moves.append((f_p, idx, shot))
+@cython.cfunc
+@cython.inline
+@cython.cdivision(True)
+@cython.locals(dx=cython.int, dy=cython.int, x=cython.int, y=cython.int, s=cython.int)
+def get_random_distance(
+    x: cython.int, y: cython.int, dx: cython.int, dy: cython.int, s: cython.int
+) -> cython.int:
+    # Determine the maximum distance in the current direction
+    if dx != 0 and dy != 0:  # Diagonal movement
+        max_dist_x: cython.int = (s - 1 - x) // abs(dx) if dx > 0 else x // abs(dx)
+        max_dist_y: cython.int = (s - 1 - y) // abs(dy) if dy > 0 else y // abs(dy)
+        max_dist: cython.int = min(max_dist_x, max_dist_y)
+    elif dx != 0:  # Horizontal movement
+        max_dist: cython.int = (s - 1 - x) if dx > 0 else x
+    else:  # Vertical movement
+        max_dist: cython.int = (s - 1 - y) if dy > 0 else y
 
-                        nx += dx
-                        ny += dy  # keep exploring in the direction
-
-                    else:  # blocked cell
-                        break
-        return moves
-
-    @cython.cfunc
-    @cython.locals(adx=cython.int, ady=cython.int, a_nx=cython.int, a_ny=cython.int)
-    def generate_arrow_shots(
-        self, nx: cython.int, ny: cython.int, x: cython.int, y: cython.int
-    ) -> vector[cython.int]:
-        """
-        Generate all legal arrow shots from the position (nx, ny).
-        """
-
-        arrow_shots: vector[cython.int]
-        s: cython.int = self.board_size
-        arrow_shots.reserve(max(9, (s * 6) - self.n_moves))
-
-        for adx in range(-1, 2):
-            for ady in range(-1, 2):
-                if adx == 0 and ady == 0:
-                    continue
-
-                a_nx, a_ny = nx + adx, ny + ady  # the next cell in the direction
-
-                while 0 <= a_nx < s and 0 <= a_ny < s:
-                    idx = a_nx * s + a_ny
-                    if self.board[idx] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
-                        arrow_shots.push_back(idx)
-
-                    elif self.board[idx] != 0:  # blocked cell
-                        break
-                    a_nx += adx
-                    a_ny += ady
-
-        return arrow_shots
+    # Generate a random distance within the valid range
+    if max_dist > 0:
+        return c_random(1, max_dist)
+    else:
+        return -1
 
 
 @cython.cfunc
-def position_to_readable(pos: cython.int, board_size: cython.int) -> str:
+@cython.locals(
+    i=cython.int,
+    dx=cython.int,
+    dy=cython.int,
+    x=cython.int,
+    y=cython.int,
+    s=cython.int,
+    nx=cython.int,
+    ny=cython.int,
+)
+def can_move(x, y, board: cython.int[:], s) -> cython.bint:
+    for i in range(N_DIRECTIONS):
+        dx, dy = DIRECTIONS[i]
+        nx, ny = x + dx, y + dy
+        # Check if the new position is within bounds
+        if 0 <= nx < s and 0 <= ny < s:
+            # Check if the new position is empty (assuming 0 represents an empty cell)
+            if board[nx * s + ny] == 0:
+                return True
+
+    return False
+
+
+@cython.cfunc
+def readable(pos: cython.int, board_size: cython.int = 10) -> str:
     row = pos // board_size
     col = pos % board_size
     col_letter = chr(65 + col)  # Convert integer to corresponding uppercase letter
@@ -743,15 +781,13 @@ def evaluate_amazons(
     idx=cython.int,
     new_idx=cython.int,
 )
-def flood_fill(board: cython.int[:], pos: cython.int) -> cython.int:
+def flood_fill(board: cython.int[:], pos: cython.int, s: cython.int) -> cython.int:
     fstack: stack[cython.int]
     visited: cset[cython.int]
 
     fstack.push(pos)
     visited.insert(pos)
 
-    s = board.shape[0]
-    s_d: cython.int = s**2
     while not fstack.empty():
         idx = fstack.top()
         fstack.pop()
@@ -759,94 +795,16 @@ def flood_fill(board: cython.int[:], pos: cython.int) -> cython.int:
         x = idx // s
         y = idx % s
 
-        for dr in range(-1, 2):
-            for dc in range(-1, 2):
-                if dr == dc == 0:
-                    continue
+        for i in range(N_DIRECTIONS):
+            dr, dc = DIRECTIONS[i]
 
-                new_x, new_y = x + dr, y + dc
-                new_idx = new_x * s + new_y
-                if (
-                    0 <= s_d < new_idx
-                    and (0 <= new_x < s and 0 <= new_y < s)
-                    and board[new_idx] == 0
-                    and visited.count(new_idx) == 0
-                ):
-                    fstack.push(new_idx)
-                    visited.insert(new_idx)
+            new_x, new_y = x + dr, y + dc
+            new_idx = new_x * s + new_y
+            if 0 <= new_x < s and 0 <= new_y < s and board[new_idx] == 0 and visited.count(new_idx) == 0:
+                fstack.push(new_idx)
+                visited.insert(new_idx)
 
     return visited.size() - 1
-
-
-@cython.cfunc
-@cython.locals(
-    direction=tuple[cython.int, cython.int],
-    curr_idx=cython.int,
-    idx=cython.int,
-    size=cython.int,
-    new_idx=cython.int,
-    dc=cython.int,
-    dr=cython.int,
-    move_count=cython.int,
-    s=cython.int,
-)
-def territory_helper(
-    queen_idx: cython.int,
-    board: cython.int[:],
-    out: cython.double[:],
-    max_depth: cython.int,
-):
-    s = int(board.shape[0] ** 0.5)  # Assuming the board is square
-    out[queen_idx] = 0
-    queue = deque()
-
-    for dr in range(-s, s + 1, s):  # -s, 0, s
-        for dc in range(-1, 2):  # -1, 0, 1
-            if dr == dc == 0:
-                continue
-            new_idx = queen_idx + dr + dc
-            if 0 <= new_idx < board.shape[0] and board[new_idx] == 0:
-                if (dc == -1 and queen_idx % s == 0) or (dc == 1 and (queen_idx + 1) % s == 0):
-                    continue  # Prevent wrap-around left or right
-                queue.append(((dr, dc), 1, new_idx))
-
-    while queue:
-        direction, move_count, curr_idx = queue.pop()
-
-        if move_count >= max_depth or out[curr_idx] <= move_count:
-            continue
-
-        out[curr_idx] = move_count
-        for dr in range(-s, s + 1, s):
-            for dc in range(-1, 2):
-                if dr == dc == 0:
-                    continue
-                new_idx = curr_idx + dr + dc
-                if 0 <= new_idx < board.shape[0] and board[new_idx] == 0:
-                    if (dc == -1 and curr_idx % s == 0) or (dc == 1 and (curr_idx + 1) % s == 0):
-                        continue  # Prevent wrap-around left or right
-                    if dr == direction[0] and dc == direction[1]:
-                        queue.append(((dr, dc), move_count, new_idx))
-                    else:
-                        queue.append(((dr, dc), move_count + 1, new_idx))
-
-
-@cython.cfunc
-@cython.inline
-def territory_compare(ours: cython.double[:], theirs: cython.double[:]) -> cython.int:
-    i: cython.int
-    positive_diff: cython.int = 0
-    negative_diff: cython.int = 0
-    size: cython.int = ours.shape[0]
-
-    for i in range(size):
-        diff = ours[i] - theirs[i]
-        if diff < 0:
-            negative_diff += 1
-        elif diff > 0:
-            positive_diff += 1
-
-    return negative_diff - positive_diff
 
 
 @cython.cfunc
@@ -859,43 +817,21 @@ def count_reachable_squares(board: cython.int[:], pos: cython.int) -> cython.int
     :return: The number of reachable squares.
     """
     reachable: cython.int = 0
-    size: cython.int = int(board.shape[0] ** 0.5)  # Assuming a square board
+    s: cython.int = cython.cast(cython.int, math.sqrt(board.shape[0]))
+    x: cython.int = pos // s
+    y: cython.int = pos % s
 
-    dx: cython.int
-    dy: cython.int
-    ny: cython.int
-    nx: cython.int
-    x_limit: cython.int
-    y_limit: cython.int
-
-    x: cython.int = pos // size
-    y: cython.int = pos % size
-
-    for dx in range(-1, 2):
-        for dy in range(-1, 2):
-            if dx == dy == 0:
-                continue
-
-            nx, ny = x + dx, y + dy
-
-            # Precompute the limits based on the direction
-            if dx > 0:
-                x_limit = size
-            elif dx < 0:
-                x_limit = -1
-            else:
-                x_limit = nx  # unchanged
-
-            if dy > 0:
-                y_limit = size
-            elif dy < 0:
-                y_limit = -1
-            else:
-                y_limit = ny  # unchanged
-
-            while nx != x_limit and ny != y_limit and board[nx * size + ny] == 0:
+    for i in range(N_DIRECTIONS):
+        dx, dy = DIRECTIONS[i]
+        nx, ny = x + dx, y + dy
+        # Check if the new position is within bounds
+        if 0 <= nx < s and 0 <= ny < s:
+            # Check if the new position is empty (assuming 0 represents an empty cell)
+            if board[nx * s + ny] == 0:
                 reachable += 1
-                nx += dx
-                ny += dy
+            else:
+                continue
+        else:
+            continue
 
     return reachable

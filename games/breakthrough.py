@@ -280,9 +280,8 @@ class BreakthroughGameState(GameState):
         dr: cython.int = -1
         if self.player == 2:
             dr = 1
-        positions: cython.list = self.positions[self.player - 1]
 
-        n: cython.int = positions.size()
+        n: cython.int = self.positions[self.player - 1].size()
         start: cython.int = c_random(0, n - 1)  # This allows us to start at a random piece
 
         i: cython.int
@@ -294,7 +293,7 @@ class BreakthroughGameState(GameState):
 
         for i in range(n):
             index: cython.int = (start + i) % n
-            position: cython.int = positions[index]
+            position: cython.int = self.positions[self.player - 1][index]
 
             row: cython.int = position // 8
             col: cython.int = position % 8

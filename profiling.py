@@ -10,6 +10,13 @@ parser = argparse.ArgumentParser(description="Run the game with or without profi
 parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
 parser.add_argument("--debug", action="store_true", help="Show debug messages.")
 parser.add_argument("--pause", action="store_true", help="Pause after each turn.")
+parser.add_argument(
+    "--algo",
+    choices=["mcts", "alphabeta"],
+    default="alphabeta",
+    help="Choose the algorithm (mcts or alphabeta).",
+)
+
 args = parser.parse_args()
 
 # num_simulations: int = 0,
@@ -30,7 +37,7 @@ args = parser.parse_args()
 # debug: bool = False,
 
 
-algo = "mcts"
+algo = args.algo
 game = "amazons"
 eval_params = {}
 ai_params = {
