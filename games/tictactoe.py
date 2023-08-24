@@ -20,6 +20,7 @@ else:
     print("Tictactoe is just a lowly interpreted script.")
 
 
+@cython.cclass
 class TicTacToeGameState(GameState):
     zobrist_tables = {
         size: [[[random.randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
@@ -27,16 +28,30 @@ class TicTacToeGameState(GameState):
     }
     REUSE = True
 
+    player = cython.declare(cython.int, visibility="public")
+    board = cython.declare(cython.int[:, :], visibility="public")
+    board_hash = cython.declare(cython.longlong, visibility="public")
+    # TODO Je hebt net de pie-rule in apply move geimplementeerd, maar moet nog in move generation gebeuren
+    # TODO je moet ook de pie-rule boolean nog zetten (zie kalah)
+    last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
+
     def __init__(
-        self, board_size=3, row_length=None, last_move=None, board=None, player=1, n_turns=0, board_hash=None
+        self,
+        board_size=3,
+        row_length=None,
+        last_action=None,
+        board=None,
+        player=1,
+        n_turns=0,
+        board_hash=None,
     ):
         self.size = board_size
         self.row_length = row_length if row_length else board_size
-        self.board: np.ndarray = board
+        self.board = board
         self.board_hash = board_hash
         self.player = player
 
-        self.last_move = last_move
+        self.last_action = last_action
         self.n_turns = n_turns
 
         self.zobrist_table = self.zobrist_tables[self.size]
@@ -49,26 +64,60 @@ class TicTacToeGameState(GameState):
                     piece = self.board[i][j]
                     self.board_hash ^= self.zobrist_table[i][j][piece]
 
-    def apply_action(self, action):
+    @cython.cfunc
+    @cython.locals(x=cython.int, y=cython.int)
+    def apply_action_playout(self, action: cython.tuple) -> cython.void:
         x, y = action
+
+        if self.n_turns == 1 and x == -1 and y == -1:
+            # Pie rule switch the marks
+            for i in range(self.size):
+                for j in range(self.size):
+                    if self.board[i, j] != 0:
+                        self.board[i, j] = 3 - self.board[i, j]
+
         if self.board[x, y] != 0:
             raise ValueError("Illegal move")
 
-        new_board = np.copy(self.board)
-        new_board[x][y] = self.player
-        board_hash = self.board_hash ^ self.zobrist_table[x][y][0] ^ self.zobrist_table[x][y][3 - self.player]
+        self.board[x, y] = self.player
+        self.n_turns += 1
+        self.player = 3 - self.player
+        self.last_action = action
 
-        new_state = TicTacToeGameState(
+    @cython.cfunc
+    @cython.locals(x=cython.int, y=cython.int)
+    def apply_action(self, action: cython.tuple) -> TicTacToeGameState:
+        x, y = action
+
+        new_board: cython.int[:, :] = self.board.copy()
+
+        if self.n_turns == 1 and x == -1 and y == -1:
+            # Pie rule switch the marks
+            for i in range(self.size):
+                for j in range(self.size):
+                    if new_board[i, j] != 0:
+                        new_board[i, j] = 3 - new_board[i, j]
+        else:
+            if self.board[x, y] != 0:
+                raise ValueError("Illegal move")
+
+            new_board[x, y] = self.player
+
+        board_hash: cython.longlong = (
+            self.board_hash ^ self.zobrist_table[x][y][0] ^ self.zobrist_table[x][y][3 - self.player]
+        )
+
+        return TicTacToeGameState(
             board_size=self.size,
             board=new_board,
             player=3 - self.player,
             row_length=self.row_length,
             board_hash=board_hash,
             n_turns=self.n_turns + 1,
-            last_move=action,
+            last_action=action,
         )
-        return new_state
 
+    @cython.cfunc
     def skip_turn(self):
         """Used for the null-move heuristic in alpha-beta search"""
         new_board = np.copy(self.board)
@@ -80,7 +129,7 @@ class TicTacToeGameState(GameState):
             row_length=self.row_length,
             board_hash=self.board_hash,
             n_turns=self.n_turns,
-            last_move=None,
+            last_action=None,
         )
 
     def get_random_action(self):
@@ -107,7 +156,13 @@ class TicTacToeGameState(GameState):
             return 0
 
         return get_reward(
-            player, self.last_move[0], self.last_move[1], self.board, self.row_length, self.size, self.player
+            player,
+            self.last_action[0],
+            self.last_action[1],
+            self.board,
+            self.row_length,
+            self.size,
+            self.player,
         )
 
     def is_capture(self, move):
@@ -166,7 +221,7 @@ class TicTacToeGameState(GameState):
             visual += "hash: " + str(self.board_hash)
             visual += f"\nPlayer: {self.player} | {self.n_turns} moves made"
             visual += f"\nReward: ({self.get_reward(1)}/{self.get_reward(2)}), Terminal: {self.is_terminal()}"
-            visual += f"\n{len(actions)} last_move: {self.last_move} actions: {self.get_legal_actions()}"
+            visual += f"\n{len(actions)} last_action: {self.last_action} actions: {self.get_legal_actions()}"
 
             visual += f"\nEv P1: {evaluate_ninarow(self, 1)}"
             visual += f"\nEv P2: {evaluate_ninarow(self, 2)}"
