@@ -196,7 +196,9 @@ def run_game(
     """
 
     def callback(player, action, game: GameState, time):
-        print(f"{player} -> mv.: {action}.\n{game.visualize(full_debug=debug)}")
+        print("--" * 20)
+        print(f"\n\n{player}\n\n -> mv.: {action}.\n\n{game.visualize(full_debug=debug)}\n")
+        print("--" * 20)
 
         if pause:
             input("Press Enter to continue...")

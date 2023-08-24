@@ -145,7 +145,7 @@ class Node:
 
         while len(self.actions) > 0:
             # Get a random action from the list of previously generated actions
-            action: cython.tuple = self.actions.pop(c_random(0, len(self.actions) - 1))
+            action: cython.tuple = self.actions.pop()
 
             new_state: GameState = init_state.apply_action(action)
             child: Node = Node(new_state.player, action, self.max_player)
@@ -307,6 +307,8 @@ class MCTSPlayer:
     # The average number of playouts per second
     avg_pos_ps: cython.double
     n_moves: cython.int
+    max_depth: cython.int
+    avg_depth: cython.int
 
     def __init__(
         self,
@@ -377,6 +379,8 @@ class MCTSPlayer:
         self.max_eval = -99999999.9
         self.avg_pos_ps = 0
         self.n_moves = 0
+        self.avg_depth = 0
+        self.max_depth = 0
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
@@ -384,19 +388,30 @@ class MCTSPlayer:
         self.n_moves += 1
         # Check if we can reutilize the root
         # If the root is None then this is either the first move, or something else..
-        if self.root is not None and self.root.expanded:
+        if state.REUSE and self.root is not None and self.root.expanded:
             child: Node
+            print(f"Checking children of root node {str(self.root)} with {len(self.root.children)} children")
+            print(f"Last action: {str(state.last_action)}")
             children: cython.list = self.root.children
             self.root = None  # In case we cannot find the action, mark the root as None to assert
 
             for child in children:
+                print(f"Checking child: {str(child)}")
                 if child.action == state.last_action:
                     self.root = child
                     if DEBUG:
-                        print("Reusing root node")
+                        print(f"Reusing root node {str(child)}")
+                        assert len(state.get_legal_actions()) == len(
+                            self.root.children
+                        ), "The number of legal actions does not match the number of children\n" + "\n".join(
+                            [str(child) for child in self.root.children]
+                        )
                         self.root.action = ()  # This is what identifies the root node
                     break
-        elif self.root is not None and not self.root.expanded:
+            assert (
+                False
+            ), f"Could not find the action {str(state.last_action)} in the children of the root node"
+        elif not state.REUSE or (self.root is not None and not self.root.expanded):
             # This sets the same condition as the one in the if statement above, make sure that a new root is generated
             self.root = None
 
@@ -441,6 +456,7 @@ class MCTSPlayer:
 
         self.avg_po_moves = self.avg_po_moves / (i + 1)
         self.avg_pos_ps += i / float(max(1, total_time))
+        self.avg_depth = self.avg_depth / (i + 1)
 
         if DEBUG:
             print(
@@ -484,11 +500,12 @@ class MCTSPlayer:
             print(
                 f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f}"
             )
-            print("--*--" * 20)
             print(
                 f"avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
             self.avg_po_moves = 0
+            print(f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}")
+            self.max_depth = self.avg_depth = 0
             print("--*--" * 20)
 
         if DEBUG:
@@ -531,6 +548,9 @@ class MCTSPlayer:
             # This is the point where the last action was previously added to the node, so in fact the node is just marked as expanded
             if next_node == None:
                 assert node.expanded, "The node should have been expanded"
+                assert len(next_state.get_legal_actions()) == len(
+                    node.children
+                ), f"After expand, the number of legal actions does not match the number of children."
                 next_node = node.uct(self.c, self.pb_weight, self.imm_alpha)
 
             next_state = next_state.apply_action(next_node.action)
@@ -549,6 +569,9 @@ class MCTSPlayer:
                 result = (0.0, 1.0)
             else:
                 assert False, "This should not happen!"
+
+        self.max_depth = max(self.max_depth, len(selected))
+        self.avg_depth += len(selected)
 
         i: cython.int
         c: cython.int
@@ -635,6 +658,7 @@ class MCTSPlayer:
                 best_action = state.get_random_action()
 
             state.apply_action_playout(best_action)
+
         self.avg_po_moves += turns
         # Map the result to the players
         return state.get_result_tuple()

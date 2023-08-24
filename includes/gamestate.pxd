@@ -13,6 +13,8 @@ cdef class GameState:
 
     cpdef public GameState apply_action(self, tuple action)
    
+    cdef public GameState skip_turn(self)
+
     cdef public tuple get_random_action(self)
 
     cpdef public list get_legal_actions(self)

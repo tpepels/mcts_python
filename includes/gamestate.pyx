@@ -18,7 +18,10 @@ cdef class GameState:
 
     cpdef public GameState apply_action(self, tuple action):
         pass
-   
+    
+    cdef public GameState skip_turn(self):
+        pass
+
     cdef public tuple get_random_action(self):
         pass
 

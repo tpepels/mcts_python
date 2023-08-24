@@ -16,6 +16,13 @@ parser.add_argument(
     default="alphabeta",
     help="Choose the algorithm (mcts or alphabeta).",
 )
+parser.add_argument(
+    "--game",
+    choices=["amazons", "breakthrough", "ninarow", "kalah", "blokus"],
+    default="ninarow",
+    help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
+)
+
 
 args = parser.parse_args()
 
@@ -38,7 +45,7 @@ args = parser.parse_args()
 
 
 algo = args.algo
-game = "amazons"
+game = args.game
 eval_params = {}
 ai_params = {
     "max_time": 10,

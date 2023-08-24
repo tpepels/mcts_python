@@ -224,6 +224,7 @@ class BlokusPieces:
                 output.append(f"\tAvailable pieces: {available_pieces}")
         return "\n".join(output)
 
+
 @cython.cclass
 class BlokusGameState(GameState):
     # Changed zobrist_table size to include 4 players
@@ -233,6 +234,7 @@ class BlokusGameState(GameState):
         size=(BOARD_SIZE, BOARD_SIZE, 5),  # 4 players + 1 for empty state
         dtype=np.int64,
     )
+    REUSE = True
 
     def __init__(self, board=None, pieces=None, player=1, n_turns=0, passed=None):
         if passed is None:

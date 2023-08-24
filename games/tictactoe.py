@@ -25,6 +25,7 @@ class TicTacToeGameState(GameState):
         size: [[[random.randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
         for size in range(3, 10)
     }
+    REUSE = True
 
     def __init__(
         self, board_size=3, row_length=None, last_move=None, board=None, player=1, n_turns=0, board_hash=None
