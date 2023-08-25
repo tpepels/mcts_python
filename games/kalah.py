@@ -53,7 +53,10 @@ class KalahGameState(GameState):
 
         self.p1_pit = n_houses
         self.p2_pit = (n_houses * 2) + 1
+
         self.pie_rule_decision_made = 0
+        if n_moves == 1 and last_action == (-2,):
+            self.pie_rule_decision_made = 1
 
         if board is None:
             self.board = np.full((n_houses * 2) + 2, init_seeds, dtype=np.int32)  # n houses plus two pits
@@ -68,6 +71,7 @@ class KalahGameState(GameState):
         zobrist_table = self.zobrist_tables[self.board.shape[0]]
 
         self.board_hash = 0
+        position: cython.int
         for position in range((n_houses * 2) + 2):
             seeds = self.board[position]
             self.board_hash ^= zobrist_table[position][seeds]
@@ -78,18 +82,10 @@ class KalahGameState(GameState):
     @cython.cfunc
     @cython.locals(next_player=cython.int, winner=cython.int)
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
-        action_i: cython.int = action[0]
-
-        if action_i == -2:
-            self.apply_pie_rule(self.board)
-            next_player = 2
-            winner = 0
-            self.pie_rule_decision_made = 1
-        else:
-            next_player, winner = self._apply_action_logic(action_i, self.board)
-            # The first two moves, no doubles
-            if self.n_moves < 2:
-                next_player = 3 - self.player
+        next_player, winner = self._apply_action_logic(action[0], self.board)
+        # The first two moves, no doubles
+        if self.n_moves < 2:  # This is the reason for resetting the number of moves above
+            next_player = 3 - self.player
 
         self.winner = winner
         self.player = next_player
@@ -109,37 +105,27 @@ class KalahGameState(GameState):
         """
         action_i: cython.int = action[0]
         new_board: cython.int[:] = self.board.copy()
-
+        move_increment: cython.int = 1
         if action_i == -2:
             self.apply_pie_rule(new_board)
             next_player = 2
             winner = 0
-
-            new_state: KalahGameState = KalahGameState(
-                board=new_board,
-                player=next_player,
-                winner=winner,
-                last_action=action,
-                n_moves=self.n_moves,
-                n_houses=self.num_houses,
-            )
-            # Prevent another pie rule decision
-            new_state.pie_rule_decision_made = 1
-            return new_state
+            move_increment = 0
         else:
             next_player, winner = self._apply_action_logic(action_i, new_board)
+
             # The first two moves, no doubles
-            if self.n_moves < 2:
+            if self.n_moves < 2:  # This is the reason for resetting the number of moves above
                 next_player = 3 - self.player
 
-            return KalahGameState(
-                board=new_board,
-                player=next_player,
-                winner=winner,
-                last_action=action,
-                n_moves=self.n_moves + 1,
-                n_houses=self.num_houses,
-            )
+        return KalahGameState(
+            board=new_board,
+            player=next_player,
+            winner=winner,
+            last_action=action,
+            n_moves=self.n_moves + move_increment,
+            n_houses=self.num_houses,
+        )
 
     @cython.cfunc
     @cython.infer_types(True)
@@ -307,12 +293,6 @@ class KalahGameState(GameState):
                 # Regular moves
                 elif caps == [] and doubles == []:
                     moves.append(action)
-
-        # Make sure that the pie-rule can be chosen
-        if self.n_moves == 1 and not self.pie_rule_decision_made:
-            moves.append((-2,))
-            caps.append((-2,))
-            doubles.append((-2,))
 
         # * Make captures whenever you can, otherwise double moves, otherwise regular moves
         if caps != []:

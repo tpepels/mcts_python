@@ -43,7 +43,9 @@ class Node:
     solved_player = cython.declare(cython.int, visibility="public")
     player = cython.declare(cython.int, visibility="public")
     max_player = cython.declare(cython.int, visibility="public")
+    anti_decisive = cython.declare(cython.bint, visibility="public")
 
+    draw: cython.bint
     eval_value: cython.double
     action: cython.tuple
     actions: cython.list  # A list of actions that is used to expand the node
@@ -71,6 +73,7 @@ class Node:
         max_child: Node = self.children[c_random(0, n_children - 1)]
         max_val: cython.double = -999999.99
         children_lost: cython.int = 0
+        children_draw: cython.int = 0
         ci: cython.int
         # Move through the children to find the one with the highest UCT value
         for ci in range(n_children):
@@ -89,6 +92,10 @@ class Node:
                 elif child.solved_player == 3 - self.player:  # Losing move
                     children_lost += 1
                     continue  # Skip this child, we need to check if all children are losses to mark this node as solved
+
+            # Check whether all moves lead to a draw
+            if child.draw:
+                children_draw += 1
 
             avg_value: cython.double = (
                 child.v[self.player - 1] - child.v[(3 - self.player) - 1]
@@ -125,6 +132,12 @@ class Node:
             # Since all children are losses, we can mark this node as solved for the opponent
             # We do this here because the node may have been expanded and solved elsewhere in the tree
             self.solved_player = 3 - self.player
+        elif children_lost == n_children - 1 and self.solved_player == 0:
+            # There's only one move that does not lead to a loss. This is an anti-decisive move.
+            self.anti_decisive = 1
+        # Proven draw
+        elif children_draw == n_children:
+            self.draw = 1
 
         return max_child  # A random child was chosen at the beginning of the method, hence this will never be None
 
@@ -163,6 +176,8 @@ class Node:
                 elif result == loss:
                     child.solved_player = 3 - self.player
                     continue
+                else:
+                    child.draw = 1
                 # If the game is a draw or a win, we can return the child as any other.
                 return child  # Return a child that is not a loss. This is the node we will explore next.
             # No use to evaluate terminal or solved nodes.
@@ -229,31 +244,30 @@ class Node:
             self.expand(init_state, prog_bias=prog_bias, imm=imm, eval_params=eval_params)
 
     @cython.cfunc
+    @cython.locals(child=Node, i=cython.int)
     def check_loss_node(self):
         # I'm solved, nothing to see here.
         if self.solved_player != 0.0:
             return
 
-        opponent: cython.int = 3 - self.player
-        child: Node
-        i: cython.int
-
         for i in range(len(self.children)):
             child = self.children[i]
             # If all children lead to a loss, then we will not return from the function
-            if child.solved_player != opponent:
+            if child.solved_player != 3 - self.player:
                 return
 
-        self.solved_player = opponent
+        self.solved_player = 3 - self.player
 
     def __str__(self):
-        root_mark = "(Root)" if self.action == () else ""
+        root_mark = f"(Root) AD:{self.anti_decisive:<1}" if self.action == () else ""
 
         solved_bg = ""
         if self.solved_player == 1:
             solved_bg = Back.LIGHTCYAN_EX
         elif self.solved_player == 2:
             solved_bg = Back.LIGHTWHITE_EX
+        elif self.draw:
+            solved_bg = Back.LIGHTGREEN_EX
 
         im_str = (
             f"{Fore.RED}IM:{Style.BRIGHT}{self.im_value:7.2f}{Style.NORMAL} "
@@ -262,7 +276,7 @@ class Node:
         )
 
         # This is flipped because I want to see it in view of the parent
-        value = (self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / self.n_visits
+        value = (self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / max(1, self.n_visits)
 
         return (
             f"{solved_bg}"
@@ -272,6 +286,7 @@ class Node:
             + f"{Fore.YELLOW}EV:{Style.BRIGHT}{self.eval_value:7.2f}{Style.NORMAL} "
             f"{Fore.CYAN}EX:{Style.BRIGHT}{self.expanded:<3}{Style.NORMAL} "
             f"{Fore.MAGENTA}SP:{Style.BRIGHT}{self.solved_player:<3}{Style.NORMAL} "
+            f"{Fore.MAGENTA}DR:{Style.BRIGHT}{self.draw:<3}{Style.NORMAL} "
             f"{Fore.WHITE}V:{Style.BRIGHT}{value:2.1f}{Style.NORMAL} "
             f"{Back.YELLOW + Fore.BLACK}NV:{Style.BRIGHT}{self.n_visits}{Style.NORMAL}{Back.RESET + Fore.RESET}"
         )
@@ -396,7 +411,6 @@ class MCTSPlayer:
             self.root = None  # In case we cannot find the action, mark the root as None to assert
 
             for child in children:
-                print(f"Checking child: {str(child)}")
                 if child.action == state.last_action:
                     self.root = child
                     if DEBUG:
@@ -408,9 +422,6 @@ class MCTSPlayer:
                         )
                         self.root.action = ()  # This is what identifies the root node
                     break
-            assert (
-                False
-            ), f"Could not find the action {str(state.last_action)} in the children of the root node"
         elif not state.REUSE or (self.root is not None and not self.root.expanded):
             # This sets the same condition as the one in the if statement above, make sure that a new root is generated
             self.root = None
@@ -440,6 +451,10 @@ class MCTSPlayer:
                 # The root is solved, no need to look any further, since we have a winning/losing move
                 if self.root.solved_player != 0:
                     break
+                if self.root.anti_decisive:
+                    break
+                if self.root.draw:
+                    break
         else:
             while curr_time() - start_time < self.max_time:
                 if DEBUG:
@@ -451,35 +466,50 @@ class MCTSPlayer:
                 # The root is solved, no need to look any further, since we have a winning/losing move
                 if self.root.solved_player != 0:
                     break
+                if self.root.anti_decisive:
+                    break
+                if self.root.draw:
+                    break
 
         total_time: cython.long = curr_time() - start_time
 
         self.avg_po_moves = self.avg_po_moves / (i + 1)
         self.avg_pos_ps += i / float(max(1, total_time))
-        self.avg_depth = self.avg_depth / (i + 1)
+        self.avg_depth = cython.cast(cython.int, self.avg_depth / (i + 1))
 
         if DEBUG:
             print(
-                f"\n ** ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second ** \n"
+                f"\n\n** ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second **"
             )
+            if self.root.solved_player != 0:
+                print(f"*** Root node is solved for player {self.root.solved_player} ***")
+            if self.root.anti_decisive:
+                print(f"*** Anti-decisive move found ***")
+            if self.root.draw:
+                print("*** Proven draw ***")
 
         # retrieve the node with the most visits
         assert (
             len(self.root.children) > 0
         ), f"No children found for root node {self.root}, after {i:,} simulations"
 
-        max_node: Node = self.root.children[0]
-        max_value: cython.double = max_node.n_visits
+        max_node: Node = None
+        max_value: cython.double = -float("inf")
         n_children: cython.int = len(self.root.children)
-        c: cython.int
+
+        c_i: cython.int
         # TODO Idea, use the im_value to decide which child to select
-        for c in range(1, n_children):
+        for c_i in range(1, n_children):
             # ! A none exception could happen in case there's a mistake in how the children are added to the list in expand
-            node: Node = self.root.children[c]
+            node: Node = self.root.children[c_i]
             if node.solved_player == self.player:  # We found a winning move, let's go champ
                 max_node = node
                 max_value = node.n_visits
                 break
+
+            if node.solved_player == 3 - self.player:  # We found a losing move
+                continue
+
             value: cython.double = node.n_visits
             if value > max_value:
                 max_node = node

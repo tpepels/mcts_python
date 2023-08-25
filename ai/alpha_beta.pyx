@@ -32,6 +32,7 @@ cdef unsigned root_seen = 0
 
 # This stores a proven best_move resulting from the a/b search
 cdef tuple best_move
+cdef tuple anti_decisive_move
 
 cdef dict total_search_time = {1: 0., 2: 0.}
 cdef dict n_moves = {1: 0, 2: 0}
@@ -70,7 +71,8 @@ cdef float value(
     cdef int n_actions = 0
     cdef tuple depth_best_move = (0,0)
     cdef int hist_mult = 100 if is_max_player else -100
-
+    cdef int non_losing_moves = 0
+    
     reached = max(reached, max_d - depth)
 
     if state.is_terminal():
@@ -161,7 +163,7 @@ cdef float value(
             pass
         
         stat_visited += 1
-
+        
         for m in range(n_actions):
             move = actions[m]
             new_v = value(
@@ -181,18 +183,22 @@ cdef float value(
                 use_null_moves=use_null_moves,
                 R=R,
             )
-
             # Update v, alpha or beta based on the player
             if (is_max_player and new_v > v) or (not is_max_player and new_v < v):
                 v = new_v
                 depth_best_move = move
-                
                 # At the root remember the best move so far
                 if root:
                     best_move = move
+                    # If we find a winning move, just return it
+                    if new_v == win:
+                        return new_v
 
             if root:
                 root_seen += 1
+                # If the move is not a terminal loss, add it to the list of non-losing moves
+                if new_v != loss:
+                    non_losing_moves += 1
 
             if is_max_player:
                 alpha = max(alpha, new_v)
@@ -213,7 +219,13 @@ cdef float value(
 
             if is_interrupted:
                 return v
-        
+
+        # If there's only one non-losing move, return it immediately
+        if root and non_losing_moves == 1:
+            # Anti-decisive move (must be the current best move)
+            global anti_decisive_move
+            anti_decisive_move = best_move
+
         return v
 
     finally:
@@ -384,14 +396,15 @@ cdef class AlphaBetaPlayer:
         global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_null_cuts, stat_tt_orders,stat_killers
         # Globals that carry over from the calling class, mainly meant for interrupting the search.
         global count, time_limit, start_time, is_first, is_interrupted, start_depth_time, best_move, root_seen
-
+        global anti_decisive_move, decisive_move
         stat_q_searches = stat_n_eval = stat_visited = stat_cutoffs = stat_moves_gen = stat_killers = 0
         stat_null_cuts = count = time_limit = stat_tt_orders = 0
         root_seen = start_time = start_depth_time = 0
 
-        best_move = None
+        best_move = anti_decisive_move = None
         is_interrupted = False
         is_first = True
+
 
     cpdef best_action(self, GameState state):
         cdef float v
@@ -491,7 +504,14 @@ cdef class AlphaBetaPlayer:
                     print(f"time {(last_search_time):.3f} *** ", end="")
                 # keep track of the time spent on each depth
                 search_times.append(last_search_time)
-
+                
+                # Don't search further in case of an anti-decisive move
+                if anti_decisive_move is not None:
+                    if self.debug:
+                        print(f"Anti-decisive move found: {anti_decisive_move}")
+                    best_move = anti_decisive_move
+                    break
+                
                 # Don't spend any more time on proven wins/losses
                 if v in [win, loss]:
                     break

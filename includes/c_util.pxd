@@ -54,9 +54,23 @@ cdef inline list where_is_k(int[:] board , int k):
 
     return indices
 
+cdef inline list where_is_k2d(int[:,:] board , int k):
+    cdef int i
+    cdef int j
+    cdef list indices = []
+
+    for i in range(board.shape[0]):
+        for j in range(board.shape[1]):
+            if board[i][j] == k:
+                indices.append((i, j))
+
+    return indices
+
 cdef inline int f_index(int[:] arr, int value, int n):
     cdef int i
     for i in range(n):  # Assuming the second dimension always has size 4
         if arr[i] == value:
             return i
     return -1  # Return -1 if the value is not found
+
+cpdef list generate_spiral(int size)

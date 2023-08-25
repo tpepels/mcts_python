@@ -5,20 +5,22 @@ import traceback
 
 from run_games import AIParams, run_game
 
+ai_choices = ["mcts", "alphabeta"]
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
 parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
 parser.add_argument("--debug", action="store_true", help="Show debug messages.")
 parser.add_argument("--pause", action="store_true", help="Pause after each turn.")
+parser.add_argument("--battle", action="store_true", help="Run a battle between two AIs.")
 parser.add_argument(
     "--algo",
-    choices=["mcts", "alphabeta"],
+    choices=ai_choices,
     default="alphabeta",
     help="Choose the algorithm (mcts or alphabeta).",
 )
 parser.add_argument(
     "--game",
-    choices=["amazons", "breakthrough", "ninarow", "kalah", "blokus"],
+    choices=["amazons", "breakthrough", "ninarow59", "kalah46", "kalah68", "blokus"],
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
 )
@@ -42,35 +44,76 @@ args = parser.parse_args()
 # epsilon: float = 0.05,
 # node_priors: bool = False,
 # debug: bool = False,
+# Check if the game starts with "ninarow" or "kalah"
+if args.game.startswith("ninarow"):
+    game_name = "ninarow"
+    row_length, board_size = int(args.game[-2]), int(args.game[-1])
+    game_params = {"row_length": row_length, "board_size": board_size}
+elif args.game.startswith("kalah"):
+    game_name = "kalah"
+    n_houses, init_seeds = int(args.game[-2]), int(args.game[-1])
+    game_params = {"n_houses": n_houses, "init_seeds": init_seeds}
+else:
+    game_name = args.game
+    game_params = {}
 
+game = game_name
+if not args.battle:
+    algo = args.algo
+    eval_params = {}
+    ai_params = {
+        "max_time": 10,
+        "debug": args.debug,
+        # "early_term": True,
+        # "early_term_turns": 10,
+        # "early_term_cutoff": 0.05,
+        # # "roulette": True,
+        # "prog_bias": True,
+        # "imm": True,
+    }
 
-algo = args.algo
-game = args.game
-eval_params = {}
-ai_params = {
-    "max_time": 10,
-    "debug": args.debug,
-    # "early_term": True,
-    # "early_term_turns": 10,
-    # "early_term_cutoff": 0.05,
-    # # "roulette": True,
-    # "prog_bias": True,
-    # "imm": True,
-}
-game_params = {}
+    p1_params = AIParams(
+        ai_key=algo,
+        eval_params=eval_params,
+        max_player=1,
+        ai_params=ai_params,
+    )
+    p2_params = AIParams(
+        ai_key=algo,
+        eval_params=eval_params,
+        max_player=2,
+        ai_params=ai_params,
+    )
+else:
+    algo = args.algo
+    eval_params = {}
+    ai_params_alpha_beta = {
+        "max_time": 10,
+        "debug": args.debug,
+    }
+    ai_params_mcts = {
+        "max_time": 10,
+        "debug": args.debug,
+        # "early_term": True,
+        # "early_term_turns": 10,
+        # "early_term_cutoff": 0.05,
+        # # "roulette": True,
+        # "prog_bias": True,
+        # "imm": True,
+    }
 
-p1_params = AIParams(
-    ai_key=algo,
-    eval_params=eval_params,
-    max_player=1,
-    ai_params=ai_params,
-)
-p2_params = AIParams(
-    ai_key=algo,
-    eval_params=eval_params,
-    max_player=2,
-    ai_params=ai_params,
-)
+    p1_params = AIParams(
+        ai_key="alphabeta",
+        eval_params=eval_params,
+        max_player=1,
+        ai_params=ai_params_alpha_beta,
+    )
+    p2_params = AIParams(
+        ai_key="mcts",
+        eval_params=eval_params,
+        max_player=2,
+        ai_params=ai_params_mcts,
+    )
 
 
 def run_game_code():
