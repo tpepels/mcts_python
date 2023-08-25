@@ -20,6 +20,7 @@ from cython.cimports.includes import (
     generate_spiral,
     c_uniform_random,
     c_random,
+    find_2d_index,
 )
 from cython.cimports.games.tictactoe import MIN_SIZE, MAX_SIZE, SPIRALS
 from termcolor import colored
@@ -75,6 +76,7 @@ class TicTacToeGameState(GameState):
         pie_move_done=0,
     ):
         assert MIN_SIZE <= size <= MAX_SIZE
+
         self.size = board_size
         self.row_length = row_length if row_length else board_size
         self.board = board
@@ -185,8 +187,13 @@ class TicTacToeGameState(GameState):
         """
         Move in a spiral pattern starting from a position close to the center of the board.
         """
-        # Select a start index close to the start (which is the center of the board)
-        if c_uniform_random(0, 1) < 0.1:  # Little bit greedy to the center to prevent endless games
+
+        if self.n_moves > 2 and c_uniform_random(0, 1) < 0.01:
+            act_idx = find_2d_index(SPIRALS[self.size - MIN_SIZE], self.last_action[0], self.last_action[1])
+            start_i = abs(cython.cast(cython.int, gauss(act_idx, (self.size / 2) ** 2)))
+            start_i = start_i % (self.size**2)
+        elif c_uniform_random(0, 1) < 0.001:  # Little bit greedy to the center to prevent endless games
+            # Select a start index close to the start (which is the center of the board)
             start_i = abs(cython.cast(cython.int, gauss(0, (self.size / 2) ** 2)))
             start_i = start_i % (self.size**2)  # Wrap to valid range
         else:
@@ -559,11 +566,11 @@ class TicTacToeGameState(GameState):
                                 if space_count >= self.row_length:
                                     # If the line is broken we don't want that, unless we only need one more mark to win
                                     if count < (self.row_length - 1):
-                                        count -= parts
+                                        power: cython.double = max(1, params[0] - parts)
                                     if p == 1:
-                                        score_p1 += count ** params[0]
+                                        score_p1 += count**power
                                     else:
-                                        score_p2 += count ** params[0]
+                                        score_p2 += count**power
         if norm:
             return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[3])
 

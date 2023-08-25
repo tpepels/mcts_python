@@ -74,3 +74,14 @@ cdef inline int f_index(int[:] arr, int value, int n):
     return -1  # Return -1 if the value is not found
 
 cpdef list generate_spiral(int size)
+
+cdef inline int find_2d_index(int[:, :] arr, int x, int y):
+    cdef int i
+
+    # Iterate through the positions for the given size
+    for i in range(arr.shape[0] * arr.shape[0]):
+        if arr[i][0] == x and arr[i][1] == y:
+            return i  # Return the index if the coordinates match
+
+    return -1  # Return -1 if the coordinates were not found
+

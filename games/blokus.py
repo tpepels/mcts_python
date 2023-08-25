@@ -6,6 +6,7 @@ from typing import Generator, Tuple
 import cython
 from cython.cimports import numpy as cnp
 from cython.cimports.includes import c_random, normalize, GameState, draw, loss, win
+from cython.cimports.games.blokus import BOARD_SIZE, PASS_MOVE, PIECE_SIZES, UNIQUE_ROTATIONS
 
 cnp.import_array()
 import numpy as np
@@ -16,19 +17,9 @@ if cython.compiled:
 else:
     print("Blokus is just a lowly interpreted script.")
 
-PLAYER_COUNT: cython.int = 2
-BOARD_SIZE: cython.int = 20
+BOARD_SIZE = 20
 
-PASS_MOVE: tuple[cython.int, cython.int, cython.int, cython.int] = (-1, -1, -1, -1)
-
-# Define offsets for orthogonally adjacent cells (up, down, left, right)
-ORTHOGONAL_NEIGHBORS: cython.list = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-CORNERS: cython.list = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
-
-# We create a constant player board as it's just used for comparing against the actual board
-PLAYER_BOARD: cnp.ndarray = np.array(
-    [np.full((BOARD_SIZE, BOARD_SIZE), 1), np.full((BOARD_SIZE, BOARD_SIZE), 2)]
-)
+PASS_MOVE = (-1, -1, -1, -1)
 
 
 BOARD_CORNERS: cython.set = set(
@@ -39,6 +30,7 @@ BOARD_CORNERS: cython.set = set(
         (BOARD_SIZE - 1, BOARD_SIZE - 1),
     ]
 )
+
 colors = ["green", "red", "blue", "yellow"]
 
 pieces: cython.list = [
@@ -68,24 +60,20 @@ pieces: cython.list = [
     np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.int32),  # pentomino_X
     np.array([[1, 0], [1, 1], [1, 0], [1, 0]], dtype=np.int32),  # pentomino_Y
 ]
-# Calculate the total size of the pieces
-total_ones: cython.int = 0
+
 # Pre-compute the number of 1's in each piece
-piece_sizes: cython.dict = {}
 piece_index: cython.int
 piece: cnp.ndarray
-
 for piece_index, piece in enumerate(pieces):
-    piece_sizes[piece_index] = np.sum(piece)
-    total_ones += np.sum(piece)
+    PIECE_SIZES[piece_index] = np.sum(piece)
 
 
-unique_rotations: cython.dict = {}
 rotations: cython.list
 flips: cython.list
 unique: cython.list
 rotated: cnp.ndarray
 u: cnp.ndarray
+
 for piece_index, piece in enumerate(pieces):
     rotations = [np.rot90(piece, rotation) for rotation in range(4)]
     # Add flipped versions of the piece and its rotations.
@@ -98,21 +86,19 @@ for piece_index, piece in enumerate(pieces):
         if not any(np.array_equal(rotated, np.array(u)) for u in unique):
             unique.append(rotated)
 
-    unique_rotations[piece_index] = len(unique)
+    UNIQUE_ROTATIONS[piece_index] = len(unique)
 
 
-rotated_pieces: cython.dict = {}
-piece_indices: cython.dict = {}
+ROTATED_PIECES = [None] * len(pieces)
+PIECE_INDICES = [None] * len(pieces)
 for piece_index, piece in enumerate(pieces):
-    rotations = [np.rot90(piece, rotation) for rotation in range(unique_rotations[piece_index])]
+    rotations = [np.rot90(piece, rotation) for rotation in range(UNIQUE_ROTATIONS[piece_index])]
     # Add flipped versions of the piece and its rotations.
     flips = [np.flip(piece), np.flip(piece, 0), np.flip(piece, 1)]
     rotations += flips
 
-    rotated_pieces[piece_index] = [np.array(rotation).astype(np.int32) for rotation in rotations]
-    piece_indices[piece_index] = [np.argwhere(rotation).astype(np.int32) for rotation in rotations]
-
-MAX_PIECE_COUNT: cython.int = total_ones * 2
+    ROTATED_PIECES[piece_index] = [np.array(rotation).astype(np.int32) for rotation in rotations]
+    PIECE_INDICES[piece_index] = [np.argwhere(rotation).astype(np.int32) for rotation in rotations]
 
 
 @cython.cclass
@@ -137,9 +123,6 @@ class BlokusPieces:
             self.pieces_size = np.empty(4, dtype=np.int16)
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
     @cython.locals(new_obj=BlokusPieces)
     def custom_copy(self) -> BlokusPieces:
         new_obj = BlokusPieces(init_state=True)
@@ -152,23 +135,17 @@ class BlokusPieces:
         return new_obj
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
     @cython.locals(piece_index=cython.int, color=cython.int)
     def play_piece(self, piece_index, color):
         assert 0 <= self.rem_pieces[color - 1, piece_index] <= 1
         if self.rem_pieces[color - 1, piece_index] >= 1:
             self.rem_pieces[color - 1, piece_index] = False
             self.pieces_count[color - 1] -= 1
-            self.pieces_size[color - 1] -= piece_sizes[piece_index]
+            self.pieces_size[color - 1] -= PIECE_SIZES[piece_index]
         else:
             raise ValueError(f"Player {color} doesn't have piece {piece_index} available.")
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
     @cython.locals(piece_index=cython.int, color=cython.int, color_i=cython.int, piece_i=cython.int)
     def avail_pieces_for_color(self, color) -> cython.list:
         return [
@@ -178,17 +155,11 @@ class BlokusPieces:
         ]
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
     @cython.locals(color=cython.int)
     def pieces_left_for_color(self, color) -> cython.int:
         return self.pieces_count[color - 1]
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
     @cython.locals(player=cython.int)
     def pieces_left_for_player(self, player) -> cython.int:
         if player == 1:
@@ -197,9 +168,6 @@ class BlokusPieces:
             return self.pieces_count[1] + self.pieces_count[3]
 
     @cython.ccall
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
-    @cython.wraparound(False)
     @cython.locals(player=cython.int)
     def sum_piece_size(self, player) -> cython.int:
         if player == 1:
@@ -236,9 +204,24 @@ class BlokusGameState(GameState):
     )
     REUSE = True
 
-    def __init__(self, board=None, pieces=None, player=1, n_turns=0, passed=None):
+    # Public variables
+    player = cython.declare(cython.int, visibility="public")
+    color = cython.declare(cython.int, visibility="public")
+    board = cython.declare(cython.int[:, :], visibility="public")
+    board_hash = cython.declare(cython.longlong, visibility="public")
+    last_action = cython.declare(
+        cython.tuple[cython.int, cython.int, cython.int, cython.int], visibility="public"
+    )
+    # Private variables
+    passed: cython.bint[:]
+    pieces: BlokusPieces
+    positions_checked: cython.int
+
+    def __init__(
+        self, board=None, pieces=None, player=1, n_turns=0, passed=None, last_action=(-1, -1, -1, -1)
+    ):
         if passed is None:
-            passed = {1: False, 2: False, 3: False, 4: False}
+            passed = [False, False, False, False]
 
         if pieces is None:
             self.pieces = BlokusPieces(init_state=True)
@@ -257,14 +240,20 @@ class BlokusGameState(GameState):
         self.color = (n_turns % 4) + 1
         self.passed = passed
         self.positions_checked = 0
+        self.last_action = last_action
 
+    @cython.cfunc
     def _calculate_board_hash(self):
-        return calculate_board_hash(self.board, self.zobrist_table)
+        for x in range(BOARD_SIZE):
+            for y in range(BOARD_SIZE):
+                player: cython.int = int(self.board[x, y])
+                self.board_hash ^= self.zobrist_table[x, y, player]
 
-    def skip_turn(self):
+    @cython.cfunc
+    def skip_turn(self) -> BlokusGameState:
         """Used for the null-move heuristic in alpha-beta search"""
         new_state = BlokusGameState(
-            board=np.copy(self.board),
+            board=self.board.copy(),
             pieces=self.pieces.custom_copy(),
             player=3 - self.player,
             n_turns=self.n_turns + 1,
@@ -273,20 +262,69 @@ class BlokusGameState(GameState):
         new_state.board_hash = new_state._calculate_board_hash()
         return new_state
 
-    def apply_action(self, action: Tuple[int, int, int, int]) -> BlokusGameState:
+    @cython.cfunc
+    @cython.locals(
+        x=cython.int,
+        y=cython.int,
+        piece_index=cython.int,
+        rotation=cython.int,
+        i=cython.int,
+        x=cython.int,
+        dx=cython.int,
+        dy=cython.int,
+    )
+    def apply_action_playout(self, action: cython.tuple) -> cython.void:
+        if action == PASS_MOVE:
+            self.passed[self.color - 1] = 1
+        else:
+            x, y, piece_index, rotation = action
+
+            indices: cython.int[:, :] = PIECE_INDICES[piece_index][rotation]
+
+            for i in range(indices.shape[0]):
+                dx = indices[i, 0]
+                dy = indices[i, 1]
+                self.board[x + dx, y + dy] = self.color
+
+            self.pieces.play_piece(piece_index, self.color)
+
+        self.n_turns += 1
+        self.color = (self.n_turns % 4) + 1
+        self.player = 3 - self.player
+        self.last_action = action
+
+    @cython.ccall
+    @cython.locals(
+        x=cython.int,
+        y=cython.int,
+        piece_index=cython.int,
+        rotation=cython.int,
+        i=cython.int,
+        dx=cython.int,
+        dy=cython.int,
+    )
+    def apply_action(self, action: cython.tuple) -> BlokusGameState:
         new_state = BlokusGameState(
-            board=np.copy(self.board),
+            board=self.board.copy(),
             pieces=self.pieces.custom_copy(),
             player=self.player,
             n_turns=self.n_turns,
             passed=self.passed.copy(),
+            last_action=action,
         )
 
         if action == PASS_MOVE:
-            new_state.passed[self.color] = True
+            new_state.passed[self.color - 1] = True
         else:
             x, y, piece_index, rotation = action
-            update_state(new_state.board, x, y, piece_index, rotation, self.color)
+
+            indices: cython.int[:, :] = PIECE_INDICES[piece_index][rotation]
+
+            for i in range(indices.shape[0]):
+                dx = indices[i, 0]
+                dy = indices[i, 1]
+                new_state.board[x + dx, y + dy] = self.color
+
             new_state.pieces.play_piece(piece_index, self.color)
 
         new_state.n_turns += 1
@@ -296,35 +334,26 @@ class BlokusGameState(GameState):
 
         return new_state
 
-    def get_random_action(self):
-        if self.passed[self.color]:
+    @cython.cfunc
+    def get_random_action(self) -> cython.tuple:
+        if self.passed[self.color - 1]:
             return PASS_MOVE
 
         return get_random_legal_action(
             self.board, self.color, self.n_turns, self.pieces.avail_pieces_for_color(self.color)
         )
 
-    def yield_legal_actions(self) -> Generator[Tuple[int, int, int, int], None, None]:
-        if self.passed[self.color]:
-            yield PASS_MOVE
-            return
-
-        legal_actions = get_legal_actions(
-            self.board, self.color, self.n_turns, self.pieces.avail_pieces_for_color(self.color)
-        )
-
-        for action in legal_actions:
-            yield action
-
-    def get_legal_actions(self) -> list:
-        if self.passed[self.color]:
+    @cython.ccall
+    def get_legal_actions(self) -> cython.list:
+        if self.passed[self.color - 1]:
             return [PASS_MOVE]
 
         return get_legal_actions(
             self.board, self.color, self.n_turns, self.pieces.avail_pieces_for_color(self.color)
         )
 
-    def evaluate_moves(self, moves):
+    @cython.cfunc
+    def evaluate_moves(self, moves: cython.tuple) -> cython.list:
         """
         Evaluates a list of moves, preferring the placement of larger pieces first.
 
@@ -342,7 +371,8 @@ class BlokusGameState(GameState):
 
         return scores
 
-    def move_weights(self, moves):
+    @cython.cfunc
+    def move_weights(self, moves: cython.list) -> cython.list:
         """
         Evaluates a list of moves, preferring the placement of larger pieces first.
 
@@ -356,7 +386,8 @@ class BlokusGameState(GameState):
             )
         return scores
 
-    def evaluate_move(self, move):
+    @cython.cfunc
+    def evaluate_move(self, move: cython.tuple) -> cython.int:
         # Prefer placing larger pieces first
         # _, _, piece_index, _ = move
         # if piece_index != -1:  # In the case of a pass move
@@ -364,27 +395,31 @@ class BlokusGameState(GameState):
         # return 0
         return evaluate_move(self.board, move[0], move[1], move[2], move[3], self.player, self.n_turns)
 
-    def is_terminal(self) -> bool:
+    @cython.ccall
+    def is_terminal(self) -> cython.bint:
         # If both players have passed, then we stop the game.
-        if all((self.passed[1], self.passed[2], self.passed[3], self.passed[4])):
+        if self.passed[0] and self.passed[1] and self.passed[2] and self.passed[3]:
             return True
 
-        # Or if the board is full or
-        if np.all(self.board != 0):
-            return True
-
+        # TODO Does this even happen? It should be caught by the passes
         # If all players have placed all their pieces.
-        if all(self.pieces.pieces_left_for_player(player + 1) == 0 for player in range(2)):
-            return True
+        # if all(self.pieces.pieces_left_for_player(player + 1) == 0 for player in range(2)):
+        #     return True
+        # TODO Does this even happen? It should be caught by the passes
+        # TODO Dit is weel heel kostbaar. Beter iets anders op verzinnen
+        # # Or if the board is full or
+        # if np.all(self.board != 0):
+        #     return True
 
         return False
 
-    def get_reward(self, player) -> float:
+    @cython.ccall
+    def get_reward(self, player: cython.int) -> cython.int:
         if not self.is_terminal():
             return 0
 
-        player_pieces_left = self.pieces.sum_piece_size(player)
-        opponent_pieces_left = self.pieces.sum_piece_size(3 - player)
+        player_pieces_left: cython.int = self.pieces.sum_piece_size(player)
+        opponent_pieces_left: cython.int = self.pieces.sum_piece_size(3 - player)
 
         if opponent_pieces_left > player_pieces_left:
             return win
@@ -393,10 +428,22 @@ class BlokusGameState(GameState):
         else:
             return draw
 
-    def is_capture(self, move):
+    @cython.cfunc
+    def get_result_tuple(self) -> cython.tuple:
+        winner: cython.int = self.get_reward(1)
+        if winner == 1:
+            return (1.0, 0.0)
+        elif winner == 2:
+            return (0.0, 1.0)
+
+        return (0.5, 0.5)
+
+    @cython.cfunc
+    def is_capture(self, move) -> cython.bint:
         # Not applicable for this game as there are no captures
         return False
 
+    @cython.ccall
     def visualize(self, full_debug=False) -> str:
         visual_board = []
 
@@ -493,7 +540,7 @@ def evaluate_move(board: cython.int[:, :], x, y, piece_index, rotation, player, 
     if piece_index == -1:  # In the case of a pass move
         return 0
 
-    score = int(piece_sizes[piece_index] ** 2)
+    score = int(PIECE_SIZES[piece_index] ** 2)
 
     if turns > 12:  # don't start checking until there are sufficient pieces on the board
         if player == 1:
@@ -503,7 +550,7 @@ def evaluate_move(board: cython.int[:, :], x, y, piece_index, rotation, player, 
             o_color1 = 1
             o_color2 = 3
 
-        indices: cython.int[:, :] = piece_indices[piece_index][rotation]
+        indices: cython.int[:, :] = PIECE_INDICES[piece_index][rotation]
 
         for ind in range(indices.shape[0]):
             new_i = indices[ind, 0] + x
@@ -524,45 +571,6 @@ def evaluate_move(board: cython.int[:, :], x, y, piece_index, rotation, player, 
                             score += 10
 
     return score
-
-
-@cython.ccall
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
-@cython.locals(x=cython.int, y=cython.int, player=cython.int)
-def calculate_board_hash(board: cython.int[:, :], zobrist_table: cython.long[:, :, :]) -> cython.long:
-    board_hash: cython.uint = 0
-    for x in range(20):
-        for y in range(20):
-            player = int(board[x, y])
-            board_hash ^= zobrist_table[x, y, player]
-    return board_hash
-
-
-@cython.ccall
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
-def update_state(
-    board: cython.int[:, :],
-    x: cython.int,
-    y: cython.int,
-    piece_index: cython.int,
-    rotation: cython.int,
-    color: cython.int,
-):
-    indices: cython.int[:, :] = piece_indices[piece_index][rotation]
-    i: cython.int
-    dx: cython.int
-    dy: cython.int
-
-    for i in range(indices.shape[0]):
-        dx = indices[i, 0]
-        dy = indices[i, 1]
-        board[x + dx, y + dy] = color
 
 
 @cython.ccall
@@ -601,8 +609,8 @@ def get_legal_actions(
     for px, py in perimeter_points:
         for p in range(len(avail_pieces)):
             piece_index = avail_pieces[p]
-            for rotation in range(unique_rotations[piece_index]):  # Use pre-computed rotations
-                piece = rotated_pieces[piece_index][rotation]
+            for rotation in range(UNIQUE_ROTATIONS[piece_index]):  # Use pre-computed rotations
+                piece = ROTATED_PIECES[piece_index][rotation]
                 piece_width = piece.shape[0]
                 piece_height = piece.shape[1]
 
@@ -664,8 +672,8 @@ def get_random_legal_action(
         px, py = perimeter_points.pop()
         for _ in range(attempts):
             piece_index = avail_pieces[c_random(0, len(avail_pieces) - 1)]
-            rotation = c_random(0, unique_rotations[piece_index] - 1)  # Use pre-computed rotations
-            piece = rotated_pieces[piece_index][rotation]
+            rotation = c_random(0, UNIQUE_ROTATIONS[piece_index] - 1)  # Use pre-computed rotations
+            piece = ROTATED_PIECES[piece_index][rotation]
             piece_width = piece.shape[0]
             piece_height = piece.shape[1]
 
@@ -719,10 +727,10 @@ def is_legal_action(
     color: cython.int,
     board: cython.int[:, :],
 ) -> cython.bint:
-    indices: cython.int[:, :] = piece_indices[piece_index][rotation]
+    indices: cython.int[:, :] = PIECE_INDICES[piece_index][rotation]
 
     # Verify if it's the first piece and if it's on the corner
-    if n_turns <= 3 and is_on_board_corner(x, y, rotated_pieces[piece_index][rotation]):
+    if n_turns <= 3 and is_on_board_corner(x, y, ROTATED_PIECES[piece_index][rotation]):
         return no_overlap(board, x, y, indices)
     elif n_turns <= 3:
         return False
@@ -763,10 +771,7 @@ def is_legal_action(
 
 
 @cython.cfunc
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
+@cython.inline
 @cython.locals(board=cython.int[:, :], x=cython.int, y=cython.int, i=cython.int)
 def no_overlap(board, x, y, indices: cython.int[:, :]) -> cython.bint:
     for i in range(indices.shape[0]):
@@ -776,10 +781,7 @@ def no_overlap(board, x, y, indices: cython.int[:, :]) -> cython.bint:
 
 
 @cython.cfunc
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
+@cython.inline
 @cython.locals(
     piece_x=cython.int,
     piece_y=cython.int,
@@ -804,10 +806,6 @@ def is_on_board_corner(x: cython.int, y: cython.int, piece: cython.int[:, :]) ->
 
 
 @cython.cfunc
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
 @cython.locals(
     board=cython.int[:, :],
     color=cython.int,
@@ -867,10 +865,6 @@ def find_corners_for_color(board, color) -> cython.set:
 
 
 @cython.ccall
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.nonecheck(False)
-@cython.wraparound(False)
 @cython.locals(
     game_state=cython.object,
     m_corn_diff=cython.double,
