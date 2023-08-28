@@ -6,10 +6,10 @@ from util import pretty_print_dict, abbreviate
 from operator import itemgetter
 
 from libc.time cimport time
-from includes cimport GameState, win, loss, draw
+from includes cimport GameState, win, loss, draw, c_uniform_random
 from ai.transpos_table cimport TranspositionTable, MoveHistory
 
-cdef double curr_time():
+cdef double curr_time() except -1:
     return time(NULL)
 
 # Search statistics to keep track of during search
@@ -39,11 +39,11 @@ cdef dict n_moves = {1: 0, 2: 0}
 cdef dict depth_reached = {1: 0, 2: 0}
 cdef dict best_value_labels = {win: "WIN", draw: "DRAW", loss: "LOSS"}
 
-@cython.wraparound(False)
-cdef float value(
+
+cdef double value(
     GameState state,
-    float alpha,
-    float beta,
+    double alpha,
+    double beta,
     int depth,
     int max_player,
     double[:] eval_params,
@@ -56,14 +56,14 @@ cdef float value(
     bint use_quiescence=0,
     bint use_null_moves=0,
     int R = 2
-):
+) except -88888888: # Don't use 99999 because it's win/loss
     # Globals that keep track of relevant statistics for optimizing
     global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_null_cuts, stat_tt_orders, stat_killers
     # Globals that carry over from the calling class, mainly meant for interrupting the search.
     global count, time_limit, start_time, is_first, is_interrupted, best_move, reached, root_seen
     
     cdef bint is_max_player = state.player == max_player
-    cdef float v, null_score, cur_time, new_v
+    cdef double v, null_score, cur_time, new_v
     cdef list actions
     cdef tuple trans_move, killer_move, move
     cdef int m = 0
@@ -129,11 +129,11 @@ cdef float value(
 
         actions = state.evaluate_moves(state.get_legal_actions())
         n_actions = len(actions)
-        # Put moves that were in the move history before the rest
+        # Put moves that were in the move history before the rest by giving them a really high score
         if move_history is not None:
-            actions = [(actions[i][0], actions[i][1] + move_history.get(actions[i][0]) * hist_mult) for i in range(n_actions)]
+            actions = [(actions[i][0], (actions[i][1] + (move_history.get(actions[i][0]) * hist_mult)) + c_uniform_random(0.0001, 0.001)) for i in range(n_actions)]
         else:
-            actions = [(actions[i][0], actions[i][1]) for i in range(n_actions)]
+            actions = [(actions[i][0], actions[i][1] + c_uniform_random(0.0001, 0.001)) for i in range(n_actions)]
         
         actions.sort(key=itemgetter(1), reverse=is_max_player)
         actions = [actions[i][0] for i in range(n_actions)]
@@ -244,15 +244,15 @@ cdef float value(
                 board=None
             )
 
-cdef float quiescence(GameState state, float alpha, float beta, int max_player, double[:] eval_params):
+cdef double quiescence(GameState state, float alpha, float beta, int max_player, double[:] eval_params) except -88888888:
     # This is the quiescence function, which aims to mitigate the horizon effect by
     # conducting a more exhaustive search on volatile branches of the game tree,
     # such as those involving captures.
     global stat_q_searches
     cdef list actions
     cdef tuple move
-    cdef float score
-    cdef float stand_pat
+    cdef double score
+    cdef double stand_pat
     stand_pat = state.evaluate(params=eval_params, player=max_player, norm=False)
     # Call the evaluation function to get a base score for the current game state.
     # This score is used as a baseline to compare with the potential outcomes of captures.
@@ -391,7 +391,7 @@ cdef class AlphaBetaPlayer:
         self.last_move_search_times = []
         self.grace_time = 0
 
-    cdef reset_globals(self):
+    cdef void reset_globals(self):
         # Globals that keep track of relevant statistics for optimizing
         global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_null_cuts, stat_tt_orders,stat_killers
         # Globals that carry over from the calling class, mainly meant for interrupting the search.
@@ -406,11 +406,11 @@ cdef class AlphaBetaPlayer:
         is_first = True
 
 
-    cpdef best_action(self, GameState state):
-        cdef float v
+    cpdef tuple best_action(self, GameState state):
+        cdef double v
         cdef list best_values
         cdef tuple last_best_move
-        cdef float last_best_v
+        cdef double last_best_v
         cdef int stat_depth_reached
         cdef dict killer_moves = {i: None for i in range(self.max_depth + 1)} if self.use_kill_moves else None
         cdef double start_depth_time = 0
@@ -444,7 +444,7 @@ cdef class AlphaBetaPlayer:
                     print(f"\rdepth {depth}... ", end="")
                 start_depth_time = curr_time()  # Time when this depth search starts
                 # How much time can be spent searching this depth
-                time_limit = self.max_time + self.grace_time - (start_depth_time - start_time) 
+                time_limit = (self.max_time + self.grace_time) - (start_depth_time - start_time) 
 
                 if is_interrupted:
                     break

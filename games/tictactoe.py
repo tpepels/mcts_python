@@ -1,4 +1,4 @@
-# cython: language_level=3, initializedcheck=False, infer_types=True, boundscheck=False, nonecheck=False, cdivision=True, overflowcheck=False
+# cython: language_level=3
 
 import array
 import itertools
@@ -229,6 +229,7 @@ class TicTacToeGameState(GameState):
         return (0.5, 0.5)
 
     @cython.ccall
+    @cython.exceptval(-1, check=False)
     def get_reward(self, player: cython.int) -> cython.int:
         if self.winner != 0:
             if self.winner == player:
@@ -343,6 +344,7 @@ class TicTacToeGameState(GameState):
         return scores
 
     @cython.cfunc
+    @cython.exceptval(-1, check=False)
     @cython.locals(
         x=cython.int,
         y=cython.int,
@@ -377,6 +379,7 @@ class TicTacToeGameState(GameState):
         return 10 + conn_sc + (self.center - abs(x - self.center)) + (self.center - abs(y - self.center))
 
     @cython.ccall
+    @cython.locals(i=cython.int, j=cython.int)
     def visualize(self, full_debug=False):
         MARKS = {
             0: colored(" ", "white"),
@@ -434,6 +437,7 @@ class TicTacToeGameState(GameState):
     default_params = array.array("d", [5, 0.8, 5, 100])
 
     @cython.cfunc
+    @cython.exceptval(-9999999, check=False)
     @cython.locals(
         score_p1=cython.double,
         score_p2=cython.double,

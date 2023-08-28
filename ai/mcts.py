@@ -22,6 +22,7 @@ DEBUG: cython.bint = 0
 
 
 @cython.cfunc
+@cython.exceptval(-1, check=False)
 def curr_time() -> cython.long:
     return time(cython.NULL)
 
@@ -69,6 +70,7 @@ class Node:
     def uct(self, c: cython.double, pb_weight: cython.double = 0.0, imm_alpha: cython.double = 0.0) -> Node:
         n_children: cython.int = len(self.children)
         assert n_children > 0, "Trying to uct a node without children"
+        assert self.expanded, "Trying to uct a node that is not expanded"
         # Just to make sure that there's always a child to select
         max_child: Node = self.children[c_random(0, n_children - 1)]
         max_val: cython.double = -999999.99
@@ -132,7 +134,7 @@ class Node:
             # Since all children are losses, we can mark this node as solved for the opponent
             # We do this here because the node may have been expanded and solved elsewhere in the tree
             self.solved_player = 3 - self.player
-        elif children_lost == n_children - 1 and self.solved_player == 0:
+        elif children_lost == (n_children - 1) and self.solved_player == 0:
             # There's only one move that does not lead to a loss. This is an anti-decisive move.
             self.anti_decisive = 1
         # Proven draw
@@ -309,6 +311,7 @@ class MCTSPlayer:
     imm_alpha: cython.double
     debug: cython.bint
     roulette: cython.bint
+    roulette_eps: cython.double
     dyn_early_term_cutoff: cython.double
     c: cython.double
     epsilon: cython.double
@@ -339,6 +342,7 @@ class MCTSPlayer:
         early_term_turns: int = 10,
         early_term_cutoff: float = 0.05,
         e_greedy: bool = False,
+        roulette_epsilon: float = 0.05,
         e_g_subset: int = 20,
         imm_alpha: float = 0.4,
         imm: bool = False,
@@ -354,6 +358,7 @@ class MCTSPlayer:
         self.early_term_cutoff = early_term_cutoff
         self.e_greedy = e_greedy
         self.epsilon = epsilon
+        self.roulette_eps = roulette_epsilon
         self.e_g_subset = e_g_subset
         self.early_term = early_term
         self.early_term_turns = early_term_turns
@@ -415,11 +420,6 @@ class MCTSPlayer:
                     self.root = child
                     if DEBUG:
                         print(f"Reusing root node {str(child)}")
-                        assert len(state.get_legal_actions()) == len(
-                            self.root.children
-                        ), "The number of legal actions does not match the number of children\n" + "\n".join(
-                            [str(child) for child in self.root.children]
-                        )
                         self.root.action = ()  # This is what identifies the root node
                     break
         elif not state.REUSE or (self.root is not None and not self.root.expanded):
@@ -499,8 +499,7 @@ class MCTSPlayer:
 
         c_i: cython.int
         # TODO Idea, use the im_value to decide which child to select
-        for c_i in range(1, n_children):
-            # ! A none exception could happen in case there's a mistake in how the children are added to the list in expand
+        for c_i in range(0, n_children):
             node: Node = self.root.children[c_i]
             if node.solved_player == self.player:  # We found a winning move, let's go champ
                 max_node = node
@@ -514,6 +513,20 @@ class MCTSPlayer:
             if value > max_value:
                 max_node = node
                 max_value = value
+
+        # In case there's no move that does not lead to a loss, we should return a random move
+        if max_node is None:
+            if DEBUG:
+                print(f"** No winning move found, returning random move **")
+
+            if DEBUG:
+                if self.root.solved_player != (3 - self.player):
+                    print("Root not solved for opponent and no max_node found!!")
+                    print(f"Root node: {str(self.root)}")
+                    print("\n".join([str(child) for child in self.root.children]))
+
+            # return a random action if all children are losing moves
+            max_node = self.root.children[c_random(0, n_children - 1)]
 
         if DEBUG:
             print("--*--" * 20)
@@ -552,19 +565,18 @@ class MCTSPlayer:
 
     @cython.cfunc
     def simulate(self, init_state: GameState):
+        # Start at the root
         node: Node = self.root
+        # Keep track of selected nodes
         selected: cython.list = [self.root]
-
+        # Keep track of the state
         next_state: GameState = init_state
         is_terminal: cython.bint = init_state.is_terminal()
-
         # Select: non-terminal, non-solved, expanded nodes
         while not is_terminal and node.expanded and node.solved_player == 0:
             node = node.uct(self.c, self.pb_weight, self.imm_alpha)
-            # TODO If we only make a copy of the first state, then we do not have to make further copies
             next_state = next_state.apply_action(node.action)
-            selected.append(node)
-
+            selected.append(node)  # Keep track of the nodes we've seen
             is_terminal = next_state.is_terminal()
 
         result: tuple[cython.double, cython.double]
@@ -585,10 +597,8 @@ class MCTSPlayer:
 
             next_state = next_state.apply_action(next_node.action)
             selected.append(next_node)
-
             # Do a random playout and collect the result
             result = self.play_out(next_state)
-
         else:
             if node.solved_player == 0 and is_terminal:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
@@ -664,7 +674,6 @@ class MCTSPlayer:
             if self.e_greedy == 1 and c_uniform_random(0, 1) < self.epsilon:
                 actions = state.get_legal_actions()
                 actions = actions[: self.e_g_subset]
-                c_shuffle(actions)
 
                 max_value = -99999.99
                 for i in range(self.e_g_subset):
@@ -673,13 +682,13 @@ class MCTSPlayer:
                         params=self.eval_params,
                         player=state.player,
                         norm=False,
-                    )
+                    ) + c_uniform_random(0.000001, 0.00001)
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
 
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
-            elif self.roulette == 1 and c_uniform_random(0, 1) < self.epsilon:
+            elif self.roulette == 1 and c_uniform_random(0, 1) < self.roulette_eps:
                 actions = state.get_legal_actions()
                 best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
 

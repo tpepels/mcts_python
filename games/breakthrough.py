@@ -99,7 +99,7 @@ class BreakthroughGameState(GameState):
     board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     positions = cython.declare(cython.tuple[cython.list, cython.list], visibility="public")
-    last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
+    last_action = cython.declare(cython.tuple, visibility="public")
 
     winner: cython.int
 
@@ -165,8 +165,9 @@ class BreakthroughGameState(GameState):
         :param action: The action to apply.
         :return: A new game state with the action applied.
         """
-        act_from: cython.int = action[0]
-        act_to: cython.int = action[1]
+        move_t: cython.tuple[cython.int, cython.int] = action
+        act_from: cython.int = move_t[0]
+        act_to: cython.int = move_t[1]
 
         self.board[act_from] = 0  # Remove the piece from its current position
         captured_player: cython.int = self.board[act_to]  # Check for captures
@@ -201,9 +202,9 @@ class BreakthroughGameState(GameState):
         :return: A new game state with the action applied.
         """
         new_board: cython.int[:] = self.board.copy()
-
-        act_from: cython.int = action[0]
-        act_to: cython.int = action[1]
+        move_t: cython.tuple[cython.int, cython.int] = action
+        act_from: cython.int = move_t[0]
+        act_to: cython.int = move_t[1]
 
         new_board[act_from] = 0  # Remove the piece from its current position
         captured_player: cython.int = new_board[act_to]
@@ -282,7 +283,7 @@ class BreakthroughGameState(GameState):
         if self.player == 2:
             dr = 1
 
-        n: cython.int = self.positions[self.player - 1].size()
+        n: cython.int = len(self.positions[self.player - 1])
         start: cython.int = c_random(0, n - 1)  # This allows us to start at a random piece
 
         i: cython.int
@@ -395,6 +396,7 @@ class BreakthroughGameState(GameState):
         return 0
 
     @cython.ccall
+    @cython.exceptval(-1, check=False)
     def get_reward(self, player: cython.int) -> cython.int:
         if self.winner == player:
             return win
@@ -441,6 +443,7 @@ class BreakthroughGameState(GameState):
     default_params = array.array("d", [20.0, 2.0, 15.0, 11.0, 10.0, 13.0, 1.1, 800.0, 2000.0])
 
     @cython.cfunc
+    @cython.exceptval(-9999999, check=False)
     def evaluate(
         self,
         player: cython.int,
@@ -553,13 +556,18 @@ class BreakthroughGameState(GameState):
 
     @cython.cfunc
     def move_weights(self, moves: cython.list) -> cython.list:
-        scores: cython.list = [0] * len(moves)
+        n_moves = len(moves)
+
+        scores: vector[cython.int]
+        scores.reserve(n_moves)
         i: cython.int
-        for i in range(len(moves)):
-            scores[i] = self.evaluate_move(moves[i])
+        for i in range(n_moves):
+            move: cython.tuple = moves[i]
+            scores.push_back(self.evaluate_move(move))
         return scores
 
     @cython.cfunc
+    @cython.exceptval(-1, check=False)
     def evaluate_move(self, move: cython.tuple) -> cython.int:
         """
         Evaluate the given move using a simple heuristic: each step forward is worth 1 point,
@@ -761,8 +769,7 @@ def is_decisive(state: BreakthroughGameState):
 
 
 @cython.cfunc
-@cython.infer_types(True)
-@cython.boundscheck(False)
+@cython.exceptval(-1, check=False)
 @cython.locals(
     position=cython.int,
     player=cython.int,
@@ -897,8 +904,7 @@ def is_safe(position, player, board) -> cython.bint:
 
 
 @cython.cfunc
-@cython.infer_types(True)
-@cython.boundscheck(False)
+@cython.exceptval(-1, check=False)
 @cython.locals(
     board=cython.int[:],
     positions=cython.list,

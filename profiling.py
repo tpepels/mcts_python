@@ -20,7 +20,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--game",
-    choices=["amazons", "breakthrough", "ninarow59", "kalah46", "kalah68", "blokus"],
+    choices=["amazons", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus"],
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
 )

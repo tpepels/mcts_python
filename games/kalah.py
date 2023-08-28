@@ -1,7 +1,10 @@
 # cython: language_level=3
+# distutils: language=c++
+
 import array
 import cython
 import numpy as np
+from cython.cimports.libcpp.vector import vector
 from cython.cimports.includes import GameState, win, loss, draw, normalize, c_random
 
 import random
@@ -12,6 +15,9 @@ else:
     print("Kalah is just a lowly interpreted script.")
 
 MAX_SEEDS = 280  # An approximation of the maximum number of seeds in a single position
+
+# TODO 6x6 oplossen
+# TODO Solved positions printen
 
 
 @cython.cclass
@@ -39,7 +45,7 @@ class KalahGameState(GameState):
     n_moves: cython.int
     pie_rule_decision_made: cython.bint
 
-    def __init__(self, board=None, player=1, last_action=None, winner=0, init_seeds=6, n_houses=8, n_moves=0):
+    def __init__(self, board=None, player=1, last_action=None, winner=0, init_seeds=4, n_houses=6, n_moves=0):
         """
         Initialize the Kalah game state.
 
@@ -333,6 +339,7 @@ class KalahGameState(GameState):
         return self.winner != 0
 
     @cython.ccall
+    @cython.exceptval(-1, check=False)
     def get_reward(self, player: cython.int) -> cython.int:
         """
         Returns the reward value of a terminal state [-1, 0, 1] (loss/draw/win)
@@ -414,12 +421,17 @@ class KalahGameState(GameState):
         :param moves: The list of moves to evaluate.
         :return: The list of heuristic scores for the moves.
         """
-        scores: cython.list = [0] * len(moves)
-        for i in range(len(moves)):
-            scores[i] = self.evaluate_move(moves[i])
+        n_moves = len(moves)
+        scores: vector[cython.int]
+        scores.reserve(n_moves)
+        i: cython.int
+        for i in range(n_moves):
+            move: cython.tuple = moves[i]
+            scores.push_back(self.evaluate_move(move))
         return scores
 
     @cython.cfunc
+    @cython.exceptval(-1, check=False)
     @cython.locals(
         move_i=cython.int, score=cython.int, last_index=cython.int, board=cython.list, player=cython.int
     )
@@ -518,6 +530,7 @@ class KalahGameState(GameState):
     default_params = array.array("d", [18.0, 0.1, 6.5, 8.7, 6.5, 0.95, 200])
 
     @cython.cfunc
+    @cython.exceptval(-9999999, check=False)
     def evaluate(
         self, player: cython.int, params: cython.double[:], norm: cython.bint = False
     ) -> cython.double:

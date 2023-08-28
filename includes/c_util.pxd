@@ -6,10 +6,10 @@ from libc.math cimport tanh
 cdef inline void c_random_seed(unsigned int seed):
     srand(seed)
 
-cdef inline double c_uniform_random(double low, double high):
+cdef inline double c_uniform_random(double low, double high) except -99999:
     return low + (rand() / RAND_MAX) * (high - low)
 
-cdef inline int c_random(int _min, int _max):
+cdef inline int c_random(int _min, int _max) except -99999:
     return _min + rand() % (_max - _min + 1)
 
 cdef inline void c_shuffle(list arr):
@@ -34,7 +34,7 @@ cdef inline void c_shuffle_array(long[:] arr):
         arr[i] = arr[swap_idx]
         arr[swap_idx] = tmp
 
-cdef inline double normalize(double value, double a):
+cdef inline double normalize(double value, double a) except -99999:
     """
     Normalize value with range [-a,a] to [-1, 1] using tanh
 
@@ -66,7 +66,8 @@ cdef inline list where_is_k2d(int[:,:] board , int k):
 
     return indices
 
-cdef inline int f_index(int[:] arr, int value, int n):
+
+cdef inline int f_index(int[:] arr, int value, int n) except -2:
     cdef int i
     for i in range(n):  # Assuming the second dimension always has size 4
         if arr[i] == value:
@@ -75,7 +76,8 @@ cdef inline int f_index(int[:] arr, int value, int n):
 
 cpdef list generate_spiral(int size)
 
-cdef inline int find_2d_index(int[:, :] arr, int x, int y):
+
+cdef inline int find_2d_index(int[:, :] arr, int x, int y)  except -2:
     cdef int i
 
     # Iterate through the positions for the given size

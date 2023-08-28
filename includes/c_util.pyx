@@ -1,6 +1,6 @@
 import cython
 
-@cython.cdivision(False)
+@cython.cdivision(False) # * Important * - without this the results differ and are incorrect
 cpdef list generate_spiral(int size):
     x = y = 0
     dx = 0
