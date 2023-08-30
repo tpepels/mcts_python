@@ -223,7 +223,7 @@ class BlokusGameState(GameState):
     REUSE = True
 
     # Public variables
-    player = cython.declare(cython.int, visibility="public")
+    # player = cython.declare(cython.int, visibility="public")
     color = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.int[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")

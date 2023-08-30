@@ -8,6 +8,7 @@ from operator import itemgetter
 from libc.time cimport time
 from includes cimport GameState, win, loss, draw, c_uniform_random
 from ai.transpos_table cimport TranspositionTable, MoveHistory
+from libc.math cimport INFINITY
 
 cdef double curr_time() except -1:
     return time(NULL)
@@ -125,7 +126,7 @@ cdef double value(
             stat_cutoffs += 1
             return null_score
     try:
-        v = float("-inf") if is_max_player else float("inf")
+        v = -INFINITY if is_max_player else INFINITY
 
         actions = state.evaluate_moves(state.get_legal_actions())
         n_actions = len(actions)
@@ -244,7 +245,7 @@ cdef double value(
                 board=None
             )
 
-cdef double quiescence(GameState state, float alpha, float beta, int max_player, double[:] eval_params) except -88888888:
+cdef double quiescence(GameState state, double alpha, double beta, int max_player, double[:] eval_params) except -88888888:
     # This is the quiescence function, which aims to mitigate the horizon effect by
     # conducting a more exhaustive search on volatile branches of the game tree,
     # such as those involving captures.
@@ -468,8 +469,8 @@ cdef class AlphaBetaPlayer:
 
                 v = value(
                     state,
-                    alpha=-float("inf"),
-                    beta=float("inf"),
+                    alpha=-INFINITY,
+                    beta=INFINITY,
                     depth=depth,
                     max_player=self.player,
                     max_d=depth,

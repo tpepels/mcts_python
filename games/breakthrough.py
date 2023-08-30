@@ -95,7 +95,7 @@ class BreakthroughGameState(GameState):
     zobrist_table = [[[random.randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
     REUSE = True
 
-    player = cython.declare(cython.int, visibility="public")
+    # player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     positions = cython.declare(cython.tuple[cython.list, cython.list], visibility="public")

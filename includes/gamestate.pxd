@@ -8,6 +8,7 @@ cdef class GameState:
     """
     An abstract base class representing a generic game state.
     """
+    cdef public int player
 
     cdef public void apply_action_playout(self, tuple action)
 

@@ -32,7 +32,7 @@ class KalahGameState(GameState):
     zobrist_table = [[random.randint(1, 2**60 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)]
     REUSE = False
 
-    player = cython.declare(cython.int, visibility="public")
+    # player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.int], visibility="public")

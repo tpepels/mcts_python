@@ -49,7 +49,7 @@ class TicTacToeGameState(GameState):
     REUSE = True
 
     # Public variables
-    player = cython.declare(cython.int, visibility="public")
+    # player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.int[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
