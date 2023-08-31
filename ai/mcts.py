@@ -306,40 +306,6 @@ class Node:
                     best_im = child.im_value
                     best_node = child
 
-            # if (imm_version == 3 or imm_version == 13 or imm_version == 23) and imm_ex_D >= 1:
-            #     # * Check if we've managed to actually improve the imm value, if not, this may be an interesting move to expand further
-            #     if (self.player == self.max_player and best_im < self.im_value) or (
-            #         self.player != self.max_player and best_im > self.im_value
-            #     ):
-            #         # * We did not find any node that improved our evaluation value.
-            #         # * This may mean that we've perhaps hit a forced move and at least a local optimum for the player to move.
-            #         best_node.expand(
-            #             init_state=init_state.apply_action(best_node.action),
-            #             eval_params=eval_params,
-            #             prog_bias=prog_bias,
-            #             imm=imm,
-            #             imm_version=imm_version,
-            #             # Reduce the allowed depth by 1 to ensure we don't keep expanding forever
-            #             imm_ex_D=imm_ex_D - 1,
-            #         )
-            # print(imm_ex_D - 1)
-
-            # if (imm_version == 3 or imm_version == 13 or imm_version == 23) and imm_ex_D >= 1:
-            #     # * Check if we've managed to actually improve the imm value, if so, this may be an interesting move to expand further
-            #     if (self.player == self.max_player and best_im > self.im_value) or (
-            #         self.player != self.max_player and best_im < self.im_value
-            #     ):
-            #         # * We did find a node that improved our evaluation value.
-            #         best_node.expand(
-            #             init_state=init_state.apply_action(best_node.action),
-            #             eval_params=eval_params,
-            #             prog_bias=prog_bias,
-            #             imm=imm,
-            #             imm_version=imm_version,
-            #             # Reduce the allowed depth by 1 to ensure we don't keep expanding forever
-            #             imm_ex_D=imm_ex_D - 1,
-            #         )
-
             self.im_value = best_im
             # Return the best node for another visit
             return best_node

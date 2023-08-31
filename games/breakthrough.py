@@ -81,8 +81,6 @@ lorentz_values = [
     36,
 ]
 
-BL_DIR = [[1, 0], [1, -1], [1, 1]]
-WH_DIR = [[-1, 0], [-1, -1], [-1, 1]]
 
 if cython.compiled:
     print("Breakthrough is compiled.")
@@ -488,14 +486,23 @@ class BreakthroughGameState(GameState):
                     mob_val: cython.double = piece_mobility(position, piece, self.board)
                     mobility_values += multiplier * mob_val * (1 + piece_value)
 
-                if params[2] != 0.0 and is_safe(position, piece, self.board):
-                    safety_values += multiplier * piece_value
+                # TODO Je moet eigenlijk belonen voor niet safe
+                if params[2] != 0.0 and not is_safe(position, piece, self.board):
+                    safety_values -= multiplier * piece_value
 
         piece_diff = len(self.positions[player - 1]) - len(self.positions[opponent - 1])
 
         if params[3] != 0.0 and (len(self.positions[player - 1]) + len(self.positions[opponent - 1])) < 12:
             endgame_values = params[3] * piece_diff
-
+        # "m_lorenz": 0,
+        #         "m_mobility": 1,
+        #         "m_safe": 2,
+        #         "m_endgame": 3,
+        #         "m_cap": 4,
+        #         "m_piece_diff": 5,
+        #         "m_opp_disc": 6,
+        #         "m_decisive": 7,
+        #         "a": 8,
         if params[7] != 0.0:
             player_1_decisive, player_2_decisive = is_decisive(self)
 
@@ -523,12 +530,16 @@ class BreakthroughGameState(GameState):
 
         eval_value: cython.double = (
             decisive_values
-            + endgame_values
             + params[0] * board_values
             + params[1] * mobility_values
             + params[2] * safety_values
+            + endgame_values
             + params[4] * caps
             + params[5] * piece_diff
+        )
+        # print the individual values for debugging
+        print(
+            f"{player=} decisive: {decisive_values:.3f} | board: {board_values:.3f} | mobility: {mobility_values:.3f} | safety: {safety_values:.3f} | endgame: {endgame_values:.3f} | caps: {caps:.3f} | piece_diff: {piece_diff:.3f}"
         )
 
         if self.player == opponent:
@@ -659,15 +670,16 @@ class BreakthroughGameState(GameState):
                     output += f"{self.readable_location(piece)} \n"
 
             # ---------------------------Piece mobility---------------------------------
-            output += "Blocked pieces:\n"
+            output += "Blocked pieces:\n black: "
             for piece in black_pieces:
                 mob = piece_mobility(piece, 2, self.board)
                 if mob == 0:
                     output += f"{self.readable_location(piece)},"
+            output += " | white: "
             for piece in white_pieces:
                 mob = piece_mobility(piece, 1, self.board)
                 if mob == 0:
-                    output += f"{self.readable_location(piece)}, "
+                    output += f"{self.readable_location(piece)},"
             output += "\n" + "..." * 20 + "\n"
 
         return output
@@ -768,6 +780,10 @@ def is_decisive(state: BreakthroughGameState):
     return player_1_decisive, player_2_decisive
 
 
+BL_DIR = [[1, 0], [1, -1], [1, 1]]
+WH_DIR = [[-1, 0], [-1, -1], [-1, 1]]
+
+
 @cython.cfunc
 @cython.exceptval(-1, check=False)
 @cython.locals(
@@ -799,23 +815,24 @@ def piece_mobility(position, player, board) -> cython.int:
 
     # The directions of the moves depend on the player.
     # White (1) moves up (to lower rows), Black (2) moves down (to higher rows).
-    if player == 1:  # White
-        directions = WH_DIR  # Forward, and diagonally left and right
-    else:  # Black
-        directions = BL_DIR  # Forward, and diagonally left and right
+    # if player == 1:  # White
+    #     directions = WH_DIR  # Forward, and diagonally left and right
+    # else:  # Black
+    #     directions = BL_DIR  # Forward, and diagonally left and right
 
-    for i in range(3):
-        dr = directions[i][0]
-        dc = directions[i][1]
+    dr = -1
+    if player == 2:
+        dr = 1
+
+    for i in range(-1, 2):
+        dc = i
         new_row = row + dr
         new_col = col + dc
+
         if 0 <= new_row < 8 and 0 <= new_col < 8:
             new_position = new_row * 8 + new_col
-            if (dc == 0 and board[new_position] == 0) or (
-                abs(dc) == 1 and (board[new_position] == 0 or board[new_position] != player)
-            ):
+            if (dc == 0 and board[new_position] == 0) or (abs(dc) == 1 and board[new_position] != player):
                 mobility += 1
-
     return mobility
 
 
@@ -899,6 +916,9 @@ def is_safe(position, player, board) -> cython.bint:
 
         # Change the column direction for the second iteration
         col_direction = 1
+
+    # if attackers <= defenders:
+    #     print(f"{to_chess_notation(position)}: {attackers=} <= {defenders=}")
     # The piece is considered safe if the number of attackers is less than or equal to the number of defenders.
     return attackers <= defenders
 
