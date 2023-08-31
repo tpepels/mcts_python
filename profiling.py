@@ -87,8 +87,32 @@ if not args.battle:
 else:
     algo = args.algo
     eval_params = {}
-    ai_1_params = {"max_time": 10, "debug": args.debug, "imm": True, "imm_version": 0}
-    ai_2_params = {"max_time": 10, "debug": args.debug, "imm": True, "imm_version": 3}
+    ai_1_params = {
+        "max_time": 10,
+        "debug": args.debug,
+        "imm": True,
+        "c": 0.7,
+        "imm_version": 3,
+        "early_term": True,
+        "early_term_turns": 10,
+        "early_term_cutoff": 0.05,
+        "roulette": True,
+        "roulette_epsilon": 0.05,
+        "imm_alpha": 0.4,
+    }
+    ai_2_params = {
+        "max_time": 10,
+        "debug": args.debug,
+        "imm": True,
+        "c": 0.7,
+        "imm_version": 0,
+        "early_term": True,
+        "early_term_turns": 10,
+        "early_term_cutoff": 0.05,
+        "roulette": True,
+        "roulette_epsilon": 0.05,
+        "imm_alpha": 0.4,
+    }
 
     p1_params = AIParams(
         ai_key="mcts",
