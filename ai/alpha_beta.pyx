@@ -20,7 +20,6 @@ cdef unsigned stat_q_searches = 0
 cdef unsigned stat_visited = 0
 cdef unsigned stat_cutoffs = 0 
 cdef unsigned stat_depth_reached = 0
-cdef unsigned stat_null_cuts = 0
 cdef unsigned stat_moves_gen = 0
 cdef unsigned stat_tt_orders = 0
 cdef unsigned count = 0
@@ -52,19 +51,16 @@ cdef double value(
     MoveHistory move_history,
     dict killer_moves,
     int max_d=0,
-    bint allow_null_move=1,
     bint root=0,
     bint use_quiescence=0,
-    bint use_null_moves=0,
-    int R = 2
 ) except -88888888: # Don't use 99999 because it's win/loss
     # Globals that keep track of relevant statistics for optimizing
-    global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_null_cuts, stat_tt_orders, stat_killers
+    global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_tt_orders, stat_killers
     # Globals that carry over from the calling class, mainly meant for interrupting the search.
     global count, time_limit, start_time, is_first, is_interrupted, best_move, reached, root_seen
     
     cdef bint is_max_player = state.player == max_player
-    cdef double v, null_score, cur_time, new_v
+    cdef double v, cur_time, new_v
     cdef list actions
     cdef tuple trans_move, killer_move, move
     cdef int m = 0
@@ -90,41 +86,12 @@ cdef double value(
         if (curr_time() - start_time) > time_limit:
             is_interrupted = True
 
-    if depth == 0 and allow_null_move and use_quiescence and not is_interrupted:
-        v = quiescence(state, alpha, beta,max_player, eval_params)
-
     # If we are interrupted, cut off the search and return evaluations straight away
     if depth == 0:
         stat_n_eval += 1
         v = state.evaluate(params=eval_params, player=max_player, norm=False)
         return v
 
-    # Apply a null move to check if skipping turns results in better results than making a move
-    if use_null_moves and is_max_player and not root and allow_null_move and depth >= R + 1:
-        null_state = state.skip_turn()
-        
-        # Perform a reduced-depth search on the null move
-        null_score, _ = value(
-            state=null_state,
-            alpha=alpha,
-            beta=beta,
-            depth=(depth - R) - 1,
-            max_player=max_player,
-            eval_params=eval_params,
-            trans_table=trans_table,
-            move_history=move_history,
-            killer_moves=killer_moves,
-            max_d=max_d,
-            allow_null_move=False,
-            root=False,
-            use_quiescence=use_quiescence,
-            use_null_moves=use_null_moves,
-            R=R,
-        )
-        if null_score >= beta:
-            stat_null_cuts += 1
-            stat_cutoffs += 1
-            return null_score
     try:
         v = -INFINITY if is_max_player else INFINITY
 
@@ -167,23 +134,24 @@ cdef double value(
         
         for m in range(n_actions):
             move = actions[m]
-            new_v = value(
-                state=state.apply_action(move),
-                alpha=alpha,
-                beta=beta,
-                depth=depth - 1,
-                max_player=max_player,
-                eval_params=eval_params,
-                trans_table=trans_table,
-                move_history=move_history,
-                killer_moves=killer_moves,
-                max_d=max_d,
-                root=False,
-                allow_null_move=allow_null_move,
-                use_quiescence=use_quiescence,
-                use_null_moves=use_null_moves,
-                R=R,
-            )
+            # In case of a capture do a full q search
+            if use_quiescence and depth == 1 and state.is_capture(move):
+                new_v = quiescence(state.apply_action(move), alpha, beta, max_player, eval_params)
+            else:
+                new_v = value(
+                    state=state.apply_action(move),
+                    alpha=alpha,
+                    beta=beta,
+                    depth=depth - 1,
+                    max_player=max_player,
+                    eval_params=eval_params,
+                    trans_table=trans_table,
+                    move_history=move_history,
+                    killer_moves=killer_moves,
+                    max_d=max_d,
+                    root=False,
+                    use_quiescence=use_quiescence,
+                )
             # Update v, alpha or beta based on the player
             if (is_max_player and new_v > v) or (not is_max_player and new_v < v):
                 v = new_v
@@ -209,10 +177,10 @@ cdef double value(
             # Prune the branch
             if beta <= alpha:
                 # Update the move history with a high score since we've caused a cutoff
-                if allow_null_move and move_history is not None:
+                if move_history is not None:
                     move_history.update(move, 10)
 
-                if allow_null_move and killer_moves is not None:
+                if killer_moves is not None:
                     killer_moves[max_d - depth] = move  # Update the killer move
                 
                 stat_cutoffs += 1
@@ -230,20 +198,18 @@ cdef double value(
         return v
 
     finally:
-        # If not a null-move result
-        if allow_null_move:
-            # Update the move history with the best move found in this level
-            if move_history is not None:
-                move_history.update(depth_best_move, 1)
+        # Update the move history with the best move found in this level
+        if move_history is not None:
+            move_history.update(depth_best_move, 1)
 
-            trans_table.put(
-                key=state.board_hash,
-                value=v,
-                depth=max_d - depth,
-                player=state.player,
-                best_move=depth_best_move,
-                board=None
-            )
+        trans_table.put(
+            key=state.board_hash,
+            value=v,
+            depth=max_d - depth,
+            player=state.player,
+            best_move=depth_best_move,
+            board=None
+        )
 
 cdef double quiescence(GameState state, double alpha, double beta, int max_player, double[:] eval_params) except -88888888:
     # This is the quiescence function, which aims to mitigate the horizon effect by
@@ -312,7 +278,6 @@ cdef class AlphaBetaPlayer:
     cdef int player
     cdef int max_depth
     cdef double[:] eval_params
-    cdef bint use_null_moves
     cdef bint use_quiescence
     cdef bint use_kill_moves
     cdef bint use_history
@@ -334,7 +299,6 @@ cdef class AlphaBetaPlayer:
         double[:] eval_params,
         int max_depth=25,
         unsigned transposition_table_size=2**16,
-        bint use_null_moves=False,
         bint use_quiescence=False,
         bint use_history=True,
         bint use_kill_moves=True,
@@ -347,14 +311,10 @@ cdef class AlphaBetaPlayer:
         self.max_depth = max_depth
         # The evaluation function to be used
         self.eval_params = eval_params
-        # Whether or not to use the null-move heuristic
-        self.use_null_moves = use_null_moves
         # Whether or not to use quiescence search
         self.use_quiescence = use_quiescence
         self.use_history = use_history
         self.use_kill_moves = use_kill_moves
-        # Depth reduction for the null-move heuristic
-        self.R = 2
         # Maximum time for a move in seconds
         self.max_time = max_time
         # The depth limit beyond which the search should always finish
@@ -365,7 +325,6 @@ cdef class AlphaBetaPlayer:
         # instance-level statistics
         self.stats = []
         self.c_stats = {key: 0 for key in [
-            "total_null_cutoffs",
             "total_q_searches",
             "total_nodes_visited",
             "total_nodes_evaluated",
@@ -394,12 +353,12 @@ cdef class AlphaBetaPlayer:
 
     cdef void reset_globals(self):
         # Globals that keep track of relevant statistics for optimizing
-        global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_null_cuts, stat_tt_orders,stat_killers
+        global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_tt_orders,stat_killers
         # Globals that carry over from the calling class, mainly meant for interrupting the search.
         global count, time_limit, start_time, is_first, is_interrupted, start_depth_time, best_move, root_seen
         global anti_decisive_move, decisive_move
         stat_q_searches = stat_n_eval = stat_visited = stat_cutoffs = stat_moves_gen = stat_killers = 0
-        stat_null_cuts = count = time_limit = stat_tt_orders = 0
+        count = time_limit = stat_tt_orders = 0
         root_seen = start_time = start_depth_time = 0
 
         best_move = anti_decisive_move = None
@@ -423,7 +382,7 @@ cdef class AlphaBetaPlayer:
         self.reset_globals()
 
         # Globals that keep track of relevant statistics for optimizing
-        global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_null_cuts, stat_tt_orders, stat_killers
+        global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_tt_orders, stat_killers
         # Globals that carry over from the calling class, mainly meant for interrupting the search.
         global count, time_limit, start_time, start_depth_time, is_first, is_interrupted
         global total_search_time, n_moves, best_move, reached, root_seen
@@ -478,11 +437,8 @@ cdef class AlphaBetaPlayer:
                     trans_table=self.trans_table,
                     move_history=move_history,
                     killer_moves=killer_moves,
-                    allow_null_move=True,
                     root=True,
                     use_quiescence=self.use_quiescence,
-                    use_null_moves=self.use_null_moves,
-                    R=self.R,
                 )
 
                 # After the first search, we can interrupt the search
@@ -579,10 +535,6 @@ cdef class AlphaBetaPlayer:
                     stat_dict["quiescence_searches"] = stat_q_searches
                     self.c_stats["total_q_searches"] += stat_q_searches
 
-                if self.use_null_moves:
-                    stat_dict["null_moves_cutoff"] = stat_null_cuts
-                    self.c_stats["total_null_cutoffs"] += stat_null_cuts
-
                 self.stats.append(stat_dict)
 
                 self.c_stats["total_nodes_visited"] += stat_visited
@@ -640,10 +592,6 @@ cdef class AlphaBetaPlayer:
             self.c_stats["average_q_searches"] = int(
                 self.c_stats["total_q_searches"] / self.c_stats["count_searches"]
             )
-        if self.use_null_moves:
-            self.c_stats["average_null_cutoffs"] = (
-                self.c_stats["total_null_cutoffs"] / self.c_stats["count_searches"]
-            )
 
         print(f"Cumulative statistics for player {self.player}, {self}")
         if self.trans_table is not None:
@@ -658,7 +606,6 @@ cdef class AlphaBetaPlayer:
             f"max_d={self.max_depth}, "
             f"max_t={self.max_time}, "
             f"eval_params={self.mv_str}, "
-            f"null={self.use_null_moves}, "
             f"qs={self.use_quiescence}, "
             f"hist={self.use_history}, "
             f"kill={self.use_kill_moves})"

@@ -288,8 +288,7 @@ class BreakthroughGameState(GameState):
 
         safe_captures: vector[pair[cython.int, cython.int]]
         all_moves: vector[pair[cython.int, cython.int]]
-        captures: vector[pair[cython.int, cython.int]]
-        all_moves.reserve(n * 3)
+        all_moves.reserve(n * 4)
 
         for i in range(n):
             index: cython.int = (start + i) % n
@@ -318,31 +317,36 @@ class BreakthroughGameState(GameState):
                         return (position, new_position)
 
                     # Captures
-                    if new_position == (3 - self.player):
+                    if dc != 0 and self.board[new_position] == (3 - self.player):
                         # Anti-decisive moves (captures from the last row)
-                        if (self.player == 1 and position < 56) or (self.player == 2 and position < 8):
+                        if (self.player == 1 and position >= 56) or (self.player == 2 and position < 8):
                             return (position, new_position)
 
                         # Prioritize safe captures
-                        if is_safe(position, self.player, self.board):
+                        # To make sure that the piece is not itself counted as defending the position
+                        self.board[position] = 0
+                        if is_safe(new_position, self.player, self.board):
                             safe_captures.push_back(pair[cython.int, cython.int](position, new_position))
-                        else:
+                        elif safe_captures.empty():
                             # give captures higher chance of being selected
-                            captures.push_back(pair[cython.int, cython.int](position, new_position))
+                            capture_pair: pair[cython.int, cython.int] = pair[cython.int, cython.int](
+                                position, new_position
+                            )
+                            all_moves.push_back(capture_pair)
+                            all_moves.push_back(capture_pair)
+                            all_moves.push_back(capture_pair)
+                            all_moves.push_back(capture_pair)
+                        self.board[position] = self.player  # Put the piece back
 
                     # Safe captures are prioritized anyway so no need to add non-captures
-                    if safe_captures == [] and captures == []:
+                    if safe_captures.empty():
                         all_moves.push_back(pair[cython.int, cython.int](position, new_position))
 
         # Always do a safe capture if you can
-        if not safe_captures.empty():
+        if safe_captures.empty() > 0:
             if safe_captures.size() > 1:
                 return safe_captures[c_random(0, safe_captures.size() - 1)]
             return safe_captures[0]
-        if not captures.empty():
-            if captures.size() > 1:
-                return captures[c_random(0, captures.size() - 1)]
-            return captures[0]
         # All_moves includes captures, they'll be selected with a higher probability
         return all_moves[c_random(0, all_moves.size() - 1)]
 
@@ -486,7 +490,6 @@ class BreakthroughGameState(GameState):
                     mob_val: cython.double = piece_mobility(position, piece, self.board)
                     mobility_values += multiplier * mob_val * (1 + piece_value)
 
-                # TODO Je moet eigenlijk belonen voor niet safe
                 if params[2] != 0.0 and not is_safe(position, piece, self.board):
                     safety_values -= multiplier * piece_value
 
@@ -495,14 +498,14 @@ class BreakthroughGameState(GameState):
         if params[3] != 0.0 and (len(self.positions[player - 1]) + len(self.positions[opponent - 1])) < 12:
             endgame_values = params[3] * piece_diff
         # "m_lorenz": 0,
-        #         "m_mobility": 1,
-        #         "m_safe": 2,
-        #         "m_endgame": 3,
-        #         "m_cap": 4,
-        #         "m_piece_diff": 5,
-        #         "m_opp_disc": 6,
-        #         "m_decisive": 7,
-        #         "a": 8,
+        # "m_mobility": 1,
+        # "m_safe": 2,
+        # "m_endgame": 3,
+        # "m_cap": 4,
+        # "m_piece_diff": 5,
+        # "m_opp_disc": 6,
+        # "m_decisive": 7,
+        # "a": 8,
         if params[7] != 0.0:
             player_1_decisive, player_2_decisive = is_decisive(self)
 
@@ -537,10 +540,10 @@ class BreakthroughGameState(GameState):
             + params[4] * caps
             + params[5] * piece_diff
         )
-        # print the individual values for debugging
-        print(
-            f"{player=} decisive: {decisive_values:.3f} | board: {board_values:.3f} | mobility: {mobility_values:.3f} | safety: {safety_values:.3f} | endgame: {endgame_values:.3f} | caps: {caps:.3f} | piece_diff: {piece_diff:.3f}"
-        )
+        # # print the individual values for debugging
+        # print(
+        #     f"{player=} decisive: {decisive_values:.3f} | board: {board_values:.3f} | mobility: {mobility_values:.3f} | safety: {safety_values:.3f} | endgame: {endgame_values:.3f} | caps: {caps:.3f} | piece_diff: {piece_diff:.3f}"
+        # )
 
         if self.player == opponent:
             eval_value *= params[6]
@@ -602,18 +605,20 @@ class BreakthroughGameState(GameState):
             score = int(score**2)  # square score if it's a capture
             # An antidecisive move
             if (self.player == 1 and from_position >= 56) or (self.player == 2 and from_position < 8):
-                score += 1000000  # Add a very high score if the move is antidecisive
+                score += 1_000_000  # Add a very high score if the move is antidecisive
 
         # Reward safe positions
+        self.board[from_position] = 0  # Remove the piece from its current position
         if is_safe(to_position, self.player, self.board):
             score *= 2  # Add base_value again if the position is safe
+        self.board[from_position] = self.player  # Put the piece back
 
         # Reward decisive moves
         # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
         if (self.player == 1 and (8 <= from_position <= 16)) or (
             self.player == 2 and (48 <= from_position <= 56)
         ):
-            score += 1000000  # Add a very high score if the move is decisive
+            score += 20_000_000  # Add a very high score if the move is decisive
 
         return score
 
@@ -882,6 +887,7 @@ def is_safe(position, player, board) -> cython.bint:
     row_direction = -1
     if player == 2:
         row_direction = 1
+
     col_direction = -1  # start with -1 direction, then change to 1 in the loop
 
     # For each direction (-1, 1), check the positions in the row direction (straight and diagonals).

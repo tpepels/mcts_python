@@ -21,6 +21,9 @@ DEBUG: cython.bint = 0
 
 # TODO Compiler directives toevoegen na debuggen
 # TODO After testing, remove assert statements
+q_searches: cython.int = 0
+prunes: cython.int = 0
+non_prunes: cython.int = 0
 
 
 @cython.cfunc
@@ -39,7 +42,6 @@ class Node:
     state_hash = cython.declare(cython.longlong, visibility="public")
     # State values
     v = cython.declare(cython.double[2], visibility="public")
-
     n_visits = cython.declare(cython.int, visibility="public")
     expanded = cython.declare(cython.bint, visibility="public")
     im_value = cython.declare(cython.double, visibility="public")
@@ -47,7 +49,9 @@ class Node:
     player = cython.declare(cython.int, visibility="public")
     max_player = cython.declare(cython.int, visibility="public")
     anti_decisive = cython.declare(cython.bint, visibility="public")
-
+    alpha = cython.declare(cython.double, visibility="public")
+    beta = cython.declare(cython.double, visibility="public")
+    # Private fields
     draw: cython.bint
     eval_value: cython.double
     action: cython.tuple
@@ -59,7 +63,9 @@ class Node:
         self.player = player
         self.max_player = max_player
         # Now we know whether we are minimizing or maximizing
-        self.im_value = float("-inf") if self.player == self.max_player else float("inf")
+        self.im_value = -INFINITY if self.player == self.max_player else INFINITY
+        self.alpha = -INFINITY
+        self.beta = INFINITY
         self.im_value = 0
         self.eval_value = 0.0
         self.expanded = 0
@@ -70,13 +76,19 @@ class Node:
         self.children = []
 
     @cython.cfunc
-    def uct(self, c: cython.double, pb_weight: cython.double = 0.0, imm_alpha: cython.double = 0.0) -> Node:
+    def uct(
+        self,
+        c: cython.double,
+        pb_weight: cython.double = 0.0,
+        imm_alpha: cython.double = 0.0,
+        ab_version: cython.int = 0,
+    ) -> Node:
         n_children: cython.int = len(self.children)
         assert n_children > 0, "Trying to uct a node without children"
         assert self.expanded, "Trying to uct a node that is not expanded"
         # Just to make sure that there's always a child to select
         max_child: Node = self.children[c_random(0, n_children - 1)]
-        max_val: cython.double = -999999.99
+        max_val: cython.double = -INFINITY
         children_lost: cython.int = 0
         children_draw: cython.int = 0
         ci: cython.int
@@ -108,11 +120,47 @@ class Node:
 
             # Implicit minimax
             if imm_alpha > 0.0:
+                global prunes, non_prunes
+
                 if self.player == self.max_player:  # Maximize the im value
-                    avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * child.im_value)
+                    # TODO Dit is full-on pruning he, dit is niet de bedoeling
+                    if ab_version == 1 and child.im_value < self.alpha:
+                        prunes += 1
+                        # This child will never be selected, it's too bad for me
+                        continue
+                    else:
+                        non_prunes += 1
+
+                    # TODO Dit is soft pruning, dit is wel de bedoeling
+                    if ab_version == 2 and child.im_value < self.alpha:
+                        prunes += 1
+                        avg_value = (1.0 - imm_alpha) * avg_value
+                    else:
+                        non_prunes += 1
+
+                    if ab_version == 0:
+                        avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * child.im_value)
                 else:
-                    # Maximize the negative im value
-                    avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * -child.im_value)
+                    # TODO Dit is full-on pruning he, dit is niet de bedoeling
+                    if ab_version == 1 and child.im_value > self.beta:
+                        # print(f"beta prune im: {child.im_value} > beta: {self.beta}")
+                        prunes += 1
+                        # This child will never be selected, it's too good for me
+                        continue
+                    else:
+                        non_prunes += 1
+
+                    # TODO Dit is soft pruning, dit is wel de bedoeling
+                    if ab_version == 2 and child.im_value > self.beta:
+                        # print(f"beta prune im: {child.im_value} > beta: {self.beta}")
+                        prunes += 1
+                        avg_value = (1.0 - imm_alpha) * avg_value
+                    else:
+                        non_prunes += 1
+
+                    if ab_version == 0:
+                        # Maximize the negative im value
+                        avg_value = ((1.0 - imm_alpha) * avg_value) - (imm_alpha * child.im_value)
 
             pb_h: cython.double
             if self.player == self.max_player:
@@ -122,8 +170,7 @@ class Node:
 
             uct_val: cython.double = (
                 avg_value
-                + sqrt(c * log(self.n_visits) / child.n_visits)
-                # + c_uniform_random(0.000001, 0.00001) # This was taking more time than expected
+                + c * sqrt(log(self.n_visits) / child.n_visits)
                 # Progressive bias, set pb_weight to 0 to disable
                 + (pb_weight * (pb_h / (1.0 + child.n_visits)))
             )
@@ -146,10 +193,6 @@ class Node:
 
         return max_child  # A random child was chosen at the beginning of the method, hence this will never be None
 
-    # TODO Misschien moet je een versie maken die een list van nodes teruggeeft zodat je dieper dan 1 laag kan expanden?
-    # TODO Of de IMM versie 3 in simulate doen? En daar de acties bijhouden
-    # TODO Of naast de node ook een nieuwe state meegeven?
-    # TODO Eigenlijk moet het gewoon recursief, in plaats van met de "handmatige" stack
     @cython.cfunc
     def expand(
         self,
@@ -205,6 +248,7 @@ class Node:
                         params=eval_params,
                     )
                     child.eval_value = eval_value
+
                 if imm:
                     # At first, the im value of the child is the same as the evaluation value, when searching deeper, it becomes the min/max of the subtree
                     if (
@@ -222,8 +266,8 @@ class Node:
                             eval_params=eval_params,
                             max_player=self.max_player,
                             depth=imm_ex_D,  # This is the depth that we will search
-                            alpha=-float("inf"),  # ? Can we set these to some meaningful values?
-                            beta=float("inf"),  # ? Can we set these to some more meaningful values?
+                            alpha=-INFINITY,  # ? Can we set these to some meaningful values?
+                            beta=INFINITY,  # ? Can we set these to some more meaningful values?
                         )
 
                     elif (
@@ -267,8 +311,8 @@ class Node:
                                 eval_params=eval_params,
                                 max_player=self.max_player,
                                 depth=imm_ex_D,  # This is the depth that we will search
-                                alpha=-float("inf"),  # ? Can we set these to some meaningful values?
-                                beta=float("inf"),  # ? Can we set these to some more meaningful values?
+                                alpha=-INFINITY,  # ? Can we set these to some meaningful values?
+                                beta=INFINITY,  # ? Can we set these to some more meaningful values?
                             )
 
                     # This means that player 2 is minimizing the evaluated value and player 1 is maximizing it
@@ -363,8 +407,8 @@ class Node:
             solved_bg = Back.LIGHTGREEN_EX
 
         im_str = (
-            f"{Fore.RED}IM:{Style.BRIGHT}{self.im_value:7.2f}{Style.NORMAL} "
-            if abs(self.im_value) != float("inf")
+            f"{Fore.RED}(IM:{Style.BRIGHT}{self.im_value:6.4f}{Style.NORMAL} {Fore.RED}α:{Style.BRIGHT}{self.alpha:6.4f}{Style.NORMAL} {Fore.RED}β:{Style.BRIGHT}{self.beta:6.4f}){Style.NORMAL} "
+            if abs(self.im_value) != INFINITY
             else ""
         )
 
@@ -374,12 +418,12 @@ class Node:
         return (
             f"{solved_bg}"
             f"{Fore.BLUE}A:{Style.BRIGHT}{str(self.action):<10}{Style.NORMAL}{root_mark} "
-            f"{Fore.GREEN}P:{Style.BRIGHT}{self.player:<3}{Style.NORMAL} "
+            f"{Fore.GREEN}P:{Style.BRIGHT}{self.player:<1}{Style.NORMAL} "
             + im_str
             + f"{Fore.YELLOW}EV:{Style.BRIGHT}{self.eval_value:7.2f}{Style.NORMAL} "
             f"{Fore.CYAN}EX:{Style.BRIGHT}{self.expanded:<3}{Style.NORMAL} "
             f"{Fore.MAGENTA}SP:{Style.BRIGHT}{self.solved_player:<3}{Style.NORMAL} "
-            f"{Fore.MAGENTA}DR:{Style.BRIGHT}{self.draw:<3}{Style.NORMAL} "
+            f"{Fore.MAGENTA}DRW:{Style.BRIGHT}{self.draw:<3}{Style.NORMAL} "
             f"{Fore.WHITE}V:{Style.BRIGHT}{value:2.1f}{Style.NORMAL} "
             f"{Back.YELLOW + Fore.BLACK}NV:{Style.BRIGHT}{self.n_visits}{Style.NORMAL}{Back.RESET + Fore.RESET}"
         )
@@ -421,6 +465,7 @@ class MCTSPlayer:
     # Research additions
     imm_version: cython.int
     ex_imm_D: cython.int  # The extra depth that will be searched
+    ab_version: cython.int
 
     def __init__(
         self,
@@ -441,6 +486,7 @@ class MCTSPlayer:
         imm_alpha: float = 0.4,
         imm: bool = False,
         imm_version: int = 0,
+        ab_version: int = 0,
         ex_imm_D: int = 2,
         roulette: bool = False,
         epsilon: float = 0.05,
@@ -500,10 +546,12 @@ class MCTSPlayer:
         # Research parameters
         self.imm_version = imm_version
         self.ex_imm_D = ex_imm_D
+        self.ab_version = ab_version
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
+
         self.n_moves += 1
         # Check if we can reutilize the root
         # If the root is None then this is either the first move, or something else..
@@ -593,7 +641,7 @@ class MCTSPlayer:
         ), f"No children found for root node {self.root}, after {i:,} simulations"
 
         max_node: Node = None
-        max_value: cython.double = -float("inf")
+        max_value: cython.double = -INFINITY
         n_children: cython.int = len(self.root.children)
 
         c_i: cython.int
@@ -646,7 +694,11 @@ class MCTSPlayer:
                 f"avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
             self.avg_po_moves = 0
-            print(f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}")
+            global q_searches, prunes, non_prunes
+            print(
+                f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f} | q searches: {q_searches} | prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}%"
+            )
+            prunes = q_searches = non_prunes = 0
             self.max_depth = self.avg_depth = 0
             print("--*--" * 20)
 
@@ -664,8 +716,6 @@ class MCTSPlayer:
 
     @cython.cfunc
     def simulate(self, init_state: GameState):
-        # Start at the root
-        node: Node = self.root
         # Keep track of selected nodes
         selected: cython.list = [self.root]
         # Keep track of the state
@@ -673,9 +723,15 @@ class MCTSPlayer:
         is_terminal: cython.bint = init_state.is_terminal()
 
         expanded: cython.bint = 0  # Ensure expansion only occurs once
+
+        # Start at the root
+        node: Node = self.root
+        # The root determines the first alpha
+        alpha: cython.double = node.im_value
+        beta: cython.double = INFINITY
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
-                node = node.uct(self.c, self.pb_weight, self.imm_alpha)
+                node = node.uct(self.c, self.pb_weight, self.imm_alpha, ab_version=self.ab_version)
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
@@ -689,6 +745,18 @@ class MCTSPlayer:
                 expanded = 1
             elif expanded:
                 break
+
+            if node.expanded:
+                # Only update alpha and beta here
+                if node.player == self.player:
+                    child_values = [child.im_value for child in node.children if child.im_value < beta]
+                    alpha = max(alpha, max(child_values, default=alpha))
+                else:
+                    child_values = [child.im_value for child in node.children if child.im_value > alpha]
+                    beta = min(beta, min(child_values, default=beta))
+
+                node.alpha = alpha
+                node.beta = beta
 
             next_state = next_state.apply_action(node.action)
             is_terminal = next_state.is_terminal()
@@ -717,16 +785,19 @@ class MCTSPlayer:
 
         # * Backpropagation
         i: cython.int
+        child: Node
+
         # Backpropagate the result along the chosen nodes
         for i in range(len(selected), 0, -1):  # Move backwards through the list
-            node = selected[i - 1]  # In reverse, start is inclusive, stop is exclusive
-            # * Imm backpropagation
+            node = selected[i - 1]
             if self.imm and node.expanded:
-                child_values: cython.list = [child.im_value for child in node.children]
-                if node.player == self.player:  # maximize im_value
+                child_values = [child.im_value for child in node.children]
+
+                if node.player == self.player:
                     node.im_value = max(child_values, default=-INFINITY)
-                else:  # minimize im_value
+                else:
                     node.im_value = min(child_values, default=INFINITY)
+
             # * Backpropagate the result of the playout
             node.v[0] += result[0]
             node.v[1] += result[1]
@@ -805,7 +876,7 @@ class MCTSPlayer:
             f"dyn_early_term_cutoff={self.dyn_early_term_cutoff}, early_term={self.early_term}, "
             f"early_term_turns={self.early_term_turns}, e_greedy={self.e_greedy}, "
             f"e_g_subset={self.e_g_subset}, roulette={self.roulette}, epsilon={self.epsilon}, "
-            f"prog_bias={self.prog_bias}, imm={self.imm}, imm_alpha={self.imm_alpha})"
+            f"prog_bias={self.prog_bias}, imm={self.imm}, imm_alpha={self.imm_alpha}, imm_version={self.imm_version}, ab_version={self.ab_version}, ex_imm_D={self.ex_imm_D})"
         )
 
 
@@ -889,12 +960,13 @@ def quiescence(
     eval_params: cython.double[:],
 ):
     actions = state.get_legal_actions()
-
+    global q_searches
+    q_searches += 1
     for m in range(len(actions)):
         move = actions[m]
         if state.is_capture(move):
             new_state = state.apply_action(move)
-            new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=False)
+            new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=True)
             score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
             stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
 

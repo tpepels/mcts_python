@@ -15,7 +15,6 @@ from cython.cimports.games.blokus import (
     PIECE_SIZES,
     UNIQUE_ROTATIONS,
     BOARD_CORNERS,
-    hash_action,
 )
 
 cnp.import_array()

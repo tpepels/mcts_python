@@ -1,7 +1,6 @@
 #cython: language_level=3
 # gamestate.pyx
 import cython
-#TODO Hier was je gebleven, de andere games moeten deze nog overnemen
 
 cdef int win = 9999999
 cdef int loss = -9999999
