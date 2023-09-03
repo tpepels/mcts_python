@@ -123,43 +123,34 @@ class Node:
                 global prunes, non_prunes
 
                 if self.player == self.max_player:  # Maximize the im value
-                    # TODO Dit is full-on pruning he, dit is niet de bedoeling
-                    if ab_version == 1 and child.im_value < self.alpha:
+                    if ab_version != 0 and child.im_value < self.alpha:
                         prunes += 1
-                        # This child will never be selected, it's too bad for me
-                        continue
+                        if ab_version == 1:
+                            # This child will never be selected, it's too bad for me
+                            continue
+                        elif ab_version == 2:
+                            # Discount the minimax value
+                            avg_value = (1.0 - imm_alpha) * avg_value
+                        elif ab_version == 3:
+                            # The minimax value would never have been < alpha, so we can just set it to alpha
+                            avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * self.alpha)
                     else:
                         non_prunes += 1
-
-                    # TODO Dit is soft pruning, dit is wel de bedoeling
-                    if ab_version == 2 and child.im_value < self.alpha:
-                        prunes += 1
-                        avg_value = (1.0 - imm_alpha) * avg_value
-                    else:
-                        non_prunes += 1
-
-                    if ab_version == 0:
                         avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * child.im_value)
-                else:
-                    # TODO Dit is full-on pruning he, dit is niet de bedoeling
-                    if ab_version == 1 and child.im_value > self.beta:
-                        # print(f"beta prune im: {child.im_value} > beta: {self.beta}")
+                else:  # Minimize the im value
+                    if ab_version != 0 and child.im_value > self.beta:
                         prunes += 1
-                        # This child will never be selected, it's too good for me
-                        continue
+                        if ab_version == 1:
+                            # This child will never be selected, it's too bad for me
+                            continue
+                        elif ab_version == 2:
+                            # Discount the minimax value
+                            avg_value = (1.0 - imm_alpha) * avg_value
+                        elif ab_version == 3:
+                            # The minimax value would never have been > beta, so we can just set it to beta
+                            avg_value = ((1.0 - imm_alpha) * avg_value) - (imm_alpha * self.beta)
                     else:
                         non_prunes += 1
-
-                    # TODO Dit is soft pruning, dit is wel de bedoeling
-                    if ab_version == 2 and child.im_value > self.beta:
-                        # print(f"beta prune im: {child.im_value} > beta: {self.beta}")
-                        prunes += 1
-                        avg_value = (1.0 - imm_alpha) * avg_value
-                    else:
-                        non_prunes += 1
-
-                    if ab_version == 0:
-                        # Maximize the negative im value
                         avg_value = ((1.0 - imm_alpha) * avg_value) - (imm_alpha * child.im_value)
 
             pb_h: cython.double
