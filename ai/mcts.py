@@ -8,12 +8,11 @@ init(autoreset=True)
 
 import cython
 
-from cython.cimports.includes import c_uniform_random, c_random, c_shuffle
-from cython.cimports.includes.c_util import c_random_seed
+from cython.cimports.includes import c_uniform_random, c_random
+from cython.cimports.includes.c_util import c_random_seed, Z
 from cython.cimports.libc.time import time
-from cython.cimports.libc.math import sqrt, log
+from cython.cimports.libc.math import sqrt, log, INFINITY, erf
 from cython.cimports.includes import GameState, win, loss
-from cython.cimports.libc.math import INFINITY
 
 from util import abbreviate, format_time
 
@@ -35,6 +34,12 @@ def curr_time() -> cython.long:
 c_random_seed(curr_time())
 
 
+@cython.cfunc
+@cython.exceptval(-999999, check=False)
+def cdf(x: cython.double, mean: cython.double = 0, std_dev: cython.double = 1) -> cython.double:
+    return 0.5 * (1 + erf((x - mean) / (std_dev * sqrt(2))))
+
+
 @cython.freelist(10000)
 @cython.cclass
 class Node:
@@ -42,6 +47,7 @@ class Node:
     state_hash = cython.declare(cython.longlong, visibility="public")
     # State values
     v = cython.declare(cython.double[2], visibility="public")
+    M2 = cython.declare(cython.double, visibility="public")
     n_visits = cython.declare(cython.int, visibility="public")
     expanded = cython.declare(cython.bint, visibility="public")
     im_value = cython.declare(cython.double, visibility="public")
@@ -123,7 +129,7 @@ class Node:
                 global prunes, non_prunes
 
                 if self.player == self.max_player:  # Maximize the im value
-                    if ab_version != 0 and child.im_value < self.alpha:
+                    if ab_version != 0 and ab_version != 4 and child.im_value < self.alpha:
                         prunes += 1
                         if ab_version == 1:
                             # This child will never be selected, it's too bad for me
@@ -138,7 +144,7 @@ class Node:
                         non_prunes += 1
                         avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * child.im_value)
                 else:  # Minimize the im value
-                    if ab_version != 0 and child.im_value > self.beta:
+                    if ab_version != 0 and ab_version != 4 and child.im_value > self.beta:
                         prunes += 1
                         if ab_version == 1:
                             # This child will never be selected, it's too bad for me
@@ -159,12 +165,55 @@ class Node:
             else:
                 pb_h = -child.eval_value
 
+            # TODO Idee: de uct_val bounden aan de hand van de alpha/beta/minimax waarden
             uct_val: cython.double = (
                 avg_value
                 + c * sqrt(log(self.n_visits) / child.n_visits)
                 # Progressive bias, set pb_weight to 0 to disable
                 + (pb_weight * (pb_h / (1.0 + child.n_visits)))
             )
+
+            if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY and child.n_visits > 10:
+                sqrt_n: cython.double = sqrt(child.n_visits)
+                sample_std: cython.double = max(child.std_dev(), 1e-10)
+
+                # Compute the confidence interval for the mean
+                margin_of_error: cython.double = Z * (sample_std / sqrt_n)
+                ci_lower: cython.double = avg_value - margin_of_error
+                ci_upper: cython.double = avg_value + margin_of_error
+
+                # Assuming you already have sample_mean, sample_std, alpha_star, and beta_star
+                z_alpha_lower: cython.double = (self.alpha - ci_lower) / sample_std
+                z_alpha_upper: cython.double = (self.alpha - ci_upper) / sample_std
+
+                z_beta_lower: cython.double = (self.beta - ci_lower) / sample_std
+                z_beta_upper: cython.double = (self.beta - ci_upper) / sample_std
+
+                # Here you could use multiplication as a way to find the joint probability
+                # if you consider the events independent (which might or might not be a good assumption)
+                joint_probability: cython.double = cdf(z_alpha_upper, mean=0, std_dev=sample_std) - cdf(
+                    z_alpha_lower, mean=0, std_dev=sample_std
+                ) * (
+                    cdf(z_beta_upper, mean=0, std_dev=sample_std)
+                    - cdf(z_beta_lower, mean=0, std_dev=sample_std)
+                )
+
+                # if joint_probability > 0.7:
+                #     print("*" * 50)
+                #     print(
+                #         f"{child.im_value=} simulation_average={(child.v[self.player - 1] - child.v[(3 - self.player) - 1]) / child.n_visits}"
+                #     )
+                #     print(f"{avg_value=} - {sqrt_n=} - {sample_std=} - {child.M2=} - {child.n_visits=}")
+                #     print(f"{ci_lower=} - {ci_upper=}")
+                #     print(f"{z_alpha_lower=} - {z_alpha_upper=}")
+                #     print(f"{z_beta_lower=} - {z_beta_upper=}")
+                #     print(f"{self.alpha=} - {self.beta=}")
+                #     print(f"{prob_alpha_in_ci=} - {prob_beta_in_ci=}")
+                #     print(f"{joint_probability=}")
+                #     print("\n")
+
+                # * Multiply the uct value with the probability that both alpha and beta are in the confidence interval of the mean
+                uct_val *= joint_probability
 
             if uct_val >= max_val:
                 max_child = child
@@ -325,6 +374,8 @@ class Node:
         self.check_loss_node()
 
         if imm:
+            # TODO Moet dit wel hier, want de node is selected dus je doet het ook in simulate
+            # TODO In imm3 zou elke node al een visit moeten hebben, dus dit is niet nodig
             # Do the full minimax back-up
             best_im: cython.double
             best_node: Node
@@ -385,6 +436,11 @@ class Node:
                 return
 
         self.solved_player = 3 - self.player
+
+    @cython.cfunc
+    @cython.inline
+    def std_dev(self) -> cython.double:
+        return (self.M2 / (self.n_visits - 1)) ** 0.5 if self.n_visits > 1 else 0
 
     def __str__(self):
         root_mark = f"(Root) AD:{self.anti_decisive:<1}" if self.action == () else ""
@@ -790,9 +846,21 @@ class MCTSPlayer:
                     node.im_value = min(child_values, default=INFINITY)
 
             # * Backpropagate the result of the playout
+            # Keep track of the old mean to calculate the std deviation
+            if node.n_visits == 0:
+                delta = 0
+            else:
+                old_mean = node.v[0] / node.n_visits
+                delta = result[0] - old_mean
+
             node.v[0] += result[0]
             node.v[1] += result[1]
             node.n_visits += 1
+
+            new_mean = node.v[0] / node.n_visits  # Mean after the new sample
+            delta2 = result[0] - new_mean
+            # TODO We could keep track of two M2's one for each player
+            node.M2 += delta * delta2
 
     @cython.cfunc
     def play_out(self, state: GameState) -> cython.tuple[cython.double, cython.double]:

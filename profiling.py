@@ -91,15 +91,15 @@ else:
         "max_time": 10,
         "debug": args.debug,
         "imm": True,
-        "c": 0.7,
+        "c": 0.8,
         "imm_version": 0,
         "early_term": True,
         "early_term_turns": 10,
         "early_term_cutoff": 0.05,
         "roulette": True,
         "roulette_epsilon": 0.05,
-        "imm_alpha": 0.4,
-        "ab_version": 0,
+        "imm_alpha": 0.6,
+        "ab_version": 4,
     }
     ai_2_params = {
         "max_time": 10,
@@ -112,8 +112,8 @@ else:
         "early_term_cutoff": 0.05,
         "roulette": True,
         "roulette_epsilon": 0.05,
-        "imm_alpha": 0.4,
-        "ab_version": 2,
+        "imm_alpha": 0.6,
+        "ab_version": 0,
     }
 
     p1_params = AIParams(

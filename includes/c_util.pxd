@@ -3,6 +3,8 @@
 from libc.stdlib cimport srand, rand, RAND_MAX
 from libc.math cimport tanh
 
+cdef double Z
+
 cdef inline void c_random_seed(unsigned int seed):
     srand(seed)
 
