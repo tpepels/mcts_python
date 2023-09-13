@@ -871,33 +871,35 @@ class MCTSPlayer:
                 if node.player == self.player:
                     for i in range(len(node.children)):
                         child = node.children[i]
-                        val: cython.double = child.get_value_with_uct_interval(
-                            c=self.c,
-                            player=self.player,
-                            imm_alpha=self.imm_alpha,
-                            bound_type=-1,  # Calculate a lower bound for alpha
-                            N=node.n_visits,
-                        )
-                        if val <= beta and val > alpha:
-                            alpha = val
-                            alpha_visits = child.n_visits
-                            alpha_depth = depth
-                            alpha_changed = 1
+                        if child.n_visits > 0:
+                            val: cython.double = child.get_value_with_uct_interval(
+                                c=self.c,
+                                player=self.player,
+                                imm_alpha=self.imm_alpha,
+                                bound_type=-1,  # Calculate a lower bound for alpha
+                                N=node.n_visits,
+                            )
+                            if val <= beta and val > alpha:
+                                alpha = val
+                                alpha_visits = child.n_visits
+                                alpha_depth = depth
+                                alpha_changed = 1
                 else:
                     for i in range(len(node.children)):
                         child = node.children[i]
-                        val: cython.double = child.get_value_with_uct_interval(
-                            c=self.c,
-                            player=self.player,
-                            imm_alpha=self.imm_alpha,
-                            bound_type=1,  # Calculate an upper bound for beta
-                            N=node.n_visits,
-                        )
-                        if val <= beta and val >= alpha:
-                            beta = val
-                            beta_visits = child.n_visits
-                            beta_depth = depth
-                            beta_changed = 1
+                        if child.n_visits > 0:
+                            val: cython.double = child.get_value_with_uct_interval(
+                                c=self.c,
+                                player=self.player,
+                                imm_alpha=self.imm_alpha,
+                                bound_type=1,  # Calculate an upper bound for beta
+                                N=node.n_visits,
+                            )
+                            if val <= beta and val >= alpha:
+                                beta = val
+                                beta_visits = child.n_visits
+                                beta_depth = depth
+                                beta_changed = 1
 
                 node.alpha = alpha
                 node.beta = beta

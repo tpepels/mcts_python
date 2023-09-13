@@ -218,7 +218,11 @@ class DynamicBin:
             print(f"{Fore.GREEN}{key}: {value:,.2f}")
         # Print the plot
         for y, row in enumerate(plot):
-            label = y_labels[y // 5] if y % (plot_height // 5) == 0 else ""
+            if y // 5 < len(y_labels):
+                label = y_labels[y // 5] if y % (plot_height // 5) == 0 else ""
+            else:
+                label = ""
+
             if isinstance(label, (int, float)):
                 label_str = f"{label:,.2f}".rjust(max_label_length)
             else:
