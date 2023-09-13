@@ -17,6 +17,7 @@ ext_modules = [
     Extension("ai.alpha_beta", ["ai/alpha_beta.pyx"], include_dirs=["."]),
     Extension("ai.mcts", ["ai/mcts.py"], include_dirs=["."]),
     Extension("run_games", ["run_games.py"]),
+    Extension("includes.dynamic_bin", ["includes/dynamic_bin.py"]),
 ]
 
 setup(
@@ -27,13 +28,13 @@ setup(
         compiler_directives={
             "profile": True,
             "language_level": "3",
-            "embedsignature": True,
-            "wraparound": False,
-            "initializedcheck": False,
-            "boundscheck": False,
-            "nonecheck": False,
-            "cdivision": True,
-            "infer_types": True,
+            # "embedsignature": True,
+            # "wraparound": False,
+            # "initializedcheck": False,
+            # "boundscheck": False,
+            # "nonecheck": False,
+            # "cdivision": True,
+            # "infer_types": True,
         },
     ),
 )

@@ -1,6 +1,5 @@
 # cython: language_level=3
 
-from operator import itemgetter
 import random
 from colorama import Back, Fore, init, Style
 
@@ -13,16 +12,32 @@ from cython.cimports.includes.c_util import c_random_seed, Z
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log, INFINITY, erf
 from cython.cimports.includes import GameState, win, loss
+from cython.cimports.includes import DynamicBin
 
 from util import abbreviate, format_time
 
 DEBUG: cython.bint = 0
-
+n_bins = 12
 # TODO Compiler directives toevoegen na debuggen
 # TODO After testing, remove assert statements
 q_searches: cython.int = 0
+
+bins_dict = {
+    "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values"},
+    "beta_bins": {"bin": DynamicBin(n_bins), "label": "Beta values"},
+    "dist_bins": {"bin": DynamicBin(n_bins), "label": "(Beta - Alpha) values"},
+    "ci_min_bins": {"bin": DynamicBin(n_bins), "label": "Min(CI, ab) values"},
+    "ci_bins": {"bin": DynamicBin(n_bins), "label": "CI values"},
+    "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "Alpha CI values"},
+    "beta_ci_bins": {"bin": DynamicBin(n_bins), "label": "Beta CI values"},
+    "alpha_visits_bins": {"bin": DynamicBin(n_bins), "label": "Alpha visits"},
+    "beta_visits_bins": {"bin": DynamicBin(n_bins), "label": "Beta visits"},
+    "alpha_depth_bins": {"bin": DynamicBin(n_bins), "label": "Alpha depth"},
+    "beta_depth_bins": {"bin": DynamicBin(n_bins), "label": "Beta depth"},
+}
 prunes: cython.int = 0
 non_prunes: cython.int = 0
+cutoffs: cython.int = 0
 
 
 @cython.cfunc
@@ -35,6 +50,40 @@ c_random_seed(curr_time())
 
 
 @cython.cfunc
+@cython.returns(cython.int)
+@cython.exceptval(-1, check=False)
+def bin_probability(p: cython.double, num_bins: cython.int = 12):
+    """Assign a probability to a bin.
+
+    Parameters:
+        p (float): The probability to bin, between 0 and 1.
+        num_bins (int): The number of bins.
+
+    Returns:
+        int: The bin number (0-indexed).
+    """
+    if p < 0 or p > 1:
+        raise ValueError("Probability must be between 0 and 1.")
+
+    if p == 0:
+        return 0
+    elif p == 1:
+        return num_bins - 1
+    else:
+        # Calculate bin size
+        bin_size: cython.double = 1.0 / (num_bins - 1)
+        # Find the bin number
+        bin_number: cython.int = cython.cast(cython.int, (p // bin_size) + 1)
+        return bin_number
+
+
+# Test the function
+print(bin_probability(0.23))  # Output should be 2 (in bin number 2)
+print(bin_probability(0))  # Output should be 0 (in the first bin)
+print(bin_probability(1))  # Output should be 9 (in the last bin)
+
+
+@cython.cfunc
 @cython.exceptval(-999999, check=False)
 def cdf(x: cython.double, mean: cython.double = 0, std_dev: cython.double = 1) -> cython.double:
     return 0.5 * (1 + erf((x - mean) / (std_dev * sqrt(2))))
@@ -43,7 +92,7 @@ def cdf(x: cython.double, mean: cython.double = 0, std_dev: cython.double = 1) -
 @cython.freelist(10000)
 @cython.cclass
 class Node:
-    children = cython.declare(cython.list, visibility="public")
+    children = cython.declare(cython.list[Node], visibility="public")
     state_hash = cython.declare(cython.longlong, visibility="public")
     # State values
     v = cython.declare(cython.double[2], visibility="public")
@@ -98,6 +147,12 @@ class Node:
         children_lost: cython.int = 0
         children_draw: cython.int = 0
         ci: cython.int
+
+        # TODO Debug, remove later
+        if self.alpha != -INFINITY and self.beta != INFINITY:
+            bins_dict["alpha_bins"]["bin"].add_data(self.alpha)
+            bins_dict["beta_bins"]["bin"].add_data(self.beta)
+
         # Move through the children to find the one with the highest UCT value
         for ci in range(n_children):
             child: Node = self.children[ci]
@@ -120,44 +175,15 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            avg_value: cython.double = (
+            simulation_mean: cython.double = (
                 child.v[self.player - 1] - child.v[(3 - self.player) - 1]
             ) / child.n_visits
-
+            child_value: cython.double = simulation_mean
             # Implicit minimax
             if imm_alpha > 0.0:
                 global prunes, non_prunes
-
-                if self.player == self.max_player:  # Maximize the im value
-                    if ab_version != 0 and ab_version != 4 and child.im_value < self.alpha:
-                        prunes += 1
-                        if ab_version == 1:
-                            # This child will never be selected, it's too bad for me
-                            continue
-                        elif ab_version == 2:
-                            # Discount the minimax value
-                            avg_value = (1.0 - imm_alpha) * avg_value
-                        elif ab_version == 3:
-                            # The minimax value would never have been < alpha, so we can just set it to alpha
-                            avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * self.alpha)
-                    else:
-                        non_prunes += 1
-                        avg_value = ((1.0 - imm_alpha) * avg_value) + (imm_alpha * child.im_value)
-                else:  # Minimize the im value
-                    if ab_version != 0 and ab_version != 4 and child.im_value > self.beta:
-                        prunes += 1
-                        if ab_version == 1:
-                            # This child will never be selected, it's too bad for me
-                            continue
-                        elif ab_version == 2:
-                            # Discount the minimax value
-                            avg_value = (1.0 - imm_alpha) * avg_value
-                        elif ab_version == 3:
-                            # The minimax value would never have been > beta, so we can just set it to beta
-                            avg_value = ((1.0 - imm_alpha) * avg_value) - (imm_alpha * self.beta)
-                    else:
-                        non_prunes += 1
-                        avg_value = ((1.0 - imm_alpha) * avg_value) - (imm_alpha * child.im_value)
+                # Initially, just get the regular imm value with mean included
+                child_value = child.get_value_imm(self.player, imm_alpha)
 
             pb_h: cython.double
             if self.player == self.max_player:
@@ -165,55 +191,60 @@ class Node:
             else:
                 pb_h = -child.eval_value
 
-            # TODO Idee: de uct_val bounden aan de hand van de alpha/beta/minimax waarden
-            uct_val: cython.double = (
-                avg_value
-                + c * sqrt(log(self.n_visits) / child.n_visits)
-                # Progressive bias, set pb_weight to 0 to disable
-                + (pb_weight * (pb_h / (1.0 + child.n_visits)))
+            confidence_i: cython.double = sqrt(
+                log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
             )
 
-            if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY and child.n_visits > 10:
-                sqrt_n: cython.double = sqrt(child.n_visits)
-                sample_std: cython.double = max(child.std_dev(), 1e-10)
+            if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY:
+                bins_dict["dist_bins"]["bin"].add_data(self.beta - self.alpha)
 
-                # Compute the confidence interval for the mean
-                margin_of_error: cython.double = Z * (sample_std / sqrt_n)
-                ci_lower: cython.double = avg_value - margin_of_error
-                ci_upper: cython.double = avg_value + margin_of_error
+                bins_dict["ci_bins"]["bin"].add_data(confidence_i)  # TODO Debug, remove later
 
-                # Assuming you already have sample_mean, sample_std, alpha_star, and beta_star
-                z_alpha_lower: cython.double = (self.alpha - ci_lower) / sample_std
-                z_alpha_upper: cython.double = (self.alpha - ci_upper) / sample_std
+                # TODO Should we multiply the confidence_i with c before or after the alpha/beta bounds computation?
+                # Since we cannot improve the overall value beyond beta, we can possibly discount the confidence interval
+                if self.player == self.max_player:
+                    confidence_i = min(
+                        c * confidence_i, (self.beta - self.alpha) * (self.beta - child_value)
+                    )  # The confidence interval will be negative if the child value is higher than beta, which is what we want
+                    # TODO Debug, remove later
+                    bins_dict["beta_ci_bins"]["bin"].add_data(
+                        (self.beta - self.alpha) * (self.beta - child_value)
+                    )
+                    if confidence_i == (self.beta - self.alpha) * (self.beta - child_value):
+                        prunes += 1
+                    else:
+                        non_prunes += 1
+                else:
+                    # Similarly, we cannot improve the overall value beyond alpha, hence we can discount the confidence interval
+                    confidence_i = min(
+                        c * confidence_i, (self.beta - self.alpha) * (child_value - self.alpha)
+                    )  # The confidence interval will be negative if the child value is lower than alpha, which is what we want
+                    # TODO Debug, remove later
+                    bins_dict["alpha_ci_bins"]["bin"].add_data(
+                        (self.beta - self.alpha) * (child_value - self.alpha)
+                    )
 
-                z_beta_lower: cython.double = (self.beta - ci_lower) / sample_std
-                z_beta_upper: cython.double = (self.beta - ci_upper) / sample_std
+                    if confidence_i == (self.beta - self.alpha) * (child_value - self.alpha):
+                        prunes += 1
+                    else:
+                        non_prunes += 1
 
-                # Here you could use multiplication as a way to find the joint probability
-                # if you consider the events independent (which might or might not be a good assumption)
-                joint_probability: cython.double = cdf(z_alpha_upper, mean=0, std_dev=sample_std) - cdf(
-                    z_alpha_lower, mean=0, std_dev=sample_std
-                ) * (
-                    cdf(z_beta_upper, mean=0, std_dev=sample_std)
-                    - cdf(z_beta_lower, mean=0, std_dev=sample_std)
-                )
-
-                # if joint_probability > 0.7:
-                #     print("*" * 50)
-                #     print(
-                #         f"{child.im_value=} simulation_average={(child.v[self.player - 1] - child.v[(3 - self.player) - 1]) / child.n_visits}"
-                #     )
-                #     print(f"{avg_value=} - {sqrt_n=} - {sample_std=} - {child.M2=} - {child.n_visits=}")
-                #     print(f"{ci_lower=} - {ci_upper=}")
-                #     print(f"{z_alpha_lower=} - {z_alpha_upper=}")
-                #     print(f"{z_beta_lower=} - {z_beta_upper=}")
-                #     print(f"{self.alpha=} - {self.beta=}")
-                #     print(f"{prob_alpha_in_ci=} - {prob_beta_in_ci=}")
-                #     print(f"{joint_probability=}")
-                #     print("\n")
+                bins_dict["ci_min_bins"]["bin"].add_data(confidence_i)  # TODO Debug, remove later
 
                 # * Multiply the uct value with the probability that both alpha and beta are in the confidence interval of the mean
-                uct_val *= joint_probability
+                uct_val: cython.double = (
+                    child_value
+                    + confidence_i
+                    # Progressive bias, set pb_weight to 0 to disable
+                    + (pb_weight * (pb_h / (1.0 + child.n_visits)))
+                )
+            else:
+                uct_val: cython.double = (
+                    child_value
+                    + c * confidence_i
+                    # Progressive bias, set pb_weight to 0 to disable
+                    + (pb_weight * (pb_h / (1.0 + child.n_visits)))
+                )
 
             if uct_val >= max_val:
                 max_child = child
@@ -439,8 +470,39 @@ class Node:
 
     @cython.cfunc
     @cython.inline
+    @cython.exceptval(-1, check=False)
     def std_dev(self) -> cython.double:
-        return (self.M2 / (self.n_visits - 1)) ** 0.5 if self.n_visits > 1 else 0
+        return sqrt(self.M2 / (self.n_visits - 1)) if self.n_visits > 1 else 0
+
+    @cython.cfunc
+    @cython.inline
+    @cython.exceptval(-777777777, check=False)
+    def get_value_imm(self, player: cython.int, imm_alpha: cython.double) -> cython.double:
+        simulation_mean: cython.double = (self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits
+        # Max player is the player that is maximizing overall, not just in this node
+        if player == self.max_player:
+            return ((1.0 - imm_alpha) * simulation_mean) + (imm_alpha * self.im_value)
+        else:
+            return ((1.0 - imm_alpha) * simulation_mean) - (imm_alpha * self.im_value)
+
+    @cython.cfunc
+    @cython.inline
+    @cython.exceptval(-777777777, check=False)
+    def get_value_with_uct_interval(
+        self,
+        c: cython.double,
+        player: cython.int,
+        imm_alpha: cython.double,
+        bound_type: cython.int,
+        N: cython.int,
+    ) -> cython.double:
+        value: cython.double = self.get_value_imm(player, imm_alpha)
+        # Compute the adjustment factor for the prediction interval
+        adjustment: cython.double = c * (
+            sqrt(cython.cast(cython.double, N) / cython.cast(cython.double, self.n_visits))
+        )
+        # Return the adjusted value based on the bound_type (-1 for alpha, 1 for beta)
+        return value - adjustment if bound_type == -1 else value + adjustment
 
     def __str__(self):
         root_mark = f"(Root) AD:{self.anti_decisive:<1}" if self.action == () else ""
@@ -598,6 +660,8 @@ class MCTSPlayer:
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
+        global bin_counts
+        bin_counts = [0] * 12  # DEBUG 12 bins (0 for exactly 0 and 11 for exactly 1)
 
         self.n_moves += 1
         # Check if we can reutilize the root
@@ -756,12 +820,25 @@ class MCTSPlayer:
             sorted_children = sorted(self.root.children[:20], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
+            if self.ab_version == 4:
+                plot_width = 140
+                plot_height = 32
+
+                # Plot bin counts
+                for _, bin_value in bins_dict.items():
+                    bin_value["bin"].plot_bin_counts(bin_value["label"])
+                    bin_value["bin"].plot_time_series(bin_value["label"], plot_width, plot_height)
+
+                # Clear bins
+                for _, bin_value in bins_dict.items():
+                    bin_value["bin"].clear()
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
         return max_node.action, max_value  # return the most visited state
 
     @cython.cfunc
+    @cython.nonecheck(False)
     def simulate(self, init_state: GameState):
         # Keep track of selected nodes
         selected: cython.list = [self.root]
@@ -773,12 +850,69 @@ class MCTSPlayer:
 
         # Start at the root
         node: Node = self.root
-        # The root determines the first alpha
-        alpha: cython.double = node.im_value
+        child: Node
+        i: cython.int
+        # TODO Base alpha/beta on the imm values only? Or on the linear combination of the mean and imm values?
+
+        alpha: cython.double = -INFINITY
         beta: cython.double = INFINITY
+        alpha_visits: cython.double = 0
+        beta_visits: cython.double = 0
+        alpha_depth: cython.double = 0
+        beta_depth: cython.double = 0
+        depth: cython.double = 0
+        alpha_changed: cython.bint = 0
+        beta_changed: cython.bint = 0
+
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
+                alpha_changed = 0
+                beta_changed = 0
+                if node.player == self.player:
+                    for i in range(len(node.children)):
+                        child = node.children[i]
+                        val: cython.double = child.get_value_with_uct_interval(
+                            c=self.c,
+                            player=self.player,
+                            imm_alpha=self.imm_alpha,
+                            bound_type=-1,  # Calculate a lower bound for alpha
+                            N=node.n_visits,
+                        )
+                        if val <= beta and val > alpha:
+                            alpha = val
+                            alpha_visits = child.n_visits
+                            alpha_depth = depth
+                            alpha_changed = 1
+                else:
+                    for i in range(len(node.children)):
+                        child = node.children[i]
+                        val: cython.double = child.get_value_with_uct_interval(
+                            c=self.c,
+                            player=self.player,
+                            imm_alpha=self.imm_alpha,
+                            bound_type=1,  # Calculate an upper bound for beta
+                            N=node.n_visits,
+                        )
+                        if val <= beta and val >= alpha:
+                            beta = val
+                            beta_visits = child.n_visits
+                            beta_depth = depth
+                            beta_changed = 1
+
+                node.alpha = alpha
+                node.beta = beta
+
+                if alpha_changed:
+                    # Do something if either alpha or beta has changed
+                    bins_dict["alpha_visits_bins"]["bin"].add_data(alpha_visits)
+                    bins_dict["alpha_depth_bins"]["bin"].add_data(alpha_depth)
+                if beta_changed:
+                    bins_dict["beta_visits_bins"]["bin"].add_data(beta_visits)
+                    bins_dict["beta_depth_bins"]["bin"].add_data(beta_depth)
+
                 node = node.uct(self.c, self.pb_weight, self.imm_alpha, ab_version=self.ab_version)
+                depth += 1
+
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
@@ -792,18 +926,6 @@ class MCTSPlayer:
                 expanded = 1
             elif expanded:
                 break
-
-            if node.expanded:
-                # Only update alpha and beta here
-                if node.player == self.player:
-                    child_values = [child.im_value for child in node.children if child.im_value < beta]
-                    alpha = max(alpha, max(child_values, default=alpha))
-                else:
-                    child_values = [child.im_value for child in node.children if child.im_value > alpha]
-                    beta = min(beta, min(child_values, default=beta))
-
-                node.alpha = alpha
-                node.beta = beta
 
             next_state = next_state.apply_action(node.action)
             is_terminal = next_state.is_terminal()
@@ -831,36 +953,27 @@ class MCTSPlayer:
         self.avg_depth += len(selected)
 
         # * Backpropagation
-        i: cython.int
-        child: Node
-
-        # Backpropagate the result along the chosen nodes
         for i in range(len(selected), 0, -1):  # Move backwards through the list
             node = selected[i - 1]
-            if self.imm and node.expanded:
-                child_values = [child.im_value for child in node.children]
-
-                if node.player == self.player:
-                    node.im_value = max(child_values, default=-INFINITY)
-                else:
-                    node.im_value = min(child_values, default=INFINITY)
 
             # * Backpropagate the result of the playout
-            # Keep track of the old mean to calculate the std deviation
-            if node.n_visits == 0:
-                delta = 0
-            else:
-                old_mean = node.v[0] / node.n_visits
-                delta = result[0] - old_mean
+            if self.imm and node.expanded:
+                if node.player == self.player:
+                    node.im_value = -INFINITY  # Initialize to negative infinity
+                    for i in range(len(node.children)):
+                        child = node.children[i]
+                        temp_im_value = child.im_value
+                        node.im_value = max(node.im_value, temp_im_value)
+                else:
+                    node.im_value = INFINITY  # Initialize to positive infinity
+                    for i in range(len(node.children)):
+                        child = node.children[i]
+                        temp_im_value = child.im_value
+                        node.im_value = min(node.im_value, temp_im_value)
 
             node.v[0] += result[0]
             node.v[1] += result[1]
             node.n_visits += 1
-
-            new_mean = node.v[0] / node.n_visits  # Mean after the new sample
-            delta2 = result[0] - new_mean
-            # TODO We could keep track of two M2's one for each player
-            node.M2 += delta * delta2
 
     @cython.cfunc
     def play_out(self, state: GameState) -> cython.tuple[cython.double, cython.double]:

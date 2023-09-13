@@ -1,5 +1,4 @@
 # cython: language_level=3
-
 import cython
 
 from util import pretty_print_dict, abbreviate

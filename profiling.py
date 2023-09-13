@@ -88,16 +88,16 @@ else:
     algo = args.algo
     eval_params = {}
     ai_1_params = {
-        "max_time": 10,
+        "max_time": 20,
         "debug": args.debug,
         "imm": True,
-        "c": 0.8,
+        "c": 0.6,
         "imm_version": 0,
         "early_term": True,
         "early_term_turns": 10,
         "early_term_cutoff": 0.05,
-        "roulette": True,
-        "roulette_epsilon": 0.05,
+        # "roulette": True,
+        # "roulette_epsilon": 0.05,
         "imm_alpha": 0.6,
         "ab_version": 4,
     }
@@ -105,13 +105,13 @@ else:
         "max_time": 10,
         "debug": args.debug,
         "imm": True,
-        "c": 0.8,
+        "c": 0.6,
         "imm_version": 0,
         "early_term": True,
         "early_term_turns": 10,
         "early_term_cutoff": 0.05,
-        "roulette": True,
-        "roulette_epsilon": 0.05,
+        # "roulette": True,
+        # "roulette_epsilon": 0.05,
         "imm_alpha": 0.6,
         "ab_version": 0,
     }
