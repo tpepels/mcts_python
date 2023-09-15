@@ -1,7 +1,7 @@
 # cython: language_level=3
 
 import random
-from colorama import Back, Fore, init, Style
+from colorama import Back, Fore, init
 
 init(autoreset=True)
 
@@ -26,9 +26,9 @@ bins_dict = {
     "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values"},
     "beta_bins": {"bin": DynamicBin(n_bins), "label": "Beta values"},
     "dist_bins": {"bin": DynamicBin(n_bins), "label": "(Beta - Alpha) values"},
-    "ci_min_bins": {"bin": DynamicBin(n_bins), "label": "Min(CI, ab) values"},
     "ci_bins": {"bin": DynamicBin(n_bins), "label": "CI values"},
     "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "Alpha CI values"},
+    "ab_ci_diff_bins": {"bin": DynamicBin(n_bins), "label": "UCB - A/B Bound values"},
     "beta_ci_bins": {"bin": DynamicBin(n_bins), "label": "Beta CI values"},
     "alpha_visits_bins": {"bin": DynamicBin(n_bins), "label": "Alpha visits"},
     "beta_visits_bins": {"bin": DynamicBin(n_bins), "label": "Beta visits"},
@@ -37,6 +37,8 @@ bins_dict = {
 }
 prunes: cython.int = 0
 non_prunes: cython.int = 0
+ab_bound: cython.int = 0
+ucb_bound: cython.int = 0
 cutoffs: cython.int = 0
 
 
@@ -96,7 +98,6 @@ class Node:
     state_hash = cython.declare(cython.longlong, visibility="public")
     # State values
     v = cython.declare(cython.double[2], visibility="public")
-    M2 = cython.declare(cython.double, visibility="public")
     n_visits = cython.declare(cython.int, visibility="public")
     expanded = cython.declare(cython.bint, visibility="public")
     im_value = cython.declare(cython.double, visibility="public")
@@ -141,9 +142,13 @@ class Node:
         n_children: cython.int = len(self.children)
         assert n_children > 0, "Trying to uct a node without children"
         assert self.expanded, "Trying to uct a node that is not expanded"
-        # Just to make sure that there's always a child to select
-        max_child: Node = self.children[c_random(0, n_children - 1)]
-        max_val: cython.double = -INFINITY
+        # TODO Debug, remove later
+        global prunes, non_prunes, ab_bound, ucb_bound
+
+        # selected_child: Node = self.children[c_random(0, n_children - 1)]
+        selected_child: Node = None
+        best_val: cython.double = -INFINITY if self.player == self.max_player else INFINITY
+
         children_lost: cython.int = 0
         children_draw: cython.int = 0
         ci: cython.int
@@ -175,80 +180,73 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            simulation_mean: cython.double = (
-                child.v[self.player - 1] - child.v[(3 - self.player) - 1]
-            ) / child.n_visits
-            child_value: cython.double = simulation_mean
             # Implicit minimax
             if imm_alpha > 0.0:
-                global prunes, non_prunes
                 # Initially, just get the regular imm value with mean included
-                child_value = child.get_value_imm(self.player, imm_alpha)
-
-            pb_h: cython.double
-            if self.player == self.max_player:
-                pb_h = child.eval_value
+                child_value: cython.double = child.get_value_imm(self.max_player, imm_alpha)
             else:
-                pb_h = -child.eval_value
+                # If we are not using imm, we can just use the simulation mean
+                child_value: cython.double = (
+                    child.v[self.max_player - 1] - child.v[(3 - self.max_player) - 1]
+                ) / child.n_visits
 
-            confidence_i: cython.double = sqrt(
+            confidence_i: cython.double = c * sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
             )
 
             if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY:
-                bins_dict["dist_bins"]["bin"].add_data(self.beta - self.alpha)
+                if DEBUG:  # TODO Debug, remove later
+                    bins_dict["dist_bins"]["bin"].add_data(self.beta - self.alpha)
+                    bins_dict["ci_bins"]["bin"].add_data(confidence_i)
+                    old_ci: cython.double = confidence_i
 
-                bins_dict["ci_bins"]["bin"].add_data(confidence_i)  # TODO Debug, remove later
+                # TODO This could cause no child to be selected...
+                # Pruning rules
+                if (child_value - confidence_i) > self.beta:
+                    # We are sure what we cannot decrease our score more than the maximum distance to beta
+                    prunes += 1
+                    continue
+                if (child_value + confidence_i) < self.alpha:
+                    # We are sure that we cannot increase our score more than the maximum distance to alpha
+                    prunes += 1
+                    continue
 
-                # TODO Should we multiply the confidence_i with c before or after the alpha/beta bounds computation?
-                # Since we cannot improve the overall value beyond beta, we can possibly discount the confidence interval
+                non_prunes += 1
+
                 if self.player == self.max_player:
-                    confidence_i = min(
-                        c * confidence_i, (self.beta - self.alpha) * (self.beta - child_value)
-                    )  # The confidence interval will be negative if the child value is higher than beta, which is what we want
-                    # TODO Debug, remove later
-                    bins_dict["beta_ci_bins"]["bin"].add_data(
-                        (self.beta - self.alpha) * (self.beta - child_value)
-                    )
-                    if confidence_i == (self.beta - self.alpha) * (self.beta - child_value):
-                        prunes += 1
-                    else:
-                        non_prunes += 1
+                    # We can improve our score no more than the maximum distance to alpha
+                    confidence_i = (child_value + confidence_i) - self.alpha
                 else:
-                    # Similarly, we cannot improve the overall value beyond alpha, hence we can discount the confidence interval
-                    confidence_i = min(
-                        c * confidence_i, (self.beta - self.alpha) * (child_value - self.alpha)
-                    )  # The confidence interval will be negative if the child value is lower than alpha, which is what we want
-                    # TODO Debug, remove later
-                    bins_dict["alpha_ci_bins"]["bin"].add_data(
-                        (self.beta - self.alpha) * (child_value - self.alpha)
-                    )
+                    # We can improve our score no more than the max distance to beta
+                    confidence_i = self.beta - (child_value - confidence_i)
 
-                    if confidence_i == (self.beta - self.alpha) * (child_value - self.alpha):
-                        prunes += 1
+                confidence_i *= self.beta - self.alpha
+
+                if DEBUG:  # TODO Debug, remove later
+                    bins_dict["ab_ci_diff_bins"]["bin"].add_data(old_ci - confidence_i)
+
+                    if self.player == self.max_player:
+                        bins_dict["alpha_ci_bins"]["bin"].add_data(confidence_i)
                     else:
-                        non_prunes += 1
+                        bins_dict["beta_ci_bins"]["bin"].add_data(confidence_i)
 
-                bins_dict["ci_min_bins"]["bin"].add_data(confidence_i)  # TODO Debug, remove later
+            uct_val: cython.double = (
+                child_value
+                + confidence_i
+                # Progressive bias, set pb_weight to 0 to disable
+                + (pb_weight * (child.eval_value / (1.0 + child.n_visits)))
+            )
 
-                # * Multiply the uct value with the probability that both alpha and beta are in the confidence interval of the mean
-                uct_val: cython.double = (
-                    child_value
-                    + confidence_i
-                    # Progressive bias, set pb_weight to 0 to disable
-                    + (pb_weight * (pb_h / (1.0 + child.n_visits)))
-                )
+            if self.player == self.max_player:
+                # Find the highest UCT value
+                if uct_val >= best_val:
+                    selected_child = child
+                    best_val = uct_val
             else:
-                uct_val: cython.double = (
-                    child_value
-                    + c * confidence_i
-                    # Progressive bias, set pb_weight to 0 to disable
-                    + (pb_weight * (pb_h / (1.0 + child.n_visits)))
-                )
-
-            if uct_val >= max_val:
-                max_child = child
-                max_val = uct_val
+                # Find the lowest UCT value
+                if uct_val <= best_val:
+                    selected_child = child
+                    best_val = uct_val
 
         # It may happen that somewhere else in the tree all my children have been found to be proven losses.
         if children_lost == n_children:
@@ -262,7 +260,7 @@ class Node:
         elif children_draw == n_children:
             self.draw = 1
 
-        return max_child  # A random child was chosen at the beginning of the method, hence this will never be None
+        return selected_child  # A random child was chosen at the beginning of the method, hence this will never be None
 
     @cython.cfunc
     def expand(
@@ -470,12 +468,6 @@ class Node:
 
     @cython.cfunc
     @cython.inline
-    @cython.exceptval(-1, check=False)
-    def std_dev(self) -> cython.double:
-        return sqrt(self.M2 / (self.n_visits - 1)) if self.n_visits > 1 else 0
-
-    @cython.cfunc
-    @cython.inline
     @cython.exceptval(-777777777, check=False)
     def get_value_imm(self, player: cython.int, imm_alpha: cython.double) -> cython.double:
         simulation_mean: cython.double = (self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits
@@ -505,7 +497,11 @@ class Node:
         return value - adjustment if bound_type == -1 else value + adjustment
 
     def __str__(self):
-        root_mark = f"(Root) AD:{self.anti_decisive:<1}" if self.action == () else ""
+        root_mark = (
+            f"(Root) AD:{self.anti_decisive:<1}"
+            if self.action == ()
+            else f"{Fore.BLUE}A: {str(self.action):<10}"
+        )
 
         solved_bg = ""
         if self.solved_player == 1:
@@ -515,26 +511,28 @@ class Node:
         elif self.draw:
             solved_bg = Back.LIGHTGREEN_EX
 
-        im_str = (
-            f"{Fore.RED}(IM:{Style.BRIGHT}{self.im_value:6.4f}{Style.NORMAL} {Fore.RED}α:{Style.BRIGHT}{self.alpha:6.4f}{Style.NORMAL} {Fore.RED}β:{Style.BRIGHT}{self.beta:6.4f}){Style.NORMAL} "
-            if abs(self.im_value) != INFINITY
-            else ""
-        )
+        im_str = f"{Fore.WHITE}IM:{self.im_value:6.3f} " if abs(self.im_value) != INFINITY else ""
+
+        if self.alpha != -INFINITY or self.beta != INFINITY:
+            ab_str = f"({Fore.RED}α:{self.alpha:6.3f} {Fore.GREEN}β:{self.beta:6.3f}{Fore.WHITE}) "
+        else:
+            ab_str = ""
 
         # This is flipped because I want to see it in view of the parent
         value = (self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / max(1, self.n_visits)
 
         return (
             f"{solved_bg}"
-            f"{Fore.BLUE}A:{Style.BRIGHT}{str(self.action):<10}{Style.NORMAL}{root_mark} "
-            f"{Fore.GREEN}P:{Style.BRIGHT}{self.player:<1}{Style.NORMAL} "
+            f"{root_mark} "
+            f"{Fore.GREEN}P: {self.player:<1} "
             + im_str
-            + f"{Fore.YELLOW}EV:{Style.BRIGHT}{self.eval_value:7.2f}{Style.NORMAL} "
-            f"{Fore.CYAN}EX:{Style.BRIGHT}{self.expanded:<3}{Style.NORMAL} "
-            f"{Fore.MAGENTA}SP:{Style.BRIGHT}{self.solved_player:<3}{Style.NORMAL} "
-            f"{Fore.MAGENTA}DRW:{Style.BRIGHT}{self.draw:<3}{Style.NORMAL} "
-            f"{Fore.WHITE}V:{Style.BRIGHT}{value:2.1f}{Style.NORMAL} "
-            f"{Back.YELLOW + Fore.BLACK}NV:{Style.BRIGHT}{self.n_visits}{Style.NORMAL}{Back.RESET + Fore.RESET}"
+            + ab_str
+            + f"{Fore.YELLOW}EV: {self.eval_value:5.2f} "
+            f"{Fore.CYAN}EX: {self.expanded:<3} "
+            f"{Fore.MAGENTA}SP: {self.solved_player:<3} "
+            f"{Fore.MAGENTA}DRW: {self.draw:<3} "
+            f"{Fore.WHITE}V: {value:2.1f} "
+            f"{Back.YELLOW + Fore.BLACK}NV: {self.n_visits:,}{Back.RESET + Fore.RESET}"
         )
 
 
@@ -668,17 +666,22 @@ class MCTSPlayer:
         # If the root is None then this is either the first move, or something else..
         if state.REUSE and self.root is not None and self.root.expanded:
             child: Node
-            print(f"Checking children of root node {str(self.root)} with {len(self.root.children)} children")
-            print(f"Last action: {str(state.last_action)}")
+            if DEBUG:
+                print(
+                    f"Checking children of root node {str(self.root)} with {len(self.root.children)} children"
+                )
+                print(f"Last action: {str(state.last_action)}")
             children: cython.list = self.root.children
             self.root = None  # In case we cannot find the action, mark the root as None to assert
 
             for child in children:
                 if child.action == state.last_action:
                     self.root = child
+
                     if DEBUG:
                         print(f"Reusing root node {str(child)}")
-                        self.root.action = ()  # This is what identifies the root node
+
+                    self.root.action = ()  # This is what identifies the root node
                     break
         elif not state.REUSE or (self.root is not None and not self.root.expanded):
             # This sets the same condition as the one in the if statement above, make sure that a new root is generated
@@ -802,13 +805,14 @@ class MCTSPlayer:
                 f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f}"
             )
             print(
-                f"avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
+                f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
             self.avg_po_moves = 0
-            global q_searches, prunes, non_prunes
+            global q_searches, prunes, non_prunes, ab_bound, ucb_bound
             print(
-                f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f} | q searches: {q_searches} | prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}%"
+                f"prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}% | ab bound used: {ab_bound:,} | ucb bound used: {ucb_bound:,} | percentage: {(ab_bound / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
             )
+
             prunes = q_searches = non_prunes = 0
             self.max_depth = self.avg_depth = 0
             print("--*--" * 20)
@@ -821,17 +825,9 @@ class MCTSPlayer:
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
             if self.ab_version == 4:
-                plot_width = 140
-                plot_height = 32
-
-                # Plot bin counts
-                for _, bin_value in bins_dict.items():
-                    bin_value["bin"].plot_bin_counts(bin_value["label"])
-                    bin_value["bin"].plot_time_series(bin_value["label"], plot_width, plot_height)
-
-                # Clear bins
-                for _, bin_value in bins_dict.items():
-                    bin_value["bin"].clear()
+                plot_width = 100
+                plot_height = 28
+                plot_selected_bins(bins_dict, plot_width, plot_height)
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
@@ -1057,6 +1053,39 @@ class MCTSPlayer:
 class ChildComparator:
     def __call__(self, child):
         return child.n_visits
+
+
+def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
+    while True:
+        print("Available statistics to plot:")
+        for idx, key in enumerate(bins_dict.keys()):
+            print(f"{idx + 1}. {bins_dict[key]['label']}")
+
+        print("0. Continue")
+
+        user_input = input(
+            "Enter the number corresponding to the statistics you want to plot, or 0 to continue, q to quit: "
+        )
+
+        if user_input == "0":
+            break
+        if user_input == "q":
+            quit()
+
+        try:
+            selected_idx = int(user_input) - 1
+            selected_key = list(bins_dict.keys())[selected_idx]
+            selected_bin_value = bins_dict[selected_key]
+
+            selected_bin_value["bin"].plot_bin_counts(selected_bin_value["label"])
+            selected_bin_value["bin"].plot_time_series(selected_bin_value["label"], plot_width, plot_height)
+
+        except (ValueError, IndexError):
+            print("Invalid input. Please try again.")
+
+    # Clear bins
+    for _, bin_value in bins_dict.items():
+        bin_value["bin"].clear()
 
 
 @cython.cfunc

@@ -12,7 +12,6 @@ class DynamicBin:
         self.clear()
 
     def clear(self):
-        self.num_bins = self.num_bins
         self.data = []
         self.min_val = float("inf")
         self.max_val = float("-inf")
