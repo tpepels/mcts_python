@@ -14,4 +14,4 @@ cdef class DynamicBin:
     cpdef public void print_bins(self)
     cpdef public void plot_bin_counts(self, str name)
     cpdef public void clear(self)
-    cpdef public void plot_time_series(self, str name, int plot_width=*, int plot_height=*)
+    cpdef public void plot_time_series(self, str name, int plot_width=*, int plot_height=*, bint median=*)

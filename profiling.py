@@ -91,7 +91,7 @@ else:
         "max_time": 20,
         "debug": args.debug,
         "imm": True,
-        "c": 0.6,
+        "c": 1.4,
         "imm_version": 0,
         "early_term": True,
         "early_term_turns": 10,

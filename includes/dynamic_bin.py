@@ -2,6 +2,7 @@
 from statistics import mean, median, mode, variance
 import cython
 from colorama import Fore, init
+import numpy as np
 
 init(autoreset=True)  # Automatically resets the color of each print statement
 
@@ -27,7 +28,7 @@ class DynamicBin:
         self.min_val = min(self.min_val, new_data)
         self.max_val = max(self.max_val, new_data)
 
-    @cython.locals(bin_width=cython.double, value=cython.double, i=cython.int)
+    @cython.locals(bin_width=cython.double, value=cython.double, i=cython.int, condition=cython.bint)
     def calculate_bins(self):
         if self.min_val == self.max_val:
             print("Warning: min_val and max_val are equal. Unable to calculate bins.")
@@ -168,21 +169,38 @@ class DynamicBin:
         y_labels=list,
         max_label_length=cython.int,
         label_str=cython.str,
-        stats_dict=dict,
+        stats_dict=cython.dict,
+        row=cython.list,
         key=cython.str,
         value=cython.double,
+        averaged_data_length=cython.int,
     )
-    def plot_time_series(self, name: cython.str, plot_width: cython.int = 50, plot_height: cython.int = 20):
+    def plot_time_series(
+        self,
+        name: cython.str,
+        plot_width: cython.int = 50,
+        plot_height: cython.int = 20,
+        median: cython.bint = 0,
+    ):
         data_length = len(self.data)
-
         # Calculate the moving average
         window_size = int(data_length / plot_width)
-        averaged_data = []
+        # Pre-calculate the length of the averaged_data list
+        averaged_data_length = (data_length - window_size + 1) // window_size
+        # Pre-allocate memory for averaged_data
+        averaged_data = [0] * (averaged_data_length + 1)
 
-        for i in range(0, data_length - window_size + 1, window_size):
-            window = self.data[i : i + window_size]
-            avg = sum(window) / len(window)
-            averaged_data.append(avg)
+        if not median:
+            for i in range(0, (data_length - window_size + 1), window_size):
+                window = self.data[i : i + window_size]
+                averaged_data[i // window_size] = (
+                    sum(window) / window_size
+                )  # Since window_size = len(window), we can just use window_size directly
+        else:
+            for i in range(0, (data_length - window_size + 1), window_size):
+                window = self.data[i : i + window_size]
+                median_value = np.median(window)  # Using numpy's median function for efficiency
+                averaged_data[i // window_size] = median_value  # Storing the median value instead of the mean
 
         min_value = min(averaged_data)
         max_value = max(averaged_data)
@@ -196,7 +214,7 @@ class DynamicBin:
         # Initialize empty plot
         plot = [[" " for _ in range(plot_width)] for _ in range(plot_height)]
 
-        for i, avg in enumerate(averaged_data):
+        for k, avg in enumerate(averaged_data):
             y = int(round((max_value - avg) * scale_factor_y))
             if y >= plot_height:  # Ensure y is within the bounds of the plot
                 y = plot_height - 1
@@ -204,7 +222,7 @@ class DynamicBin:
                 y = 0
 
             color = Fore.RED if avg < 0 else Fore.BLUE
-            plot[y][i] = f"{color}*{Fore.RESET}"
+            plot[y][k] = f"{color}*{Fore.RESET}"
 
         # Add Y-axis markers
         y_labels = [(max_value - y / scale_factor_y) for y in range(0, plot_height, plot_height // 5)]

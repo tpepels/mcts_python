@@ -23,13 +23,15 @@ n_bins = 12
 q_searches: cython.int = 0
 
 bins_dict = {
-    "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values"},
-    "beta_bins": {"bin": DynamicBin(n_bins), "label": "Beta values"},
+    "alpha_bins": {"bin": DynamicBin(n_bins), "label": "LCB Alpha values"},
+    "beta_bins": {"bin": DynamicBin(n_bins), "label": "UCB Beta values"},
     "dist_bins": {"bin": DynamicBin(n_bins), "label": "(Beta - Alpha) values"},
     "ci_bins": {"bin": DynamicBin(n_bins), "label": "CI values"},
-    "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "Alpha CI values"},
+    "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "C -> Alpha values"},
+    "beta_ci_bins": {"bin": DynamicBin(n_bins), "label": "C -> Beta values"},
+    "alpha_v_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values"},
+    "beta_v_bins": {"bin": DynamicBin(n_bins), "label": "Beta values"},
     "ab_ci_diff_bins": {"bin": DynamicBin(n_bins), "label": "UCB - A/B Bound values"},
-    "beta_ci_bins": {"bin": DynamicBin(n_bins), "label": "Beta CI values"},
     "alpha_visits_bins": {"bin": DynamicBin(n_bins), "label": "Alpha visits"},
     "beta_visits_bins": {"bin": DynamicBin(n_bins), "label": "Beta visits"},
     "alpha_depth_bins": {"bin": DynamicBin(n_bins), "label": "Alpha depth"},
@@ -153,11 +155,6 @@ class Node:
         children_draw: cython.int = 0
         ci: cython.int
 
-        # TODO Debug, remove later
-        if self.alpha != -INFINITY and self.beta != INFINITY:
-            bins_dict["alpha_bins"]["bin"].add_data(self.alpha)
-            bins_dict["beta_bins"]["bin"].add_data(self.beta)
-
         # Move through the children to find the one with the highest UCT value
         for ci in range(n_children):
             child: Node = self.children[ci]
@@ -253,6 +250,8 @@ class Node:
             # Since all children are losses, we can mark this node as solved for the opponent
             # We do this here because the node may have been expanded and solved elsewhere in the tree
             self.solved_player = 3 - self.player
+            # just return a random child, they all lead to a loss anyway
+            return self.children[c_random(0, n_children - 1)]
         elif children_lost == (n_children - 1) and self.solved_player == 0:
             # There's only one move that does not lead to a loss. This is an anti-decisive move.
             self.anti_decisive = 1
@@ -825,9 +824,9 @@ class MCTSPlayer:
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
             if self.ab_version == 4:
-                plot_width = 100
-                plot_height = 28
-                plot_selected_bins(bins_dict, plot_width, plot_height)
+                plot_width = 140
+                plot_height = 32
+                # plot_selected_bins(bins_dict, plot_width, plot_height)
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
@@ -850,8 +849,11 @@ class MCTSPlayer:
         i: cython.int
         # TODO Base alpha/beta on the imm values only? Or on the linear combination of the mean and imm values?
 
-        alpha: cython.double = -INFINITY
-        beta: cython.double = INFINITY
+        lcb_alpha: cython.double = -INFINITY
+        ucb_beta: cython.double = INFINITY
+        alpha_value: cython.double = -INFINITY
+        beta_value: cython.double = INFINITY
+
         alpha_visits: cython.double = 0
         beta_visits: cython.double = 0
         alpha_depth: cython.double = 0
@@ -862,51 +864,60 @@ class MCTSPlayer:
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
-                alpha_changed = 0
-                beta_changed = 0
-                if node.player == self.player:
-                    for i in range(len(node.children)):
-                        child = node.children[i]
-                        if child.n_visits > 0:
-                            val: cython.double = child.get_value_with_uct_interval(
-                                c=self.c,
-                                player=self.player,
-                                imm_alpha=self.imm_alpha,
-                                bound_type=-1,  # Calculate a lower bound for alpha
-                                N=node.n_visits,
-                            )
-                            if val <= beta and val > alpha:
-                                alpha = val
-                                alpha_visits = child.n_visits
-                                alpha_depth = depth
-                                alpha_changed = 1
-                else:
-                    for i in range(len(node.children)):
-                        child = node.children[i]
-                        if child.n_visits > 0:
-                            val: cython.double = child.get_value_with_uct_interval(
-                                c=self.c,
-                                player=self.player,
-                                imm_alpha=self.imm_alpha,
-                                bound_type=1,  # Calculate an upper bound for beta
-                                N=node.n_visits,
-                            )
-                            if val <= beta and val >= alpha:
-                                beta = val
-                                beta_visits = child.n_visits
-                                beta_depth = depth
-                                beta_changed = 1
+                if self.ab_version == 4:
+                    alpha_changed = 0
+                    beta_changed = 0
+                    if node.player == self.player:
+                        for i in range(len(node.children)):
+                            child = node.children[i]
+                            if child.n_visits > 0:
+                                val: cython.double = child.get_value_with_uct_interval(
+                                    c=self.c,
+                                    player=self.player,
+                                    imm_alpha=self.imm_alpha,
+                                    bound_type=-1,  # Calculate a lower bound for alpha
+                                    N=node.n_visits,
+                                )
+                                if val < ucb_beta and val > lcb_alpha:
+                                    lcb_alpha = val
+                                    alpha_value = child.get_value_imm(self.player, self.imm_alpha)
+                                    alpha_visits = child.n_visits
+                                    alpha_depth = depth
+                                    alpha_changed = 1
+                    else:
+                        for i in range(len(node.children)):
+                            child = node.children[i]
+                            if child.n_visits > 0:
+                                val: cython.double = child.get_value_with_uct_interval(
+                                    c=self.c,
+                                    player=self.player,
+                                    imm_alpha=self.imm_alpha,
+                                    bound_type=1,  # Calculate an upper bound for beta
+                                    N=node.n_visits,
+                                )
+                                if val < ucb_beta and val > lcb_alpha:
+                                    ucb_beta = val
+                                    beta_value = child.get_value_imm(self.player, self.imm_alpha)
+                                    beta_visits = child.n_visits
+                                    beta_depth = depth
+                                    beta_changed = 1
 
-                node.alpha = alpha
-                node.beta = beta
+                    node.alpha = lcb_alpha
+                    node.beta = ucb_beta
+                    # TODO Debug, remove later
+                    if alpha_changed:
+                        # Do something if either alpha or beta has changed
+                        bins_dict["alpha_visits_bins"]["bin"].add_data(alpha_visits)
+                        bins_dict["alpha_depth_bins"]["bin"].add_data(alpha_depth)
+                    if beta_changed:
+                        bins_dict["beta_visits_bins"]["bin"].add_data(beta_visits)
+                        bins_dict["beta_depth_bins"]["bin"].add_data(beta_depth)
 
-                if alpha_changed:
-                    # Do something if either alpha or beta has changed
-                    bins_dict["alpha_visits_bins"]["bin"].add_data(alpha_visits)
-                    bins_dict["alpha_depth_bins"]["bin"].add_data(alpha_depth)
-                if beta_changed:
-                    bins_dict["beta_visits_bins"]["bin"].add_data(beta_visits)
-                    bins_dict["beta_depth_bins"]["bin"].add_data(beta_depth)
+                    if lcb_alpha != -INFINITY and ucb_beta != INFINITY:
+                        bins_dict["alpha_bins"]["bin"].add_data(lcb_alpha)
+                        bins_dict["beta_bins"]["bin"].add_data(ucb_beta)
+                        bins_dict["alpha_v_bins"]["bin"].add_data(alpha_value)
+                        bins_dict["beta_v_bins"]["bin"].add_data(beta_value)
 
                 node = node.uct(self.c, self.pb_weight, self.imm_alpha, ab_version=self.ab_version)
                 depth += 1
@@ -935,6 +946,15 @@ class MCTSPlayer:
         if not is_terminal and node.solved_player == 0:
             # Do a random playout and collect the result
             result = self.play_out(next_state)
+            # # Shape the rewards based on the alpha/beta values
+            # if self.ab_version == 4 and alpha_value != -INFINITY and beta_value != INFINITY:
+            #     if result[0] == 1.0:
+            #         result = (beta_value, alpha_value)
+            #     elif result[0] == 0.0:
+            #         result = (alpha_value, beta_value)
+            #     elif result[0] == 0.5:
+            #         mid: cython.double = abs(beta_value - alpha_value) / 2
+            #         result = (mid, mid)
         else:
             if node.solved_player == 0 and is_terminal:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
@@ -1069,19 +1089,24 @@ def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
 
         if user_input == "0":
             break
-        if user_input == "q":
+        elif user_input == "q":
             quit()
-
-        try:
+        elif user_input.isdigit():
             selected_idx = int(user_input) - 1
-            selected_key = list(bins_dict.keys())[selected_idx]
-            selected_bin_value = bins_dict[selected_key]
 
-            selected_bin_value["bin"].plot_bin_counts(selected_bin_value["label"])
-            selected_bin_value["bin"].plot_time_series(selected_bin_value["label"], plot_width, plot_height)
+            # Check if the selected index is within the range of available keys
+            if 0 <= selected_idx < len(bins_dict):
+                selected_key = list(bins_dict.keys())[selected_idx]
+                selected_bin_value = bins_dict[selected_key]
 
-        except (ValueError, IndexError):
-            print("Invalid input. Please try again.")
+                selected_bin_value["bin"].plot_bin_counts(selected_bin_value["label"])
+                selected_bin_value["bin"].plot_time_series(
+                    selected_bin_value["label"], plot_width, plot_height, median=True
+                )
+            else:
+                print("Invalid input. The number is out of range. Please try again.")
+        else:
+            print("Invalid input. Please enter a number or 'q' to quit.")
 
     # Clear bins
     for _, bin_value in bins_dict.items():
