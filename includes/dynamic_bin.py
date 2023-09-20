@@ -200,8 +200,11 @@ class DynamicBin:
                 median_value = np.median(window)  # Using numpy's median function for efficiency
                 averaged_data[i // window_size] = median_value  # Storing the median value instead of the mean
 
-        min_value = min(averaged_data)
-        max_value = max(averaged_data)
+        # min_value = min(averaged_data)
+        # max_value = max(averaged_data)
+
+        min_value = np.percentile(averaged_data, 10)
+        max_value = np.percentile(averaged_data, 90)
 
         if min_value == max_value or data_length == 0:
             print(f"{Fore.RED}Insufficient or uniform data")

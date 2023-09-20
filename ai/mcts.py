@@ -18,16 +18,19 @@ from cython.cimports.includes import DynamicBin
 from util import abbreviate, format_time
 
 DEBUG: cython.bint = 0
-n_bins = 12
+n_bins = 14
 # TODO Compiler directives toevoegen na debuggen
 # TODO After testing, remove assert statements
 q_searches: cython.int = 0
 
 bins_dict = {
-    "alpha_bins": {"bin": DynamicBin(n_bins), "label": "LCB Alpha values"},
-    "beta_bins": {"bin": DynamicBin(n_bins), "label": "UCB Beta values"},
+    "l_alpha_bins": {"bin": DynamicBin(n_bins), "label": "LCB Alpha values"},
+    "u_alpha_bins": {"bin": DynamicBin(n_bins), "label": "UCB Alpha values"},
+    "u_beta_bins": {"bin": DynamicBin(n_bins), "label": "UCB Beta values"},
+    "l_beta_bins": {"bin": DynamicBin(n_bins), "label": "LCB Beta values"},
     "dist_bins": {"bin": DynamicBin(n_bins), "label": "(Beta - Alpha) values"},
     "dist_ci_bins": {"bin": DynamicBin(n_bins), "label": "(UCB(Beta) - LCB(Alpha)) values"},
+    "ab_lb_diff_bins": {"bin": DynamicBin(n_bins), "label": "(LCB(Beta) - UCB(Alpha)) values"},
     "uct_bins": {"bin": DynamicBin(n_bins), "label": "UCT values"},
     "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "ab UCT values"},
     "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "Cv -> Alpha values"},
@@ -110,8 +113,6 @@ class Node:
     player = cython.declare(cython.int, visibility="public")
     max_player = cython.declare(cython.int, visibility="public")
     anti_decisive = cython.declare(cython.bint, visibility="public")
-    alpha = cython.declare(cython.double, visibility="public")
-    beta = cython.declare(cython.double, visibility="public")
     # Private fields
     draw: cython.bint
     eval_value: cython.double
@@ -125,9 +126,6 @@ class Node:
         self.max_player = max_player
         # Now we know whether we are minimizing or maximizing
         self.im_value = -INFINITY if self.player == self.max_player else INFINITY
-        self.alpha = -INFINITY
-        self.beta = INFINITY
-        self.im_value = 0
         self.eval_value = 0.0
         self.expanded = 0
         self.solved_player = 0
@@ -143,6 +141,8 @@ class Node:
         pb_weight: cython.double = 0.0,
         imm_alpha: cython.double = 0.0,
         ab_version: cython.int = 0,
+        alpha: cython.double = -INFINITY,
+        beta: cython.double = INFINITY,
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert n_children > 0, "Trying to uct a node without children"
@@ -152,7 +152,7 @@ class Node:
 
         # selected_child: Node = self.children[c_random(0, n_children - 1)]
         selected_child: Node = None
-        best_val: cython.double = -INFINITY if self.player == self.max_player else INFINITY
+        best_val: cython.double = -INFINITY
 
         children_lost: cython.int = 0
         children_draw: cython.int = 0
@@ -180,6 +180,9 @@ class Node:
             if child.draw:
                 children_draw += 1
 
+            # TODO Hier was je gebleven
+            # TODO Dit is nog niet correct, je moet rekening houden met min/max hier en dat is nog niet het geval
+
             # Implicit minimax
             if imm_alpha > 0.0:
                 # Initially, just get the regular imm value with mean included
@@ -194,26 +197,26 @@ class Node:
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
             )
 
-            if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY:
+            if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
                 # TODO This could cause no child to be selected...
                 # Pruning rules
-                if (child_value - confidence_i) > self.beta:
+                if (child_value - confidence_i) > beta:
                     # We are sure what we cannot decrease our score more than the maximum distance to beta
                     prunes += 1
                     continue
-                if (child_value + confidence_i) < self.alpha:
+                if (child_value + confidence_i) < alpha:
                     # We are sure that we cannot increase our score more than the maximum distance to alpha
                     prunes += 1
                     continue
                 non_prunes += 1
                 if self.player == self.max_player:
                     # We can improve our score no more than the maximum distance to alpha
-                    confidence_i = (child_value + confidence_i) - self.alpha
+                    confidence_i = (child_value + confidence_i) - alpha
                 else:
                     # We can improve our score no more than the max distance to beta
-                    confidence_i = self.beta - (child_value - confidence_i)
+                    confidence_i = beta - (child_value - confidence_i)
 
-                confidence_i *= self.beta - self.alpha
+                confidence_i *= beta - alpha
 
             uct_val: cython.double = (
                 child_value
@@ -222,19 +225,13 @@ class Node:
                 + (pb_weight * (child.eval_value / (1.0 + child.n_visits)))
             )
 
-            if self.player == self.max_player:
-                # Find the highest UCT value
-                if uct_val >= best_val:
-                    selected_child = child
-                    best_val = uct_val
-            else:
-                # Find the lowest UCT value
-                if uct_val <= best_val:
-                    selected_child = child
-                    best_val = uct_val
+            # Find the highest UCT value
+            if uct_val >= best_val:
+                selected_child = child
+                best_val = uct_val
 
         if DEBUG:
-            if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY:
+            if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
                 uct_val: cython.double = (
                     selected_child.get_value_imm(self.max_player, imm_alpha)
                     + c
@@ -522,21 +519,13 @@ class Node:
 
         im_str = f"{Fore.WHITE}IM:{self.im_value:6.3f} " if abs(self.im_value) != INFINITY else ""
 
-        if self.alpha != -INFINITY or self.beta != INFINITY:
-            ab_str = f"({Fore.RED}α:{self.alpha:6.3f} {Fore.GREEN}β:{self.beta:6.3f}{Fore.WHITE}) "
-        else:
-            ab_str = ""
-
         # This is flipped because I want to see it in view of the parent
         value = (self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / max(1, self.n_visits)
 
         return (
             f"{solved_bg}"
             f"{root_mark} "
-            f"{Fore.GREEN}P: {self.player:<1} "
-            + im_str
-            + ab_str
-            + f"{Fore.YELLOW}EV: {self.eval_value:5.2f} "
+            f"{Fore.GREEN}P: {self.player:<1} " + im_str + f"{Fore.YELLOW}EV: {self.eval_value:5.2f} "
             f"{Fore.CYAN}EX: {self.expanded:<3} "
             f"{Fore.MAGENTA}SP: {self.solved_player:<3} "
             f"{Fore.MAGENTA}DRW: {self.draw:<3} "
@@ -830,18 +819,30 @@ class MCTSPlayer:
             print(f":: {self.root} :: ")
             print(":: Children ::")
             comparator = ChildComparator()
-            sorted_children = sorted(self.root.children[:20], key=comparator, reverse=True)
+            sorted_children = sorted(self.root.children[:30], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
             if self.ab_version == 4:
                 plot_width = 140
-                plot_height = 32
+                plot_height = 40
                 plot_selected_bins(bins_dict, plot_width, plot_height)
                 # Clear bins
+                print("clearing bins, this takes a while..")
                 for _, bin_value in bins_dict.items():
                     del bin_value["bin"]
+                    print(f"\rclearing {bin_value['label']}", end=" ")
                     bin_value["bin"] = DynamicBin(n_bins)
-                    gc.collect()
+                print("\rCollecting garbage")
+                gc.collect()
+                print("Done\n\n")
+                second_run = input("Do another run? [y/N]: ")
+                if second_run.lower() == "y":
+                    self.c = float(input(f"Enter new c value (currently: {self.c}): "))
+                    self.imm_alpha = float(
+                        input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
+                    )
+                    self.root = None
+                    return self.best_action(state)
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
@@ -864,8 +865,12 @@ class MCTSPlayer:
         i: cython.int
         # TODO Base alpha/beta on the imm values only? Or on the linear combination of the mean and imm values?
 
+        ucb_alpha: cython.double = -INFINITY
         lcb_alpha: cython.double = -INFINITY
+
         ucb_beta: cython.double = INFINITY
+        lcb_beta: cython.double = INFINITY
+
         alpha_value: cython.double = -INFINITY
         beta_value: cython.double = INFINITY
 
@@ -890,11 +895,18 @@ class MCTSPlayer:
                                     c=self.c,
                                     player=self.player,
                                     imm_alpha=self.imm_alpha,
-                                    bound_type=-1,  # Calculate a lower bound for alpha
+                                    bound_type=-1,
                                     N=node.n_visits,
                                 )
-                                if val < ucb_beta and val > lcb_alpha:
+                                if val > lcb_alpha and val < lcb_beta:
                                     lcb_alpha = val
+                                    ucb_alpha = child.get_value_with_uct_interval(
+                                        c=self.c,
+                                        player=self.player,
+                                        imm_alpha=self.imm_alpha,
+                                        bound_type=1,
+                                        N=node.n_visits,
+                                    )
                                     alpha_value = child.get_value_imm(self.player, self.imm_alpha)
                                     alpha_visits = child.n_visits
                                     alpha_depth = depth
@@ -907,18 +919,23 @@ class MCTSPlayer:
                                     c=self.c,
                                     player=self.player,
                                     imm_alpha=self.imm_alpha,
-                                    bound_type=1,  # Calculate an upper bound for beta
+                                    bound_type=1,
                                     N=node.n_visits,
                                 )
-                                if val < ucb_beta and val > lcb_alpha:
+                                if val < ucb_beta and val > ucb_alpha:
                                     ucb_beta = val
+                                    lcb_beta = child.get_value_with_uct_interval(
+                                        c=self.c,
+                                        player=self.player,
+                                        imm_alpha=self.imm_alpha,
+                                        bound_type=-1,
+                                        N=node.n_visits,
+                                    )
                                     beta_value = child.get_value_imm(self.player, self.imm_alpha)
                                     beta_visits = child.n_visits
                                     beta_depth = depth
                                     beta_changed = 1
 
-                    node.alpha = lcb_alpha
-                    node.beta = ucb_beta
                     # TODO Debug, remove later
                     if DEBUG:
                         if alpha_changed:
@@ -930,16 +947,27 @@ class MCTSPlayer:
                             bins_dict["beta_depth_bins"]["bin"].add_data(beta_depth)
 
                         if lcb_alpha != -INFINITY and ucb_beta != INFINITY:
-                            bins_dict["alpha_bins"]["bin"].add_data(lcb_alpha)
-                            bins_dict["beta_bins"]["bin"].add_data(ucb_beta)
-                            bins_dict["alpha_v_bins"]["bin"].add_data(alpha_value)
-                            bins_dict["beta_v_bins"]["bin"].add_data(beta_value)
                             bins_dict["dist_ci_bins"]["bin"].add_data(ucb_beta - lcb_alpha)
                             bins_dict["dist_bins"]["bin"].add_data(beta_value - alpha_value)
 
-                node = node.uct(self.c, self.pb_weight, self.imm_alpha, ab_version=self.ab_version)
-                depth += 1
+                        if ucb_beta != INFINITY:
+                            bins_dict["beta_v_bins"]["bin"].add_data(beta_value)
+                            bins_dict["u_beta_bins"]["bin"].add_data(ucb_beta)
 
+                        if lcb_alpha != -INFINITY:
+                            bins_dict["alpha_v_bins"]["bin"].add_data(alpha_value)
+                            bins_dict["l_alpha_bins"]["bin"].add_data(lcb_alpha)
+                            bins_dict["u_alpha_bins"]["bin"].add_data(ucb_alpha)
+
+                node = node.uct(
+                    self.c,
+                    self.pb_weight,
+                    self.imm_alpha,
+                    ab_version=self.ab_version,
+                    alpha=lcb_alpha,
+                    beta=ucb_beta,
+                )
+                depth += 1
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
