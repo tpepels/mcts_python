@@ -2,10 +2,10 @@
 
 cdef class DynamicBin:
     cdef int num_bins
-    cdef list data
+    cdef list[double] data
     cdef double min_val, max_val
-    cdef list bin_counts
-    cdef list bin_edges
+    cdef list[double] bin_counts
+    cdef list[double] bin_edges
     cdef int zero_count
 
     cdef void calculate_bins(self)

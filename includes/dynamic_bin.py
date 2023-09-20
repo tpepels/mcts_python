@@ -1,4 +1,5 @@
 # cython: language_level=3
+import gc
 from statistics import mean, median, mode, variance
 import cython
 from colorama import Fore, init
@@ -8,7 +9,7 @@ init(autoreset=True)  # Automatically resets the color of each print statement
 
 
 class DynamicBin:
-    def __init__(self, num_bins: cython.int):
+    def __init__(self, num_bins):
         self.num_bins = num_bins
         self.clear()
 
@@ -19,8 +20,9 @@ class DynamicBin:
         self.bin_counts = [0] * self.num_bins  # Initialize with zeros
         self.bin_edges = []
         self.zero_count = 0
+        gc.collect()
 
-    def add_data(self, new_data: cython.double):
+    def add_data(self, new_data):
         if new_data == 0:
             self.zero_count += 1
 
@@ -174,14 +176,10 @@ class DynamicBin:
         key=cython.str,
         value=cython.double,
         averaged_data_length=cython.int,
+        name=cython.str,
+        median=cython.bint,
     )
-    def plot_time_series(
-        self,
-        name: cython.str,
-        plot_width: cython.int = 50,
-        plot_height: cython.int = 20,
-        median: cython.bint = 0,
-    ):
+    def plot_time_series(self, name, plot_width=50, plot_height=20, median=0):
         data_length = len(self.data)
         # Calculate the moving average
         window_size = int(data_length / plot_width)

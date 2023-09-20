@@ -1,5 +1,6 @@
 # cython: language_level=3
 
+import gc
 import random
 from colorama import Back, Fore, init
 
@@ -26,9 +27,11 @@ bins_dict = {
     "alpha_bins": {"bin": DynamicBin(n_bins), "label": "LCB Alpha values"},
     "beta_bins": {"bin": DynamicBin(n_bins), "label": "UCB Beta values"},
     "dist_bins": {"bin": DynamicBin(n_bins), "label": "(Beta - Alpha) values"},
-    "ci_bins": {"bin": DynamicBin(n_bins), "label": "CI values"},
-    "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "C -> Alpha values"},
-    "beta_ci_bins": {"bin": DynamicBin(n_bins), "label": "C -> Beta values"},
+    "dist_ci_bins": {"bin": DynamicBin(n_bins), "label": "(UCB(Beta) - LCB(Alpha)) values"},
+    "uct_bins": {"bin": DynamicBin(n_bins), "label": "UCT values"},
+    "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "ab UCT values"},
+    "alpha_ci_bins": {"bin": DynamicBin(n_bins), "label": "Cv -> Alpha values"},
+    "beta_ci_bins": {"bin": DynamicBin(n_bins), "label": "Cv -> Beta values"},
     "alpha_v_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values"},
     "beta_v_bins": {"bin": DynamicBin(n_bins), "label": "Beta values"},
     "ab_ci_diff_bins": {"bin": DynamicBin(n_bins), "label": "UCB - A/B Bound values"},
@@ -144,7 +147,7 @@ class Node:
         n_children: cython.int = len(self.children)
         assert n_children > 0, "Trying to uct a node without children"
         assert self.expanded, "Trying to uct a node that is not expanded"
-        # TODO Debug, remove later
+
         global prunes, non_prunes, ab_bound, ucb_bound
 
         # selected_child: Node = self.children[c_random(0, n_children - 1)]
@@ -192,11 +195,6 @@ class Node:
             )
 
             if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY:
-                if DEBUG:  # TODO Debug, remove later
-                    bins_dict["dist_bins"]["bin"].add_data(self.beta - self.alpha)
-                    bins_dict["ci_bins"]["bin"].add_data(confidence_i)
-                    old_ci: cython.double = confidence_i
-
                 # TODO This could cause no child to be selected...
                 # Pruning rules
                 if (child_value - confidence_i) > self.beta:
@@ -207,9 +205,7 @@ class Node:
                     # We are sure that we cannot increase our score more than the maximum distance to alpha
                     prunes += 1
                     continue
-
                 non_prunes += 1
-
                 if self.player == self.max_player:
                     # We can improve our score no more than the maximum distance to alpha
                     confidence_i = (child_value + confidence_i) - self.alpha
@@ -218,14 +214,6 @@ class Node:
                     confidence_i = self.beta - (child_value - confidence_i)
 
                 confidence_i *= self.beta - self.alpha
-
-                if DEBUG:  # TODO Debug, remove later
-                    bins_dict["ab_ci_diff_bins"]["bin"].add_data(old_ci - confidence_i)
-
-                    if self.player == self.max_player:
-                        bins_dict["alpha_ci_bins"]["bin"].add_data(confidence_i)
-                    else:
-                        bins_dict["beta_ci_bins"]["bin"].add_data(confidence_i)
 
             uct_val: cython.double = (
                 child_value
@@ -244,6 +232,28 @@ class Node:
                 if uct_val <= best_val:
                     selected_child = child
                     best_val = uct_val
+
+        if DEBUG:
+            if ab_version == 4 and self.alpha != -INFINITY and self.beta != INFINITY:
+                uct_val: cython.double = (
+                    selected_child.get_value_imm(self.max_player, imm_alpha)
+                    + c
+                    * sqrt(
+                        log(cython.cast(cython.double, self.n_visits))
+                        / cython.cast(cython.double, selected_child.n_visits)
+                    )
+                    # Progressive bias, set pb_weight to 0 to disable
+                    + (pb_weight * (selected_child.eval_value / (1.0 + selected_child.n_visits)))
+                )
+
+                bins_dict["uct_bins"]["bin"].add_data(uct_val)
+                bins_dict["ab_uct_bins"]["bin"].add_data(best_val)
+                bins_dict["ab_ci_diff_bins"]["bin"].add_data(uct_val - best_val)
+
+                if self.player == self.max_player:
+                    bins_dict["alpha_ci_bins"]["bin"].add_data(best_val)
+                else:
+                    bins_dict["beta_ci_bins"]["bin"].add_data(best_val)
 
         # It may happen that somewhere else in the tree all my children have been found to be proven losses.
         if children_lost == n_children:
@@ -826,7 +836,12 @@ class MCTSPlayer:
             if self.ab_version == 4:
                 plot_width = 140
                 plot_height = 32
-                # plot_selected_bins(bins_dict, plot_width, plot_height)
+                plot_selected_bins(bins_dict, plot_width, plot_height)
+                # Clear bins
+                for _, bin_value in bins_dict.items():
+                    del bin_value["bin"]
+                    bin_value["bin"] = DynamicBin(n_bins)
+                    gc.collect()
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
@@ -905,19 +920,22 @@ class MCTSPlayer:
                     node.alpha = lcb_alpha
                     node.beta = ucb_beta
                     # TODO Debug, remove later
-                    if alpha_changed:
-                        # Do something if either alpha or beta has changed
-                        bins_dict["alpha_visits_bins"]["bin"].add_data(alpha_visits)
-                        bins_dict["alpha_depth_bins"]["bin"].add_data(alpha_depth)
-                    if beta_changed:
-                        bins_dict["beta_visits_bins"]["bin"].add_data(beta_visits)
-                        bins_dict["beta_depth_bins"]["bin"].add_data(beta_depth)
+                    if DEBUG:
+                        if alpha_changed:
+                            # Do something if either alpha or beta has changed
+                            bins_dict["alpha_visits_bins"]["bin"].add_data(alpha_visits)
+                            bins_dict["alpha_depth_bins"]["bin"].add_data(alpha_depth)
+                        if beta_changed:
+                            bins_dict["beta_visits_bins"]["bin"].add_data(beta_visits)
+                            bins_dict["beta_depth_bins"]["bin"].add_data(beta_depth)
 
-                    if lcb_alpha != -INFINITY and ucb_beta != INFINITY:
-                        bins_dict["alpha_bins"]["bin"].add_data(lcb_alpha)
-                        bins_dict["beta_bins"]["bin"].add_data(ucb_beta)
-                        bins_dict["alpha_v_bins"]["bin"].add_data(alpha_value)
-                        bins_dict["beta_v_bins"]["bin"].add_data(beta_value)
+                        if lcb_alpha != -INFINITY and ucb_beta != INFINITY:
+                            bins_dict["alpha_bins"]["bin"].add_data(lcb_alpha)
+                            bins_dict["beta_bins"]["bin"].add_data(ucb_beta)
+                            bins_dict["alpha_v_bins"]["bin"].add_data(alpha_value)
+                            bins_dict["beta_v_bins"]["bin"].add_data(beta_value)
+                            bins_dict["dist_ci_bins"]["bin"].add_data(ucb_beta - lcb_alpha)
+                            bins_dict["dist_bins"]["bin"].add_data(beta_value - alpha_value)
 
                 node = node.uct(self.c, self.pb_weight, self.imm_alpha, ab_version=self.ab_version)
                 depth += 1
@@ -1107,10 +1125,6 @@ def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
                 print("Invalid input. The number is out of range. Please try again.")
         else:
             print("Invalid input. Please enter a number or 'q' to quit.")
-
-    # Clear bins
-    for _, bin_value in bins_dict.items():
-        bin_value["bin"].clear()
 
 
 @cython.cfunc
