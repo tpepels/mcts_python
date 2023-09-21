@@ -2,7 +2,7 @@ import argparse
 import cProfile
 import pstats
 import traceback
-
+import os
 from run_games import AIParams, run_game
 
 ai_choices = ["mcts", "alphabeta"]
@@ -27,7 +27,8 @@ parser.add_argument(
 
 
 args = parser.parse_args()
-
+# Clearing the Screen
+os.system("clear")
 # num_simulations: int = 0,
 # max_time: int = 0,
 # c: float = 1.0,

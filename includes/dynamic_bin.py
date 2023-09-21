@@ -181,6 +181,9 @@ class DynamicBin:
     )
     def plot_time_series(self, name, plot_width=50, plot_height=20, median=0):
         data_length = len(self.data)
+        if data_length <= 1:
+            print("No data to plot, data length <= 1")
+            return
         # Calculate the moving average
         window_size = int(data_length / plot_width)
         # Pre-calculate the length of the averaged_data list

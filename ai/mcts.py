@@ -145,15 +145,15 @@ class Node:
         beta: cython.double = INFINITY,
     ) -> Node:
         n_children: cython.int = len(self.children)
+
         assert n_children > 0, "Trying to uct a node without children"
         assert self.expanded, "Trying to uct a node that is not expanded"
 
         global prunes, non_prunes, ab_bound, ucb_bound
 
-        # selected_child: Node = self.children[c_random(0, n_children - 1)]
         selected_child: Node = None
         best_val: cython.double = -INFINITY
-
+        child_value: cython.double
         children_lost: cython.int = 0
         children_draw: cython.int = 0
         ci: cython.int
@@ -180,18 +180,8 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            # TODO Hier was je gebleven
-            # TODO Dit is nog niet correct, je moet rekening houden met min/max hier en dat is nog niet het geval
-
-            # Implicit minimax
-            if imm_alpha > 0.0:
-                # Initially, just get the regular imm value with mean included
-                child_value: cython.double = child.get_value_imm(self.max_player, imm_alpha)
-            else:
-                # If we are not using imm, we can just use the simulation mean
-                child_value: cython.double = (
-                    child.v[self.max_player - 1] - child.v[(3 - self.max_player) - 1]
-                ) / child.n_visits
+            # if imm_alpha is 0, then this is just the simulation mean
+            max_value: cython.double = child.get_value_imm(self.max_player, imm_alpha)
 
             confidence_i: cython.double = c * sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
@@ -200,23 +190,32 @@ class Node:
             if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
                 # TODO This could cause no child to be selected...
                 # Pruning rules
-                if (child_value - confidence_i) > beta:
+                if (max_value - confidence_i) > beta:
                     # We are sure what we cannot decrease our score more than the maximum distance to beta
                     prunes += 1
                     continue
-                if (child_value + confidence_i) < alpha:
+                if (max_value + confidence_i) < alpha:
                     # We are sure that we cannot increase our score more than the maximum distance to alpha
                     prunes += 1
                     continue
-                non_prunes += 1
+
                 if self.player == self.max_player:
                     # We can improve our score no more than the maximum distance to alpha
-                    confidence_i = (child_value + confidence_i) - alpha
+                    confidence_i = (max_value + confidence_i) - alpha
                 else:
                     # We can improve our score no more than the max distance to beta
-                    confidence_i = beta - (child_value - confidence_i)
+                    confidence_i = beta - (max_value - confidence_i)
 
                 confidence_i *= beta - alpha
+                ab_bound += 1
+            else:
+                ucb_bound += 1
+            non_prunes += 1
+
+            if self.player != self.max_player:
+                child_value = -max_value
+            else:
+                child_value = max_value
 
             uct_val: cython.double = (
                 child_value
@@ -233,7 +232,7 @@ class Node:
         if DEBUG:
             if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
                 uct_val: cython.double = (
-                    selected_child.get_value_imm(self.max_player, imm_alpha)
+                    child_value
                     + c
                     * sqrt(
                         log(cython.cast(cython.double, self.n_visits))
@@ -485,22 +484,19 @@ class Node:
 
     @cython.cfunc
     @cython.inline
-    @cython.exceptval(-777777777, check=False)
     def get_value_with_uct_interval(
         self,
         c: cython.double,
         player: cython.int,
         imm_alpha: cython.double,
-        bound_type: cython.int,
         N: cython.int,
-    ) -> cython.double:
+    ) -> cython.tuple[cython.double, cython.double]:
         value: cython.double = self.get_value_imm(player, imm_alpha)
         # Compute the adjustment factor for the prediction interval
         adjustment: cython.double = c * (
             sqrt(cython.cast(cython.double, N) / cython.cast(cython.double, self.n_visits))
         )
-        # Return the adjusted value based on the bound_type (-1 for alpha, 1 for beta)
-        return value - adjustment if bound_type == -1 else value + adjustment
+        return value, adjustment
 
     def __str__(self):
         root_mark = (
@@ -869,6 +865,7 @@ class MCTSPlayer:
         lcb_alpha: cython.double = -INFINITY
 
         ucb_beta: cython.double = INFINITY
+        opp_beta: cython.double = INFINITY
         lcb_beta: cython.double = INFINITY
 
         alpha_value: cython.double = -INFINITY
@@ -891,23 +888,16 @@ class MCTSPlayer:
                         for i in range(len(node.children)):
                             child = node.children[i]
                             if child.n_visits > 0:
-                                val: cython.double = child.get_value_with_uct_interval(
+                                val, bound = child.get_value_with_uct_interval(
                                     c=self.c,
                                     player=self.player,
                                     imm_alpha=self.imm_alpha,
-                                    bound_type=-1,
                                     N=node.n_visits,
                                 )
-                                if val > lcb_alpha and val < lcb_beta:
-                                    lcb_alpha = val
-                                    ucb_alpha = child.get_value_with_uct_interval(
-                                        c=self.c,
-                                        player=self.player,
-                                        imm_alpha=self.imm_alpha,
-                                        bound_type=1,
-                                        N=node.n_visits,
-                                    )
-                                    alpha_value = child.get_value_imm(self.player, self.imm_alpha)
+                                if (val - bound) > lcb_alpha and (val - bound) < lcb_beta:
+                                    lcb_alpha = val - bound
+                                    ucb_alpha = -val + bound
+                                    alpha_value = val
                                     alpha_visits = child.n_visits
                                     alpha_depth = depth
                                     alpha_changed = 1
@@ -915,23 +905,17 @@ class MCTSPlayer:
                         for i in range(len(node.children)):
                             child = node.children[i]
                             if child.n_visits > 0:
-                                val: cython.double = child.get_value_with_uct_interval(
+                                val, bound = child.get_value_with_uct_interval(
                                     c=self.c,
                                     player=self.player,
                                     imm_alpha=self.imm_alpha,
-                                    bound_type=1,
                                     N=node.n_visits,
                                 )
-                                if val < ucb_beta and val > ucb_alpha:
-                                    ucb_beta = val
-                                    lcb_beta = child.get_value_with_uct_interval(
-                                        c=self.c,
-                                        player=self.player,
-                                        imm_alpha=self.imm_alpha,
-                                        bound_type=-1,
-                                        N=node.n_visits,
-                                    )
-                                    beta_value = child.get_value_imm(self.player, self.imm_alpha)
+                                if (-val + bound) < opp_beta and (-val + bound) > ucb_alpha:
+                                    opp_beta = -val + bound
+                                    lcb_beta = val - bound
+                                    ucb_beta = val + bound
+                                    beta_value = val
                                     beta_visits = child.n_visits
                                     beta_depth = depth
                                     beta_changed = 1
