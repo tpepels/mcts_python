@@ -89,7 +89,7 @@ else:
     algo = args.algo
     eval_params = {}
     ai_1_params = {
-        "max_time": 20,
+        "max_time": 15,
         "debug": args.debug,
         "imm": True,
         "c": 0.6,
