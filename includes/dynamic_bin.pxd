@@ -7,6 +7,8 @@ cdef class DynamicBin:
     cdef list[double] bin_counts
     cdef list[double] bin_edges
     cdef int zero_count
+    cdef double percentile_5
+    cdef double percentile_95
 
     cdef void calculate_bins(self)
     cdef list get_bins(self)

@@ -20,6 +20,8 @@ class DynamicBin:
         self.bin_counts = [0] * self.num_bins  # Initialize with zeros
         self.bin_edges = []
         self.zero_count = 0
+
+        self.percentile_5 = self.percentile_95 = 0
         gc.collect()
 
     def add_data(self, new_data):
@@ -30,27 +32,46 @@ class DynamicBin:
         self.min_val = min(self.min_val, new_data)
         self.max_val = max(self.max_val, new_data)
 
-    @cython.locals(bin_width=cython.double, value=cython.double, i=cython.int, condition=cython.bint)
+    @cython.locals(
+        bin_width=cython.double,
+        value=cython.double,
+        i=cython.int,
+        condition=cython.bint,
+        sorted_data=list,
+    )
     def calculate_bins(self):
-        if self.min_val == self.max_val:
-            print("Warning: min_val and max_val are equal. Unable to calculate bins.")
+        sorted_data = sorted(self.data)
+        num_data_points = len(sorted_data)
+
+        if num_data_points == 0:
+            print("Warning: No data points. Unable to calculate bins.")
+            return
+        # Compute the 5th and 95th percentiles
+        self.percentile_5 = np.percentile(self.data, 10)
+        self.percentile_95 = np.percentile(self.data, 90)
+
+        if self.percentile_5 == self.percentile_95:
+            print("Warning: 5th percentile and 95th percentile are equal. Unable to calculate bins.")
             return
 
-        bin_width = (self.max_val - self.min_val) / (self.num_bins)
+        bin_width = (self.percentile_95 - self.percentile_5) / (
+            self.num_bins - 1
+        )  # 1 less because the last bin is open-ended
 
-        self.bin_edges = [self.min_val + i * bin_width for i in range(self.num_bins + 1)]
+        self.bin_edges = [self.percentile_5 + i * bin_width for i in range(self.num_bins)]
+        self.bin_edges.append(float("inf"))  # The last bin is open-ended
         # Reset counts
         self.bin_counts = [0] * self.num_bins
 
-        for value in self.data:
+        for value in sorted_data:
             if value == 0:  # 0's are handled separately
                 continue
 
             for i in range(len(self.bin_edges) - 1):
                 if i == 0:  # First bin is inclusive on low side
                     condition = self.bin_edges[i] <= value < self.bin_edges[i + 1]
-                elif i == len(self.bin_edges) - 2:  # Last bin is inclusive on both sides
-                    condition = self.bin_edges[i] < value <= self.bin_edges[i + 1]
+                elif i == len(self.bin_edges) - 2:  # Last bin is inclusive on the low side and open-ended
+                    condition = self.bin_edges[i] <= value
                 else:
                     condition = self.bin_edges[i] <= value < self.bin_edges[i + 1]
 
@@ -88,6 +109,9 @@ class DynamicBin:
     )
     def plot_bin_counts(self, name: str):
         print(f"{Fore.YELLOW}Calculating bins for {name}, {len(self.data):,} data points")
+        print(
+            f"{Fore.YELLOW} Low Percentile: {self.percentile_5:.2f}, High Percentile: {self.percentile_95:.2f}, {self.zero_count:,} zeros"
+        )
         # Show the statistics
         print(f"{Fore.YELLOW}Min: {self.min_val:.2f} Max: {self.max_val:.2f}, {self.zero_count:,} zeros")
         self.calculate_bins()
@@ -206,8 +230,8 @@ class DynamicBin:
         # min_value = min(averaged_data)
         # max_value = max(averaged_data)
 
-        min_value = np.percentile(averaged_data, 10)
-        max_value = np.percentile(averaged_data, 90)
+        min_value = np.percentile(self.data, 5)
+        max_value = np.percentile(self.data, 95)
 
         if min_value == max_value or data_length == 0:
             print(f"{Fore.RED}Insufficient or uniform data")
@@ -233,7 +257,9 @@ class DynamicBin:
         max_label_length = max([len(f"{label:.2f}") for label in y_labels])
 
         stats_dict = self.calculate_statistics()
-        print(f"{Fore.GREEN}Time-series for {name} (N: {data_length:,}, window size: {window_size:,})")
+        print(
+            f"{Fore.GREEN}Time-series for {name} (N: {data_length:,}, window size: {window_size:,}), plotting between {min_value:.2f} - {max_value:.2f}"
+        )
         # Print the statistics
         for key, value in stats_dict.items():
             print(f"{Fore.GREEN}{key}: {value:,.2f}")
