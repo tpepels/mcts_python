@@ -89,10 +89,10 @@ else:
     algo = args.algo
     eval_params = {}
     ai_1_params = {
-        "max_time": 15,
+        "num_simulations": 200_000,
         "debug": args.debug,
         "imm": True,
-        "c": 1,
+        "c": 0.6,
         "imm_version": 0,
         "early_term": True,
         "early_term_turns": 10,
@@ -103,7 +103,7 @@ else:
         "ab_version": 4,
     }
     ai_2_params = {
-        "max_time": 10,
+        "num_simulations": 200_000,
         "debug": args.debug,
         "imm": True,
         "c": 0.6,

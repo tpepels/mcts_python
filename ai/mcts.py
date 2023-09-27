@@ -787,7 +787,7 @@ class MCTSPlayer:
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
             if self.ab_version == 4:
-                plot_width = 120
+                plot_width = 160
                 plot_height = 30
                 if not just_play:
                     plot_selected_bins(bins_dict, plot_width, plot_height)
@@ -889,39 +889,64 @@ class MCTSPlayer:
                         imm_alpha=self.imm_alpha,
                         N=prev_node.n_visits,
                     )
-                    # TODO Hier was je gebleven, beta is vaak kleiner dan alpha.. dus de berekeningen van de bounds hier zijn denk ik nog niet compleet
+                    player_i: cython.int = node.player - 1
+                    opp_i: cython.int = 3 - node.player - 1
                     if (
-                        -val + bound < beta[3 - node.player - 1]
-                        and -val - bound > alpha[3 - node.player - 1]
-                        and val - bound > alpha[node.player - 1]
-                        and val + bound < beta[node.player - 1]
+                        -val + bound <= beta[opp_i]
+                        and -val - bound >= alpha[opp_i]
+                        and val - bound > alpha[player_i]
+                        and val + bound < beta[player_i]
+                        and alpha_val[player_i] <= val < beta_val[player_i]
+                        and alpha_val[opp_i] < -val <= beta_val[opp_i]
                     ):
-                        beta[3 - node.player - 1] = -val + bound
-                        beta_val[3 - node.player - 1] = -val
-                        alpha[node.player - 1] = val - bound
-                        alpha_val[node.player - 1] = val
+                        beta[opp_i] = -val + bound
+                        beta_val[opp_i] = -val
+
+                        alpha[player_i] = val - bound
+                        alpha_val[player_i] = val
+
+                        # if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
+                        #     if alpha_val[player_i] > beta_val[player_i]:
+                        #         print(f"Player: {node.player}, depth: {depth}")
+                        #         # print all values:
+                        #         print(f"alpha: {alpha_val[player_i]:.3f}")
+                        #         print(f"beta: {beta_val[player_i]:.3f}")
+                        #         print("-----" * 20)
+                        #         print(f"val: {val:.3f}")
+                        #         print(f"bound: {bound:.3f}")
+                        #         print(f"alpha > beta: {alpha_val[player_i]:.3f} > {beta_val[player_i]:.3f}")
+                        #         print("-----" * 20)
+                        #         # print alpha and beta for both players
+                        #         print(f"alpha_1: {alpha[0]:.3f}")
+                        #         print(f"beta_1: {beta[0]:.3f}")
+                        #         print(f"alpha_val_1: {alpha_val[0]:.3f}")
+                        #         print(f"beta_val_1: {beta_val[0]:.3f}")
+                        #         print("-----" * 20)
+                        #         print(f"alpha_2: {alpha[1]:.3f}")
+                        #         print(f"beta_2: {beta[1]:.3f}")
+                        #         print(f"alpha_val_2: {alpha_val[1]:.3f}")
+                        #         print(f"beta_val_2: {beta_val[1]:.3f}")
+                        #         print("-----" * 20)
+                        #         input("Press enter to continue")
 
                         if DEBUG:
                             bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
                             bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
                             bins_dict["bound_bins"]["bin"].add_data(bound)
 
-                            if alpha_val[node.player - 1] != -INFINITY:
-                                bins_dict["alpha_bins"]["bin"].add_data(alpha_val[node.player - 1])
-                            if beta_val[node.player - 1] != INFINITY:
-                                bins_dict["beta_bins"]["bin"].add_data(beta_val[node.player - 1])
+                            if alpha_val[player_i] != -INFINITY:
+                                bins_dict["alpha_bins"]["bin"].add_data(alpha_val[player_i])
+                            if beta_val[player_i] != INFINITY:
+                                bins_dict["beta_bins"]["bin"].add_data(beta_val[player_i])
 
                             bins_dict["ab_visits_bins"]["bin"].add_data(node.n_visits)
                             bins_dict["ab_depth_bins"]["bin"].add_data(depth)
 
-                            if (
-                                alpha_val[node.player - 1] != -INFINITY
-                                and beta_val[node.player - 1] != INFINITY
-                            ):
+                            if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
                                 bins_dict["dist_bins"]["bin"].add_data(
-                                    beta_val[node.player - 1] - alpha_val[node.player - 1]
+                                    beta_val[player_i] - alpha_val[player_i]
                                 )
-                            #  ====
+                            #  ======
                             if alpha_val[0] != -INFINITY:
                                 bins_dict["alpha_1_bins"]["bin"].add_data(alpha[0])
                                 bins_dict["beta_1_bins"]["bin"].add_data(beta[0])
