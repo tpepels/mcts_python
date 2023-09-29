@@ -21,11 +21,6 @@ cnp.import_array()
 import numpy as np
 from termcolor import colored
 
-if cython.compiled:
-    print("Blokus is compiled.")
-else:
-    print("Blokus is just a lowly interpreted script.")
-
 BOARD_SIZE = 20
 PASS_MOVE = (-1, -1, -1, -1)
 BOARD_CORNERS.insert(pair[cython.int, cython.int](0, 0))
@@ -79,7 +74,7 @@ def precompute():
     flips: cython.list
     unique: cython.list
     rotated: cnp.ndarray
-    u: cnp.ndarray
+    # u: cnp.ndarray
 
     for piece_index, piece in enumerate(PIECES):
         rotations = [np.rot90(piece, rotation) for rotation in range(4)]

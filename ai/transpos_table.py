@@ -8,11 +8,6 @@ from typing import DefaultDict
 
 import cython
 
-if cython.compiled:
-    print("Transpositions is compiled.")
-else:
-    print("Transpositions is just a lowly interpreted script.")
-
 
 class IncorrectBoardException(Exception):
     pass

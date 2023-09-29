@@ -28,11 +28,6 @@ from termcolor import colored
 MAX_SIZE = 12
 MIN_SIZE = 3
 
-if cython.compiled:
-    print("Tictactoe is compiled.")
-else:
-    print("Tictactoe is just a lowly interpreted script.")
-
 
 for size in range(MIN_SIZE, MAX_SIZE + 1):
     spiral = generate_spiral(size)

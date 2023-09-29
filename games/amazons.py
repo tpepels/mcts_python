@@ -21,10 +21,6 @@ from cython.cimports.libcpp.set import set as cset
 from cython.cimports.includes import c_random, normalize, GameState, win, loss, draw, f_index
 from cython.cimports.games.amazons import DIRECTIONS, N_DIRECTIONS
 
-if cython.compiled:
-    print("Amazons is compiled.")
-else:
-    print("Amazons is just a lowly interpreted script.")
 
 DIRECTIONS = [[dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx == 0 and dy == 0)]
 N_DIRECTIONS = 8

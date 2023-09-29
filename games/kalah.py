@@ -9,11 +9,6 @@ from cython.cimports.includes import GameState, win, loss, draw, normalize, c_ra
 
 import random
 
-if cython.compiled:
-    print("Kalah is compiled.")
-else:
-    print("Kalah is just a lowly interpreted script.")
-
 MAX_SEEDS = 280  # An approximation of the maximum number of seeds in a single position
 
 # TODO 6x6 oplossen

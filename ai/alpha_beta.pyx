@@ -490,7 +490,8 @@ cdef class AlphaBetaPlayer:
                 best_move = last_best_move
                 v = last_best_v
             
-            print()
+            if self.debug:
+                print()
                 
             if self.debug:
                 total_search_time[self.player] += curr_time() - start_time

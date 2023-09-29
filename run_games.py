@@ -50,7 +50,6 @@ class AIParams:
 
     Attributes:
         ai_key (str): The key for the AI algorithm.
-        eval_key (str): The key for the evaluation function.
         max_player: (int): The ai's player.
         ai_params (Dict[str, Any]): The parameters for the AI algorithm.
         eval_params (Dict[str, Any]): The parameters for the evaluation function.
@@ -67,8 +66,6 @@ class AIParams:
         string_repr = f"P{self.max_player}, {self.ai_key}"
         if self.ai_params:
             string_repr += f" params {d_to_s(self.ai_params)}"
-
-        string_repr += f" {self.eval_key}"
 
         if self.eval_params:
             string_repr += f" params {d_to_s(self.eval_params)}."

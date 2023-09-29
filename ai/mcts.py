@@ -87,12 +87,6 @@ def bin_probability(p: cython.double, num_bins: cython.int = 12):
         return bin_number
 
 
-# Test the function
-print(bin_probability(0.23))  # Output should be 2 (in bin number 2)
-print(bin_probability(0))  # Output should be 0 (in the first bin)
-print(bin_probability(1))  # Output should be 9 (in the last bin)
-
-
 @cython.cfunc
 @cython.exceptval(-999999, check=False)
 def cdf(x: cython.double, mean: cython.double = 0, std_dev: cython.double = 1) -> cython.double:
@@ -905,30 +899,6 @@ class MCTSPlayer:
                         alpha[player_i] = val - bound
                         alpha_val[player_i] = val
 
-                        # if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
-                        #     if alpha_val[player_i] > beta_val[player_i]:
-                        #         print(f"Player: {node.player}, depth: {depth}")
-                        #         # print all values:
-                        #         print(f"alpha: {alpha_val[player_i]:.3f}")
-                        #         print(f"beta: {beta_val[player_i]:.3f}")
-                        #         print("-----" * 20)
-                        #         print(f"val: {val:.3f}")
-                        #         print(f"bound: {bound:.3f}")
-                        #         print(f"alpha > beta: {alpha_val[player_i]:.3f} > {beta_val[player_i]:.3f}")
-                        #         print("-----" * 20)
-                        #         # print alpha and beta for both players
-                        #         print(f"alpha_1: {alpha[0]:.3f}")
-                        #         print(f"beta_1: {beta[0]:.3f}")
-                        #         print(f"alpha_val_1: {alpha_val[0]:.3f}")
-                        #         print(f"beta_val_1: {beta_val[0]:.3f}")
-                        #         print("-----" * 20)
-                        #         print(f"alpha_2: {alpha[1]:.3f}")
-                        #         print(f"beta_2: {beta[1]:.3f}")
-                        #         print(f"alpha_val_2: {alpha_val[1]:.3f}")
-                        #         print(f"beta_val_2: {beta_val[1]:.3f}")
-                        #         print("-----" * 20)
-                        #         input("Press enter to continue")
-
                         if DEBUG:
                             bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
                             bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
@@ -1096,6 +1066,9 @@ class MCTSPlayer:
             # With probability 1-epsilon chose a move at random
             if best_action == ():
                 best_action = state.get_random_action()
+
+            assert best_action is not None, "No action selected"
+            assert best_action != (), "No action selected"
 
             state.apply_action_playout(best_action)
 

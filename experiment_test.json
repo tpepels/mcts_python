@@ -1,0 +1,24 @@
+[
+  {
+    "n_games": 5,
+    "game_key": "ninarow",
+    "game_params": { "board_size": [8, 9], "row_length": 5 },
+    "p1_ai_key": "alphabeta",
+    "p1_ai_params": { "max_time": 2 },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": { "num_simulations": 40000 },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 5,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "alphabeta",
+    "p1_ai_params": { "max_time": [2, 4, 5] },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": { "num_simulations": [40000, 50000] },
+    "p2_eval_params": {}
+  }
+]

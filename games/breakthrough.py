@@ -83,12 +83,6 @@ lorentz_values = [
 ]
 
 
-if cython.compiled:
-    print("Breakthrough is compiled.")
-else:
-    print("Breakthrough is just a lowly interpreted script.")
-
-
 @cython.cclass
 class BreakthroughGameState(GameState):
     zobrist_table = [[[random.randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
