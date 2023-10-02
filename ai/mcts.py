@@ -185,16 +185,25 @@ class Node:
 
             if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
                 confidence_i *= beta - alpha
-                child_value = min(max(child_value, alpha), (beta))
+                # child_value = min(max(child_value, alpha), (beta))
+
+                # if DEBUG:
+                #     if child_value == alpha:
+                #         alpha_bound += 1
+                #     elif child_value == beta:
+                #         beta_bound += 1
+                #     else:
+                #         ucb_bound += 1
+
+                uct_val = child_value + confidence_i
+                uct_val = min(max(uct_val, alpha), (beta))
                 if DEBUG:
-                    if child_value == alpha:
+                    if uct_val == alpha:
                         alpha_bound += 1
-                    elif child_value == beta:
+                    elif uct_val == beta:
                         beta_bound += 1
                     else:
                         ucb_bound += 1
-
-                uct_val = child_value + confidence_i
             else:
                 ucb_bound += 1
 
