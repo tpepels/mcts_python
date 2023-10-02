@@ -338,7 +338,7 @@ class BreakthroughGameState(GameState):
                         all_moves.push_back(pair[cython.int, cython.int](position, new_position))
 
         # Always do a safe capture if you can
-        if safe_captures.empty() > 0:
+        if not safe_captures.empty():
             if safe_captures.size() > 1:
                 return safe_captures[c_random(0, safe_captures.size() - 1)]
             return safe_captures[0]

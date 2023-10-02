@@ -437,11 +437,14 @@ class Node:
     @cython.exceptval(-777777777, check=False)
     def get_value_imm(self, player: cython.int, imm_alpha: cython.double) -> cython.double:
         simulation_mean: cython.double = (self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits
-        # Max player is the player that is maximizing overall, not just in this node
-        if player == self.max_player:
-            return ((1.0 - imm_alpha) * simulation_mean) + (imm_alpha * self.im_value)
+        if imm_alpha > 0.0:
+            # Max player is the player that is maximizing overall, not just in this node
+            if player == self.max_player:
+                return ((1.0 - imm_alpha) * simulation_mean) + (imm_alpha * self.im_value)
+            else:
+                return ((1.0 - imm_alpha) * simulation_mean) - (imm_alpha * self.im_value)
         else:
-            return ((1.0 - imm_alpha) * simulation_mean) - (imm_alpha * self.im_value)
+            return simulation_mean
 
     @cython.cfunc
     @cython.inline
@@ -483,11 +486,11 @@ class Node:
             f"{solved_bg}"
             f"{root_mark} "
             f"{Fore.GREEN}P: {self.player:<1} " + im_str + f"{Fore.YELLOW}EV: {self.eval_value:5.2f} "
-            f"{Fore.CYAN}EX: {self.expanded:<3} "
-            f"{Fore.MAGENTA}SP: {self.solved_player:<3} "
+            f"{Fore.CYAN}EXP: {'True' if self.expanded else 'False':<3} "
+            f"{Fore.MAGENTA}SOLVP: {self.solved_player:<3} "
             f"{Fore.MAGENTA}DRW: {self.draw:<3} "
-            f"{Fore.WHITE}V: {value:2.1f} "
-            f"{Back.YELLOW + Fore.BLACK}NV: {self.n_visits:,}{Back.RESET + Fore.RESET}"
+            f"{Fore.WHITE}VAL: {value:2.1f} "
+            f"{Back.YELLOW + Fore.BLACK}NVIS: {self.n_visits:,}{Back.RESET + Fore.RESET}"
         )
 
 
@@ -1057,19 +1060,13 @@ class MCTSPlayer:
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
-
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
             elif self.roulette == 1 and c_uniform_random(0, 1) < self.roulette_eps:
                 actions = state.get_legal_actions()
                 best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
-
             # With probability 1-epsilon chose a move at random
             if best_action == ():
                 best_action = state.get_random_action()
-
-            assert best_action is not None, "No action selected"
-            assert best_action != (), "No action selected"
-
             state.apply_action_playout(best_action)
 
         self.avg_po_moves += turns
