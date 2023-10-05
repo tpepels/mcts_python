@@ -12,6 +12,7 @@ import re
 import time
 
 from collections import Counter
+import traceback
 from typing import Any
 import pandas as pd
 from prettytable import PrettyTable
@@ -112,60 +113,54 @@ def start_experiments_from_json(json_file_path, n_procs=4):
 
 
 def run_new_experiment(exp_dict, pool):
-    try:
-        game_params = exp_dict[ColName.GAME_PARAMS]
-        game_name = exp_dict[ColName.GAME_KEY]
-        game = init_game(game_name, game_params=game_params)
+    game_params = exp_dict[ColName.GAME_PARAMS]
+    game_name = exp_dict[ColName.GAME_KEY]
+    game = init_game(game_name, game_params=game_params)
 
-        p1_params = AIParams(
-            ai_key=exp_dict[ColName.P1_AI_KEY],
-            ai_params=exp_dict[ColName.P1_AI_PARAMS],
-            max_player=1,
-            eval_params=exp_dict[ColName.P1_EVAL_PARAMS],
-            transposition_table_size=game.transposition_table_size,
-        )
-        p2_params = AIParams(
-            ai_key=exp_dict[ColName.P2_AI_KEY],
-            ai_params=exp_dict[ColName.P2_AI_PARAMS],
-            max_player=2,
-            eval_params=exp_dict[ColName.P2_EVAL_PARAMS],
-            transposition_table_size=game.transposition_table_size,
-        )
+    p1_params = AIParams(
+        ai_key=exp_dict[ColName.P1_AI_KEY],
+        ai_params=exp_dict[ColName.P1_AI_PARAMS],
+        max_player=1,
+        eval_params=exp_dict[ColName.P1_EVAL_PARAMS],
+        transposition_table_size=game.transposition_table_size,
+    )
+    p2_params = AIParams(
+        ai_key=exp_dict[ColName.P2_AI_KEY],
+        ai_params=exp_dict[ColName.P2_AI_PARAMS],
+        max_player=2,
+        eval_params=exp_dict[ColName.P2_EVAL_PARAMS],
+        transposition_table_size=game.transposition_table_size,
+    )
 
-        exp_name = f"{game}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        start_game = 0
+    exp_name = f"{game}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    start_game = 0
 
-        del game
-        n_games = exp_dict[ColName.N_GAMES]
-        print(f"starting experiment {exp_name}")
+    del game
+    n_games = exp_dict[ColName.N_GAMES]
+    print(f"starting experiment {exp_name}")
 
-        games_params = []
-        for i in range(n_games):
-            if i < n_games / 2:
-                games_params.append(
-                    (game_name, game_params, deepcopy(p1_params), deepcopy(p2_params), False, exp_name)
-                )
-            else:
-                new_p1_params = deepcopy(p2_params)
-                new_p2_params = deepcopy(p1_params)
-                new_p1_params.max_player = 1
-                new_p2_params.max_player = 2
-                games_params.append((game_name, game_params, new_p1_params, new_p2_params, True, exp_name))
+    games_params = []
+    for i in range(n_games):
+        if i < n_games / 2:
+            games_params.append(
+                (game_name, game_params, deepcopy(p1_params), deepcopy(p2_params), False, exp_name)
+            )
+        else:
+            new_p1_params = deepcopy(p2_params)
+            new_p2_params = deepcopy(p1_params)
+            new_p1_params.max_player = 1
+            new_p2_params.max_player = 2
+            games_params.append((game_name, game_params, new_p1_params, new_p2_params, True, exp_name))
 
-        random.shuffle(games_params)
-        games_params = [(i, *params) for i, params in enumerate(games_params)]
-        games_params = [game for game in games_params if game[0] >= start_game]
+    random.shuffle(games_params)
+    games_params = [(i, *params) for i, params in enumerate(games_params)]
+    games_params = [game for game in games_params if game[0] >= start_game]
 
-        async_result = pool.starmap_async(run_single_experiment, games_params)
+    async_result = pool.starmap_async(run_single_experiment, games_params)
 
-        time.sleep(1)
+    time.sleep(1)
 
-        return async_result, exp_name
-
-    except Exception as e:
-        error_message = f"Error: {str(e)}"
-        print(error_message)
-        raise e
+    return async_result, exp_name
 
 
 def update_running_experiment_status(exp_name):
@@ -247,7 +242,10 @@ def run_single_experiment(
 
     except Exception as e:
         with open(f"{base_path}/log/games/{exp_name}/{i}.log", "a") as log_file:
+            # Writing the traceback
+            traceback.print_exc(file=log_file)
             log_file.write(f"Experiment error: {e}")
+            log_file.flush()
 
     # Keep track of results per AI not for p1/p2
     # Map game result to player's outcomes

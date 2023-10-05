@@ -1,5 +1,6 @@
 import os
 import shutil
+import traceback
 from typing import Any
 from run_games import AIParams, run_game_experiment
 from util import redirect_print_to_log
@@ -295,6 +296,9 @@ def run_single_experiment(
             log_file.write(f"{p1_params=}\n")
             log_file.write(f"{p2_params=}\n")
             log_file.write(f"Experiment error: {e}\n")
+            # Writing the traceback
+            traceback.print_exc(file=log_file)
+
             log_file.write("========================================\n\n")
             log_file.flush()
 
