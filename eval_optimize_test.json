@@ -1,0 +1,98 @@
+[
+  {
+    "population_size": 10,
+    "num_generations": 3,
+    "mutation_rate": 0.05,
+    "games_per_pair": 2,
+    "game_name": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "player_name": "alphabeta",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_centre_bonus": { "range": [1, 10], "precision": 0 },
+      "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
+      "m_power": { "range": [1, 10], "precision": 0 }
+    },
+    "ai_static_params": { "max_time": 10 },
+    "eval_static_params": {},
+    "debug": true
+  },
+  {
+    "population_size": 10,
+    "num_generations": 3,
+    "mutation_rate": 0.05,
+    "games_per_pair": 2,
+    "game_name": "breakthrough",
+    "player_name": "alphabeta",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_lorenz": { "range": [0, 5], "precision": 1 },
+      "m_mobility": { "range": [0, 5], "precision": 1 },
+      "m_safe": { "range": [0, 5], "precision": 1 },
+      "m_endgame": { "range": [0, 5], "precision": 1 },
+      "m_cap": { "range": [0, 5], "precision": 1 },
+      "m_piece_diff": { "range": [0, 5], "precision": 1 },
+      "m_opp_disc": { "range": [0.5, 2], "precision": 2 }
+    },
+    "ai_static_params": { "max_time": 10 },
+    "eval_static_params": {},
+    "debug": true
+  },
+  {
+    "population_size": 10,
+    "num_generations": 3,
+    "mutation_rate": 0.05,
+    "games_per_pair": 2,
+    "game_name": "kalah",
+    "player_name": "alphabeta",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_score": { "range": [0, 5], "precision": 1 },
+      "m_seed_diff": { "range": [0, 5], "precision": 1 },
+      "m_empty": { "range": [0, 5], "precision": 1 },
+      "m_double": { "range": [0, 5], "precision": 1 },
+      "m_capture": { "range": [0, 5], "precision": 1 },
+      "m_opp_disc": { "range": [0.1, 2], "precision": 2 }
+    },
+    "ai_static_params": { "max_time": 10 },
+    "eval_static_params": {},
+    "debug": true
+  },
+  {
+    "population_size": 10,
+    "num_generations": 3,
+    "mutation_rate": 0.05,
+    "games_per_pair": 2,
+    "game_name": "amazons",
+    "player_name": "alphabeta",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
+      "n_moves_cutoff": { "range": [0, 30], "precision": 0 },
+      "m_kill_s": { "range": [0, 5], "precision": 1 },
+      "m_imm": { "range": [0, 5], "precision": 1 },
+      "m_mob": { "range": [0, 5], "precision": 1 },
+      "m_min_mob": { "range": [0, 5], "precision": 1 }
+    },
+    "ai_static_params": { "max_time": 10 },
+    "eval_static_params": {},
+    "debug": true
+  },
+  {
+    "population_size": 10,
+    "num_generations": 3,
+    "mutation_rate": 0.05,
+    "games_per_pair": 2,
+    "game_name": "blokus",
+    "player_name": "alphabeta",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_corn_diff": { "range": [0, 5], "precision": 1 },
+      "m_piece_size": { "range": [0, 5], "precision": 1 },
+      "m_turn": { "range": [0, 5], "precision": 2 }
+    },
+    "ai_static_params": { "max_time": 10 },
+    "eval_static_params": {},
+    "debug": true
+  }
+]

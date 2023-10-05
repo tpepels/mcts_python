@@ -1,4 +1,5 @@
 import configparser
+from datetime import datetime
 import io
 import os
 import sys
@@ -172,8 +173,10 @@ def log_exception_handler(func):
         except Exception as e:
             # add a timestamp to the error message
             timestamp = f"Error timestamp: {time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime())}\n"
-            error_message = "*-*-*-" * 80 + "\n" + timestamp + "\n" + str(e) + "\n" + traceback.format_exc()
-            log_file = f"log/{func.__name__}_error.log"
+            error_message = "---" * 80 + "\n" + timestamp + "\n" + str(e) + "\n" + traceback.format_exc()
+            # Get the current time
+            current_time = datetime.now()
+            log_file = f"log/{func.__name__}_{current_time.hour}_error.log"
             os.makedirs(os.path.dirname(log_file), exist_ok=True)
             with open(log_file, "a") as f:
                 f.write(f"An exception occurred in {func.__name__}: {error_message}\n")

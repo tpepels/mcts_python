@@ -43,6 +43,58 @@ def read_json_file(file_path):
 
 
 def expand_rows(json_file_path):
+    """
+    Expands rows in a DataFrame based on "_params" columns containing JSON objects or dictionaries.
+
+    This function reads a JSON file into a Pandas DataFrame. It then identifies the columns that
+    have names ending with "_params" and contain JSON objects or dictionaries as their values.
+    For each row in the DataFrame, it generates combinations of parameters from these identified columns
+    and creates new rows accordingly.
+
+    Parameters:
+        json_file_path (str): The path of the JSON file to read.
+
+    Returns:
+        list: A list of dictionaries where each dictionary represents a new row in the DataFrame.
+
+    Examples:
+
+        1. JSON file content:
+        [
+            {
+                "id": 1,
+                "name": "Alice",
+                "settings_params": "{\"color\": [\"red\", \"green\"], \"size\": \"small\"}"
+            },
+            {
+                "id": 2,
+                "name": "Bob",
+                "settings_params": "{\"color\": \"blue\"}"
+            }
+        ]
+
+        expand_rows("path/to/json/file.json")
+        Output:
+        [
+            {'id': 1, 'name': 'Alice', 'settings_params': {'color': 'red', 'size': 'small'}},
+            {'id': 1, 'name': 'Alice', 'settings_params': {'color': 'green', 'size': 'small'}},
+            {'id': 2, 'name': 'Bob', 'settings_params': {'color': 'blue'}}
+        ]
+
+        2. JSON file content:
+        [
+            {
+                "id": 1,
+                "settings_params": "{\"flag\": true}"
+            }
+        ]
+
+        expand_rows("path/to/another/json/file.json")
+        Output:
+        [
+            {'id': 1, 'settings_params': {'flag': true}}
+        ]
+    """
     # Read JSON data into a DataFrame
     data_dict = read_json_file(json_file_path)
     df = pd.DataFrame(data_dict)
@@ -165,6 +217,8 @@ def run_new_experiment(exp_dict, pool):
 
 def update_running_experiment_status(exp_name):
     completed_games = 0
+    error_games = 0
+    draws = 0
     ai_stats = Counter()  # To hold cumulative statistics per AI
     path_to_log = f"{base_path}/log/games/{exp_name}"
     os.makedirs(f"{path_to_log}", exist_ok=True)
@@ -195,12 +249,17 @@ def update_running_experiment_status(exp_name):
                         writer.writerow([exp_name, game_number, winner_params])
                         ai_stats[winner_params] += 1  # Update AI statistics
                     else:
+                        draws += 1
                         writer.writerow([exp_name, game_number, "Draw"])
                 elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
                     writer.writerow([exp_name, game_number, "Error"])
+                    error_games += 1
 
     # Print cumulative statistics per AI to the screen
-    print_stats = PrettyTable(["AI", f"Win % (Games: {completed_games})"])
+    os.system("cls")
+    print_stats = PrettyTable(
+        ["AI", f"Win % (Games: {completed_games}, Errors: {error_games} Draws: {draws})"]
+    )
     for ai, wins in ai_stats.items():
         print_stats.add_row([ai, f"{(wins / completed_games) * 100: .2f}"])
 
