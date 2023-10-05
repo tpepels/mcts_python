@@ -285,11 +285,11 @@ def run_single_experiment(
 ) -> None:
     try:
         # TODO Keep track of all statistics of the game
-        with redirect_print_to_log(f"/test/{game_key}.log"):
+        with redirect_print_to_log(f"test/{game_key}.log"):
             run_game_experiment(game_key, game_params, p1_params, p2_params)
 
     except Exception as e:
-        with open(f"/test/{game_key}.err", "a") as log_file:
+        with open(f"test/{game_key}.err", "a") as log_file:
             log_file.write(f"{p1_params=}")
             log_file.write(f"{p2_params=}")
             log_file.write(f"Experiment error: {e}")
