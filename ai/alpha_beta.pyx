@@ -399,8 +399,8 @@ cdef class AlphaBetaPlayer:
             start_time = curr_time()
             
             for depth in range(1, self.max_depth + 1):
-                if self.debug:
-                    print(f"\rdepth {depth}... ", end="")
+                # if self.debug:
+                #    print(f"\rdepth {depth}... ", end="")
                 start_depth_time = curr_time()  # Time when this depth search starts
                 # How much time can be spent searching this depth
                 time_limit = (self.max_time + self.grace_time) - (start_depth_time - start_time) 
@@ -456,8 +456,8 @@ cdef class AlphaBetaPlayer:
 
                 last_search_time = curr_time()
                 last_search_time -= start_depth_time
-                if self.debug:
-                    print(f"time {(last_search_time):.3f} *** ", end="")
+                # if self.debug:
+                #     print(f"time {(last_search_time):.3f} *** ", end="")
                 # keep track of the time spent on each depth
                 search_times.append(last_search_time)
                 
