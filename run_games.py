@@ -158,9 +158,13 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
         int: The result of the game. gamestate.draw for a draw, gamestate.win if player 1 won, and gamestate.loss if player 2 won.
     """
     current_player: AIPlayer = player1
+    turns = 1
     while not game.is_terminal():
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
+
+        assert action is not None, f"Player {current_player} returned None as best action{turns=}"
+        assert action != (), f"Player {current_player} returned () as best action {turns=}"
 
         # Apply the action to get the new game state
         game = game.apply_action(action)
@@ -171,6 +175,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
 
         # Switch the current player
         current_player = player2 if game.player == 2 else player1
+        turns += 1
 
     return game.get_reward(1)
 
