@@ -228,7 +228,7 @@ mcts_param_dicts = [
 ]
 
 all_games = []
-for game in ["amazons", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus"]:
+for game in ["amazons8", "amazons10", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus"]:
     # Check if the game starts with "ninarow" or "kalah"
     if game.startswith("ninarow"):
         game_name = "ninarow"
@@ -238,6 +238,12 @@ for game in ["amazons", "breakthrough", "ninarow59", "kalah66", "kalah86", "blok
         game_name = "kalah"
         n_houses, init_seeds = int(game[-2]), int(game[-1])
         game_params = {"n_houses": n_houses, "init_seeds": init_seeds}
+    elif game.startswith("amazons"):
+        game_name = "amazons"
+        board_size = int(game[-1])
+        if board_size == 0:
+            board_size = 10
+        game_params = {"board_size": board_size}
     else:
         game_name = game
         game_params = {}
@@ -253,27 +259,22 @@ exp_list = []
 # Start a match for all the games to see if everything works
 for game_name, game_params in all_games:
     for mcts_params in mcts_param_dicts:
-        p1_params = AIParams(
-            ai_key="mcts",
-            max_player=1,
-            eval_params={},
-            ai_params=mcts_params | mcts_fixed_params,
+        exp_params = (
+            game_name,
+            game_params,
+            AIParams(
+                ai_key="alphabeta",
+                max_player=1,
+                eval_params={},
+                ai_params=ab_fixed_params,
+            ),
+            AIParams(
+                ai_key="mcts",
+                max_player=2,
+                eval_params={},
+                ai_params=mcts_params | mcts_fixed_params,
+            ),
         )
-
-        p2_params = AIParams(
-            ai_key="alphabeta",
-            max_player=2,
-            eval_params={},
-            ai_params=ab_fixed_params,
-        )
-
-        exp_params = {
-            "game_key": game_name,
-            "game_params": game_params,
-            "p1_params": p1_params,
-            "p2_params": p2_params,
-        }
-
         exp_list.append(exp_params)
 
 
@@ -284,16 +285,25 @@ def run_single_experiment(
     p2_params: AIParams,
 ) -> None:
     try:
-        # TODO Keep track of all statistics of the game
         with redirect_print_to_log(f"test/{game_key}.log"):
             run_game_experiment(game_key, game_params, p1_params, p2_params)
 
     except Exception as e:
         with open(f"test/{game_key}.err", "a") as log_file:
-            log_file.write(f"{p1_params=}")
-            log_file.write(f"{p2_params=}")
-            log_file.write(f"Experiment error: {e}")
+            log_file.write(f"{p1_params=}\n")
+            log_file.write(f"{p2_params=}\n")
+            log_file.write(f"Experiment error: {e}\n")
+            log_file.write("========================================\n\n")
+            log_file.flush()
 
 
-with mp.Pool(24) as pool:
-    pool.starmap(run_single_experiment, exp_list)
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("--n_procs", type=int, default=4, help="The number of processors to use.")
+
+    args = parser.parse_args()
+
+    with mp.Pool(parser.n_procs) as pool:
+        pool.starmap(run_single_experiment, exp_list)

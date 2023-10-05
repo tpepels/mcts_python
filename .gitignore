@@ -16,3 +16,4 @@ profiler_results.out
 *.html
 *.o
 *.cpp
+*.err
