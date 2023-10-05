@@ -1,6 +1,7 @@
 # cython: language_level=3
 
 from array import array
+import gc
 import inspect
 import time
 from dataclasses import dataclass
@@ -168,7 +169,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
 
         # Apply the action to get the new game state
         game = game.apply_action(action)
-
+        gc.collect()
         # Call the callback function if any
         if callback is not None:
             callback(current_player, action, game, time.time())
