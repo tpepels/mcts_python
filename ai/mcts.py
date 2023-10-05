@@ -672,9 +672,9 @@ class MCTSPlayer:
 
         if self.num_simulations:
             for i in range(self.num_simulations):
-                if DEBUG:
-                    if (i + 1) % 100 == 0:
-                        print(f"\rSimulation: {i+1:,} ", end="")
+                # if DEBUG:
+                #     if (i + 1) % 100 == 0:
+                #         print(f"\rSimulation: {i+1:,} ", end="")
 
                 self.simulate(state)
                 # The root is solved, no need to look any further, since we have a winning/losing move
@@ -685,11 +685,11 @@ class MCTSPlayer:
                 if self.root.draw:
                     break
         else:
-            while curr_time() - start_time < self.max_time:
-                if DEBUG:
-                    if (i + 1) % 100 == 0:
-                        print(f"\rSimulation: {i+1:,} ", end="")
-
+            counter: cython.int = 0
+            while True:
+                # if DEBUG:
+                #     if (i + 1) % 100 == 0:
+                #         print(f"\rSimulation: {i+1:,} ", end="")
                 self.simulate(state)
                 i += 1
                 # The root is solved, no need to look any further, since we have a winning/losing move
@@ -699,6 +699,13 @@ class MCTSPlayer:
                     break
                 if self.root.draw:
                     break
+
+                # Only check the time every once in a while to save cost
+                counter += 1
+                if counter > 500:
+                    if curr_time() - start_time < self.max_time:
+                        break
+                    counter = 0
 
         total_time: cython.long = curr_time() - start_time
 
@@ -793,47 +800,47 @@ class MCTSPlayer:
             sorted_children = sorted(self.root.children[:30], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
-            if self.ab_version == 4:
-                plot_width = 160
-                plot_height = 30
-                if not just_play:
-                    plot_selected_bins(bins_dict, plot_width, plot_height)
-                    # Clear bins
-                    print("clearing bins, this takes a while..")
-                    for _, bin_value in bins_dict.items():
-                        del bin_value["bin"]
-                        print(f"\rclearing {bin_value['label']}", end=" ")
-                        bin_value["bin"] = DynamicBin(n_bins)
+            # if self.ab_version == 4:
+            #     plot_width = 160
+            #     plot_height = 30
+            #     if not just_play:
+            #         plot_selected_bins(bins_dict, plot_width, plot_height)
+            #         # Clear bins
+            #         print("clearing bins, this takes a while..")
+            #         for _, bin_value in bins_dict.items():
+            #             del bin_value["bin"]
+            #             print(f"\rclearing {bin_value['label']}", end=" ")
+            #             bin_value["bin"] = DynamicBin(n_bins)
 
-                    print("\rCollecting garbage")
-                    gc.collect()
-                    print("Done\n\n")
-                    if not just_play:
-                        second_run = input("Do another run? [y/N]: ")
-                        if second_run.lower() == "y":
-                            try:
-                                self.c = float(input(f"Enter new c value (currently: {self.c}): "))
-                            except ValueError:
-                                # Just keep the c the same
-                                pass
-                            try:
-                                self.imm_alpha = float(
-                                    input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
-                                )
-                            except ValueError:
-                                # Just keep the imm_alpha the same
-                                pass
-                            self.root = None
-                            return self.best_action(state)
-                else:
-                    # Clear bins
-                    print("clearing bins, this takes a while..")
-                    for _, bin_value in bins_dict.items():
-                        del bin_value["bin"]
-                        print(f"\rclearing {bin_value['label']}", end=" ")
-                        bin_value["bin"] = DynamicBin(n_bins)
-                    print("\rCollecting garbage")
-                    gc.collect()
+            #         print("\rCollecting garbage")
+            #         gc.collect()
+            #         print("Done\n\n")
+            #         if not just_play:
+            #             second_run = input("Do another run? [y/N]: ")
+            #             if second_run.lower() == "y":
+            #                 try:
+            #                     self.c = float(input(f"Enter new c value (currently: {self.c}): "))
+            #                 except ValueError:
+            #                     # Just keep the c the same
+            #                     pass
+            #                 try:
+            #                     self.imm_alpha = float(
+            #                         input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
+            #                     )
+            #                 except ValueError:
+            #                     # Just keep the imm_alpha the same
+            #                     pass
+            #                 self.root = None
+            #                 return self.best_action(state)
+            # else:
+            #     # Clear bins
+            #     print("clearing bins, this takes a while..")
+            #     for _, bin_value in bins_dict.items():
+            #         del bin_value["bin"]
+            #         print(f"\rclearing {bin_value['label']}", end=" ")
+            #         bin_value["bin"] = DynamicBin(n_bins)
+            #     print("\rCollecting garbage")
+            #     gc.collect()
 
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
@@ -890,32 +897,32 @@ class MCTSPlayer:
                         alpha_val[player_i] = val
                         non_prunes += 1
 
-                        if DEBUG:
-                            bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
-                            bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
-                            bins_dict["bound_bins"]["bin"].add_data(bound)
+                        # if DEBUG:
+                        #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
+                        #     bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
+                        #     bins_dict["bound_bins"]["bin"].add_data(bound)
 
-                            if alpha_val[player_i] != -INFINITY:
-                                bins_dict["alpha_bins"]["bin"].add_data(alpha_val[player_i])
-                            if beta_val[player_i] != INFINITY:
-                                bins_dict["beta_bins"]["bin"].add_data(beta_val[player_i])
+                        #     if alpha_val[player_i] != -INFINITY:
+                        #         bins_dict["alpha_bins"]["bin"].add_data(alpha_val[player_i])
+                        #     if beta_val[player_i] != INFINITY:
+                        #         bins_dict["beta_bins"]["bin"].add_data(beta_val[player_i])
 
-                            bins_dict["ab_visits_bins"]["bin"].add_data(node.n_visits)
-                            bins_dict["ab_depth_bins"]["bin"].add_data(depth)
+                        #     bins_dict["ab_visits_bins"]["bin"].add_data(node.n_visits)
+                        #     bins_dict["ab_depth_bins"]["bin"].add_data(depth)
 
-                            if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
-                                bins_dict["dist_bins"]["bin"].add_data((beta[player_i] - alpha[player_i]))
-                            #  ======
-                            if alpha_val[0] != -INFINITY:
-                                bins_dict["alpha_1_bins"]["bin"].add_data(alpha[0])
-                                bins_dict["beta_1_bins"]["bin"].add_data(beta[0])
-                                if beta[0] != INFINITY:
-                                    bins_dict["1_dist_bins"]["bin"].add_data(beta[0] - alpha[0])
-                            if alpha_val[1] != -INFINITY:
-                                bins_dict["alpha_2_bins"]["bin"].add_data(alpha[1])
-                                bins_dict["beta_2_bins"]["bin"].add_data(beta[1])
-                                if beta[1] != INFINITY:
-                                    bins_dict["2_dist_bins"]["bin"].add_data(beta[1] - alpha[1])
+                        #     if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
+                        #         bins_dict["dist_bins"]["bin"].add_data((beta[player_i] - alpha[player_i]))
+                        #     #  ======
+                        #     if alpha_val[0] != -INFINITY:
+                        #         bins_dict["alpha_1_bins"]["bin"].add_data(alpha[0])
+                        #         bins_dict["beta_1_bins"]["bin"].add_data(beta[0])
+                        #         if beta[0] != INFINITY:
+                        #             bins_dict["1_dist_bins"]["bin"].add_data(beta[0] - alpha[0])
+                        #     if alpha_val[1] != -INFINITY:
+                        #         bins_dict["alpha_2_bins"]["bin"].add_data(alpha[1])
+                        #         bins_dict["beta_2_bins"]["bin"].add_data(beta[1])
+                        #         if beta[1] != INFINITY:
+                        #             bins_dict["2_dist_bins"]["bin"].add_data(beta[1] - alpha[1])
                     else:
                         prunes += 1
 
