@@ -177,14 +177,16 @@ class Node:
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
 
-            confidence_i: cython.double = c * sqrt(
+            confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
             )
 
-            uct_val: cython.double = child_value + confidence_i
+            uct_val: cython.double = child_value + (c * confidence_i)
 
             if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
                 confidence_i *= beta - alpha
+                uct_val = child_value + (c * confidence_i)
+                alpha_bound += 1
                 # child_value = min(max(child_value, alpha), (beta))
 
                 # if DEBUG:
@@ -195,15 +197,14 @@ class Node:
                 #     else:
                 #         ucb_bound += 1
 
-                uct_val = child_value + confidence_i
-                uct_val = min(max(uct_val, alpha), (beta))
-                if DEBUG:
-                    if uct_val == alpha:
-                        alpha_bound += 1
-                    elif uct_val == beta:
-                        beta_bound += 1
-                    else:
-                        ucb_bound += 1
+                # uct_val = min(max(uct_val, alpha), (beta))
+                # if DEBUG:
+                #     if uct_val == alpha:
+                #         alpha_bound += 1
+                #     elif uct_val == beta:
+                #         beta_bound += 1
+                #     else:
+                #         ucb_bound += 1
             else:
                 ucb_bound += 1
 
@@ -810,10 +811,18 @@ class MCTSPlayer:
                     if not just_play:
                         second_run = input("Do another run? [y/N]: ")
                         if second_run.lower() == "y":
-                            self.c = float(input(f"Enter new c value (currently: {self.c}): "))
-                            self.imm_alpha = float(
-                                input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
-                            )
+                            try:
+                                self.c = float(input(f"Enter new c value (currently: {self.c}): "))
+                            except ValueError:
+                                # Just keep the c the same
+                                pass
+                            try:
+                                self.imm_alpha = float(
+                                    input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
+                                )
+                            except ValueError:
+                                # Just keep the imm_alpha the same
+                                pass
                             self.root = None
                             return self.best_action(state)
                 else:
@@ -847,7 +856,7 @@ class MCTSPlayer:
         child: Node
         i: cython.int
         depth: cython.int = 0
-
+        global prunes, non_prunes
         alpha: cython.double[2] = [-INFINITY, -INFINITY]
         beta: cython.double[2] = [INFINITY, INFINITY]
 
@@ -856,37 +865,6 @@ class MCTSPlayer:
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
-                # if self.ab_version == 5:
-                #     if node.player == self.player:
-                #         for i in range(len(node.children)):
-                #             child = node.children[i]
-                #             if child.n_visits > 0:
-                #                 val, bound = child.get_value_with_uct_interval(
-                #                     c=self.c,
-                #                     player=node.player,
-                #                     imm_alpha=self.imm_alpha,
-                #                     N=node.n_visits,
-                #                 )
-                #                 # TODO De beta bound is jouw upper bound
-                #                 if (val - bound) > lcb_alpha and (val - bound) < beta:
-                #                     lcb_alpha = val - bound
-                #                     alpha = -val - bound  # The lower bound for the min player
-                #     else:
-                #         for i in range(len(node.children)):
-                #             child = node.children[i]
-                #             if child.n_visits > 0:
-                #                 val, bound = child.get_value_with_uct_interval(
-                #                     c=self.c,
-                #                     player=node.player,
-                #                     imm_alpha=self.imm_alpha,
-                #                     N=node.n_visits,
-                #                 )
-                #                 # TODO Je hebt hier de bound geflipt
-                #                 if (val - bound) > lcb_beta and (-val - bound) < lcb_alpha:
-                #                     lcb_beta = val - bound
-                #                     # We can always force the opponent into this move
-                #                     beta = -val - bound  # The lower bound for the max player
-
                 if self.ab_version == 4 and node.n_visits > 0 and prev_node is not None:
                     # The parent's value have the information regarding the child's bound
                     val, bound = node.get_value_with_uct_interval(
@@ -910,6 +888,7 @@ class MCTSPlayer:
 
                         alpha[player_i] = val - bound
                         alpha_val[player_i] = val
+                        non_prunes += 1
 
                         if DEBUG:
                             bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
@@ -925,9 +904,7 @@ class MCTSPlayer:
                             bins_dict["ab_depth_bins"]["bin"].add_data(depth)
 
                             if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
-                                bins_dict["dist_bins"]["bin"].add_data(
-                                    beta_val[player_i] - alpha_val[player_i]
-                                )
+                                bins_dict["dist_bins"]["bin"].add_data((beta[player_i] - alpha[player_i]))
                             #  ======
                             if alpha_val[0] != -INFINITY:
                                 bins_dict["alpha_1_bins"]["bin"].add_data(alpha[0])
@@ -939,6 +916,8 @@ class MCTSPlayer:
                                 bins_dict["beta_2_bins"]["bin"].add_data(beta[1])
                                 if beta[1] != INFINITY:
                                     bins_dict["2_dist_bins"]["bin"].add_data(beta[1] - alpha[1])
+                    else:
+                        prunes += 1
 
                 prev_node = node
                 node = node.uct(
@@ -946,8 +925,8 @@ class MCTSPlayer:
                     self.pb_weight,
                     self.imm_alpha,
                     ab_version=self.ab_version,
-                    alpha=alpha_val[node.player - 1],
-                    beta=beta_val[node.player - 1],
+                    alpha=alpha[node.player - 1],
+                    beta=beta[node.player - 1],
                 )
                 assert node is not None, f"Node should not be None after UCT: {prev_node}"
                 depth += 1

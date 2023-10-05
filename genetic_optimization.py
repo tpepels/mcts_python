@@ -196,7 +196,6 @@ def genetic_algorithm(
     mutation_rate: float,
     game_name: str,
     player_name: str,
-    eval_name: str,
     ai_param_ranges: Optional[Dict[str, Tuple[float, float]]] = {},
     eval_param_ranges: Optional[Dict[str, Tuple[float, float]]] = {},
     game_params: Optional[Dict[str, Any]] = {},
@@ -224,7 +223,6 @@ def genetic_algorithm(
         game_name (str): The name of the game to simulate.
         game_params (Dict[str, Any]): The parameters for the game.
         player_name (str): The name of the player AI.
-        eval_name (str): The name of the evaluation function.
         ai_param_ranges (Dict[str, Tuple[float, float]]): A dictionary mapping parameter names to tuples defining the allowed range of that parameter.
         eval_param_ranges (Dict[str, Tuple[float, float]]): Similar to ai_param_ranges, but for the eval parameters.
         ai_static_params (Dict[str, Any], optional): The static AI parameters (i.e. the parameters that are the same for all indivuduals). Defaults to {}.
@@ -274,7 +272,6 @@ def genetic_algorithm(
         game_name,
         game_params,
         player_name,
-        eval_name,
         ai_static_params,
         eval_static_params,
         draw_score,
@@ -301,7 +298,7 @@ def genetic_algorithm(
             else:
                 game_name_str = game_name
 
-            sheet_name = f"{game_name_str}_{player_name}_{eval_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            sheet_name = f"{game_name_str}_{player_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
             # This prepares the csv file and google sheet
             setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges, no_google=no_google)
@@ -455,7 +452,6 @@ def evaluate_fitness(
     game_name: str,
     game_params: Dict[str, Any],
     player_name: str,
-    eval_name: str,
     ai_static_params: Dict[str, Any],
     eval_static_params: Dict[str, Any],
     draw_score: float,
@@ -472,7 +468,6 @@ def evaluate_fitness(
         game_name (str): The name of the game to simulate.
         game_params (Dict[str, Any]): The parameters for the game.
         player_name (str): The name of the player AI.
-        eval_name (str): The name of the evaluation function.
         ai_static_params (Dict[str, Any]): The static parameters (i.e. the parameters that are the same for all indivuduals).
         eval_static_params (Dict[str, Any]): The static parameters (i.e. the parameters that are the same for all indivuduals).
         draw_score (float): The score assigned for a draw.
@@ -519,6 +514,7 @@ def evaluate_fitness(
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
         game_result_sw = play_game_until_terminal(game, player2, player1, callback=callback)
+
     res_1 = get_game_result(game_result, draw_score)
     res_2 = get_game_result(game_result_sw, draw_score)
 
@@ -909,7 +905,6 @@ def validate_experiment_config(config):
             "game_name": {"type": "string"},
             "game_params": {"type": "object"},
             "player_name": {"type": "string"},
-            "eval_name": {"type": "string"},
             "ai_param_ranges": {"type": "object"},
             "eval_param_ranges": {"type": "object"},
             "ai_static_params": {"type": "object"},
@@ -922,14 +917,7 @@ def validate_experiment_config(config):
             "debug": {"type": "boolean"},
             "status": {"type": "string"},
         },
-        "required": [
-            "population_size",
-            "num_generations",
-            "mutation_rate",
-            "game_name",
-            "player_name",
-            "eval_name",
-        ],
+        "required": ["population_size", "num_generations", "mutation_rate", "game_name", "player_name"],
     }
 
     # Validate the configuration

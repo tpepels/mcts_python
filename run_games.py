@@ -284,38 +284,3 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     p2.print_cumulative_statistics()
 
     return setup, total_time, avg_time_per_move, n_moves, result
-
-
-def print_function_params(function_dict):
-    function_dict = dict(sorted(function_dict.items()))
-    for func_name, func in function_dict.items():
-        print(f"FUNCTION NAME: {func_name}")
-        sig = inspect.signature(func)
-        for param in sig.parameters.values():
-            print(f"  {param}")
-        print("-" * 50)
-
-
-def print_class_init_params(class_dict):
-    class_dict = dict(sorted(class_dict.items()))
-    for class_name, cls in class_dict.items():
-        print(f"CLASS NAME: {class_name}")
-        init = getattr(cls, "__init__", None)
-        if init:
-            sig = inspect.signature(init)
-            for param in sig.parameters.values():
-                print(f"  {param}")
-        print("-" * 50)
-
-
-# Use this to get a useful overview of all relevant parameters and their names.
-if __name__ == "__main__":
-    print("\nEvaluation functions parameters:")
-    for k, v in game_dict.items():
-        print(f"{k}: {v.default_params}")
-    print("..." * 40)
-    print("\nGame classes __init__ parameters:")
-    print_class_init_params(game_dict)
-    print("..." * 40)
-    print("\nPlayer classes __init__ parameters:")
-    print_class_init_params(player_dict)

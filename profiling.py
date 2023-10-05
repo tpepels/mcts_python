@@ -29,8 +29,6 @@ parser.add_argument(
 args = parser.parse_args()
 # Clearing the Screen
 os.system("clear")
-# num_simulations: int = 0,
-# max_time: int = 0,
 # c: float = 1.0,
 # dyn_early_term: bool = False,
 # dyn_early_term_cutoff: float = 0.9,
@@ -38,13 +36,19 @@ os.system("clear")
 # early_term_turns: int = 10,
 # early_term_cutoff: float = 0.05,
 # e_greedy: bool = False,
+# roulette_epsilon: float = 0.05,
 # e_g_subset: int = 20,
 # imm_alpha: float = 0.4,
 # imm: bool = False,
+# imm_version: int = 0,
+# ab_version: int = 0,
+# ex_imm_D: int = 2,
 # roulette: bool = False,
 # epsilon: float = 0.05,
-# node_priors: bool = False,
+# prog_bias: bool = False,
+# pb_weight: float = 0.5,
 # debug: bool = False,
+
 # Check if the game starts with "ninarow" or "kalah"
 if args.game.startswith("ninarow"):
     game_name = "ninarow"
