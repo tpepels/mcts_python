@@ -1,3 +1,5 @@
+import os
+import shutil
 from typing import Any
 from run_games import AIParams, run_game_experiment
 from util import redirect_print_to_log
@@ -297,13 +299,22 @@ def run_single_experiment(
             log_file.flush()
 
 
+def remake_dir(directory_path):
+    shutil.rmtree(directory_path)
+    os.makedirs(directory_path)
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument("--n_procs", type=int, default=4, help="The number of processors to use.")
+    parser.add_argument(
+        "--n_procs", type=int, default=4, help="The number of processors to use.", required=True
+    )
 
     args = parser.parse_args()
 
-    with mp.Pool(parser.n_procs) as pool:
+    remake_dir("test")
+
+    with mp.Pool(args.n_procs) as pool:
         pool.starmap(run_single_experiment, exp_list)
