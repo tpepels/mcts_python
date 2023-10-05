@@ -295,5 +295,6 @@ def run_single_experiment(
             log_file.write(f"Experiment error: {e}")
 
 
-with mp.Pool(23) as pool:
+with mp.Pool(24) as pool:
     pool.starmap(run_single_experiment, exp_list)
+    pool.join()
