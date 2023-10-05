@@ -259,10 +259,13 @@ mcts_fixed_params = {
 
 ab_fixed_params = {"max_time": 10}
 exp_list = []
+i = 0
 # Start a match for all the games to see if everything works
 for game_name, game_params in all_games:
     for mcts_params in mcts_param_dicts:
+        i += 1
         exp_params = (
+            i,
             game_name,
             game_params,
             AIParams(
@@ -282,17 +285,18 @@ for game_name, game_params in all_games:
 
 
 def run_single_experiment(
+    i: int,
     game_key: str,
     game_params: dict[str, Any],
     p1_params: AIParams,
     p2_params: AIParams,
 ) -> None:
     try:
-        with redirect_print_to_log(f"test/{game_key}.log"):
+        with redirect_print_to_log(f"test/{game_key}_{i}.log"):
             run_game_experiment(game_key, game_params, p1_params, p2_params)
 
     except Exception as e:
-        with open(f"test/{game_key}.err", "a") as log_file:
+        with open(f"test/{game_key}_{i}.err", "a") as log_file:
             log_file.write(f"{p1_params=}\n")
             log_file.write(f"{p2_params=}\n")
             log_file.write(f"Experiment error: {e}\n")
