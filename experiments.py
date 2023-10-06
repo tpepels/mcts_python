@@ -256,7 +256,7 @@ def update_running_experiment_status(exp_name):
                     error_games += 1
 
     # Print cumulative statistics per AI to the screen
-    os.system("cls")
+    os.system("clear")
     print_stats = PrettyTable(
         ["AI", f"Win % (Games: {completed_games}, Errors: {error_games} Draws: {draws})"]
     )

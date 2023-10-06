@@ -867,6 +867,8 @@ def run_experiments_from_file(file_path: str):
             experiment["status"] = "complete"
         except (jsonschema.exceptions.ValidationError, Exception) as e:
             print(f"An error occurred with {experiment_name}: {e}")
+            print(traceback.format_exc())
+            print(f"{experiment=}")
             experiment["status"] = "error"
             continue
         finally:
