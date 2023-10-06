@@ -485,6 +485,14 @@ def evaluate_fitness(
     ai_params2 = {**ai_static_params, **individual2["ai"]}
     eval_params2 = {**eval_static_params, **individual2["eval"]}
 
+    # Assert that nothing is None:
+    assert ai_static_params is not None, f"ai_params1 is None in evaluate_fitness {pair=}"
+    assert eval_static_params is not None, f"eval_params1 is None in evaluate_fitness {pair=}"
+    assert individual1["ai"] is not None, f"individual1[ai] is None in evaluate_fitness {pair=}"
+    assert individual1["eval"] is not None, f"individual1[eval] is None in evaluate_fitness {pair=}"
+    assert individual2["ai"] is not None, f"individual2[ai] is None in evaluate_fitness {pair=}"
+    assert individual2["eval"] is not None, f"individual2[eval] is None in evaluate_fitness {pair=}"
+
     n_moves = 0
 
     def callback(player, action, game, time):

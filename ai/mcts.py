@@ -20,27 +20,25 @@ from util import abbreviate, format_time
 just_play: cython.bint = 0
 DEBUG: cython.bint = 0
 n_bins = 14
-# TODO Compiler directives toevoegen na debuggen
-# TODO After testing, remove assert statements
 q_searches: cython.int = 0
 
-bins_dict = {
-    "p1_value_bins": {"bin": DynamicBin(n_bins), "label": "p1 ab Values"},
-    "p2_value_bins": {"bin": DynamicBin(n_bins), "label": "p2 ab Values"},
-    "bound_bins": {"bin": DynamicBin(n_bins), "label": "Bounds around a/b"},
-    "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Effective Alpha values"},
-    "beta_bins": {"bin": DynamicBin(n_bins), "label": "Effective Beta values"},
-    "ab_visits_bins": {"bin": DynamicBin(n_bins), "label": "a/b/ Node visit counts"},
-    "ab_depth_bins": {"bin": DynamicBin(n_bins), "label": "Depth of a/b nodes"},
-    "dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha"},
-    "alpha_1_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 1 nodes"},
-    "beta_1_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 1 nodes"},
-    "1_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 1"},
-    "alpha_2_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 2 nodes"},
-    "beta_2_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 2 nodes"},
-    "2_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 2"},
-    "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "Best UCB values"},
-}
+# bins_dict = {
+#     "p1_value_bins": {"bin": DynamicBin(n_bins), "label": "p1 ab Values"},
+#     "p2_value_bins": {"bin": DynamicBin(n_bins), "label": "p2 ab Values"},
+#     "bound_bins": {"bin": DynamicBin(n_bins), "label": "Bounds around a/b"},
+#     "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Effective Alpha values"},
+#     "beta_bins": {"bin": DynamicBin(n_bins), "label": "Effective Beta values"},
+#     "ab_visits_bins": {"bin": DynamicBin(n_bins), "label": "a/b/ Node visit counts"},
+#     "ab_depth_bins": {"bin": DynamicBin(n_bins), "label": "Depth of a/b nodes"},
+#     "dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha"},
+#     "alpha_1_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 1 nodes"},
+#     "beta_1_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 1 nodes"},
+#     "1_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 1"},
+#     "alpha_2_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 2 nodes"},
+#     "beta_2_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 2 nodes"},
+#     "2_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 2"},
+#     "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "Best UCB values"},
+# }
 
 prunes: cython.int = 0
 non_prunes: cython.int = 0
@@ -931,7 +929,8 @@ class MCTSPlayer:
                         beta_val[1] = INFINITY
 
                 prev_node = node
-                if self.ab_version == 1:  # So also for ab_version 0 (i.e. no ab bounds)
+                if self.ab_version != 2 and self.ab_version != 0:
+                    # Apply this one to all versions except 2 / so you can choose whether to use alpha or alpha_val etc.
                     node = node.uct(
                         self.c,
                         self.pb_weight,
@@ -941,6 +940,7 @@ class MCTSPlayer:
                         beta=beta[node.player - 1],
                     )
                 elif self.ab_version == 2:
+                    # Use this to determine whether to use version 1 or 2, then also use the best of the two for 5 and 6
                     node = node.uct(
                         self.c,
                         self.pb_weight,
@@ -978,15 +978,6 @@ class MCTSPlayer:
         if not is_terminal and node.solved_player == 0:
             # Do a random playout and collect the result
             result = self.play_out(next_state)
-            # # Shape the rewards based on the alpha/beta values
-            # if self.ab_version == 4 and alpha_value != -INFINITY and beta_value != INFINITY:
-            #     if result[0] == 1.0:
-            #         result = (beta_value, alpha_value)
-            #     elif result[0] == 0.0:
-            #         result = (alpha_value, beta_value)
-            #     elif result[0] == 0.5:
-            #         mid: cython.double = abs(beta_value - alpha_value) / 2
-            #         result = (mid, mid)
         else:
             if node.solved_player == 0 and is_terminal:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
