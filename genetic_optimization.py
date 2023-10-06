@@ -516,8 +516,8 @@ def evaluate_fitness(
         game_result = play_game_until_terminal(game, player1, player2, callback=callback)
         n_moves = 0
         # Create AI players with given parameters for the swapped seats game
-        ai1_params = AIParams(player_name, 2, eval_params1)
-        ai2_params = AIParams(player_name, 1, eval_params2)
+        ai1_params = AIParams(player_name, 2, eval_params1, ai_params1)
+        ai2_params = AIParams(player_name, 1, eval_params2, ai_params2)
         # This method does not assign any order to the players, it just initializes them
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
