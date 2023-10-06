@@ -104,7 +104,7 @@ else:
         # # "roulette": True,
         # # "roulette_epsilon": 0.05,
         "imm_alpha": 0.6,
-        "ab_version": 4,
+        "ab_version": 1,
     }
     ai_2_params = {
         "num_simulations": 200_000,

@@ -44,8 +44,7 @@ bins_dict = {
 
 prunes: cython.int = 0
 non_prunes: cython.int = 0
-alpha_bound: cython.int = 0
-beta_bound: cython.int = 0
+ab_bound: cython.int = 0
 ucb_bound: cython.int = 0
 cutoffs: cython.int = 0
 
@@ -143,7 +142,7 @@ class Node:
         assert n_children > 0, "Trying to uct a node without children"
         assert self.expanded, "Trying to uct a node that is not expanded"
 
-        global prunes, non_prunes, alpha_bound, beta_bound, ucb_bound
+        global ab_bound, ucb_bound
 
         selected_child: Node = None
         best_val: cython.double = -INFINITY
@@ -176,39 +175,17 @@ class Node:
 
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
-
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
             )
 
-            uct_val: cython.double = child_value + (c * confidence_i)
-
-            if ab_version == 4 and alpha != -INFINITY and beta != INFINITY:
+            if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 confidence_i *= beta - alpha
                 uct_val = child_value + (c * confidence_i)
-                alpha_bound += 1
-                # child_value = min(max(child_value, alpha), (beta))
-
-                # if DEBUG:
-                #     if child_value == alpha:
-                #         alpha_bound += 1
-                #     elif child_value == beta:
-                #         beta_bound += 1
-                #     else:
-                #         ucb_bound += 1
-
-                # uct_val = min(max(uct_val, alpha), (beta))
-                # if DEBUG:
-                #     if uct_val == alpha:
-                #         alpha_bound += 1
-                #     elif uct_val == beta:
-                #         beta_bound += 1
-                #     else:
-                #         ucb_bound += 1
+                ab_bound += 1
             else:
+                uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
-
-            non_prunes += 1
 
             if pb_weight != 0.0:
                 uct_val += pb_weight * (child.eval_value / (1.0 + child.n_visits))
@@ -218,9 +195,9 @@ class Node:
                 selected_child = child
                 best_val = uct_val
 
-        if DEBUG:
-            if ab_version == 4 and alpha != -INFINITY and beta != INFINITY and selected_child.n_visits > 0:
-                bins_dict["ab_uct_bins"]["bin"].add_data(best_val)
+        # if DEBUG:
+        #     if ab_version == 4 and alpha != -INFINITY and beta != INFINITY and selected_child.n_visits > 0:
+        #         bins_dict["ab_uct_bins"]["bin"].add_data(best_val)
 
         # It may happen that somewhere else in the tree all my children have been found to be proven losses.
         if children_lost == n_children:
@@ -783,12 +760,12 @@ class MCTSPlayer:
                 f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
             self.avg_po_moves = 0
-            global q_searches, prunes, non_prunes, alpha_bound, beta_bound, ucb_bound
+            global q_searches, prunes, non_prunes, ab_bound, ucb_bound
             print(
-                f"prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}% | alpha bound used: {alpha_bound:,} | beta bound used: {beta_bound:,} | ucb bound used: {ucb_bound:,} | percentage: {((alpha_bound + beta_bound) / max(alpha_bound + beta_bound + ucb_bound, 1)) * 100:.2f}%"
+                f"prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}% | alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
             )
 
-            ucb_bound = alpha_bound = beta_bound = 0
+            ucb_bound = ab_bound = 0
             prunes = q_searches = non_prunes = 0
             self.max_depth = self.avg_depth = 0
             print("--*--" * 20)
@@ -860,9 +837,10 @@ class MCTSPlayer:
         # Start at the root
         node: Node = self.root
         prev_node: Node = None
+        prune: cython.bint = 0
         child: Node
         i: cython.int
-        depth: cython.int = 0
+
         global prunes, non_prunes
         alpha: cython.double[2] = [-INFINITY, -INFINITY]
         beta: cython.double[2] = [INFINITY, INFINITY]
@@ -872,7 +850,8 @@ class MCTSPlayer:
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
-                if self.ab_version == 4 and node.n_visits > 0 and prev_node is not None:
+                if self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
+                    prune = 0
                     # The parent's value have the information regarding the child's bound
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
@@ -880,22 +859,23 @@ class MCTSPlayer:
                         imm_alpha=self.imm_alpha,
                         N=prev_node.n_visits,
                     )
-                    player_i: cython.int = node.player - 1
-                    opp_i: cython.int = 3 - node.player - 1
-                    if (
-                        -val + bound <= beta[opp_i]
-                        and -val - bound >= alpha[opp_i]
-                        and val - bound > alpha[player_i]
-                        and val + bound < beta[player_i]
-                        and alpha_val[player_i] <= val < beta_val[player_i]
-                        and alpha_val[opp_i] < -val <= beta_val[opp_i]
-                    ):
-                        beta[opp_i] = -val + bound
-                        beta_val[opp_i] = -val
 
-                        alpha[player_i] = val - bound
-                        alpha_val[player_i] = val
-                        non_prunes += 1
+                    p_i: cython.int = node.player - 1
+                    o_i: cython.int = 3 - node.player - 1
+
+                    if (
+                        -val + bound <= beta[o_i]
+                        and -val - bound >= alpha[o_i]
+                        and val - bound > alpha[p_i]
+                        and val + bound < beta[p_i]
+                        and alpha_val[p_i] <= val < beta_val[p_i]
+                        and alpha_val[o_i] < -val <= beta_val[o_i]
+                    ):
+                        beta[o_i] = -val + bound
+                        beta_val[o_i] = -val
+
+                        alpha[p_i] = val - bound
+                        alpha_val[p_i] = val
 
                         # if DEBUG:
                         #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
@@ -924,19 +904,55 @@ class MCTSPlayer:
                         #         if beta[1] != INFINITY:
                         #             bins_dict["2_dist_bins"]["bin"].add_data(beta[1] - alpha[1])
                     else:
+                        prune = 1
                         prunes += 1
 
+                    if not prune:
+                        non_prunes += 1
+
+                    if self.ab_version == 5 and prune:
+                        alpha[0] = 0
+                        alpha[1] = 0
+                        beta[0] = 0
+                        beta[1] = 0
+                        alpha_val[0] = 0
+                        alpha_val[1] = 0
+                        beta_val[0] = 0
+                        beta_val[1] = 0
+
+                    elif self.ab_version == 6 and prune:
+                        alpha[0] = -INFINITY
+                        alpha[1] = -INFINITY
+                        beta[0] = INFINITY
+                        beta[1] = INFINITY
+                        alpha_val[0] = -INFINITY
+                        alpha_val[1] = -INFINITY
+                        beta_val[0] = INFINITY
+                        beta_val[1] = INFINITY
+
                 prev_node = node
-                node = node.uct(
-                    self.c,
-                    self.pb_weight,
-                    self.imm_alpha,
-                    ab_version=self.ab_version,
-                    alpha=alpha[node.player - 1],
-                    beta=beta[node.player - 1],
-                )
+                if self.ab_version == 1:  # So also for ab_version 0 (i.e. no ab bounds)
+                    node = node.uct(
+                        self.c,
+                        self.pb_weight,
+                        self.imm_alpha,
+                        ab_version=self.ab_version,
+                        alpha=alpha[node.player - 1],  # Alpha and beta including the bounds
+                        beta=beta[node.player - 1],
+                    )
+                elif self.ab_version == 2:
+                    node = node.uct(
+                        self.c,
+                        self.pb_weight,
+                        self.imm_alpha,
+                        ab_version=self.ab_version,
+                        alpha=alpha_val[node.player - 1],  # Alpha and beta excluding the bounds
+                        beta=alpha_val[node.player - 1],
+                    )
+                else:
+                    node = node.uct(self.c, self.pb_weight, self.imm_alpha)
+
                 assert node is not None, f"Node should not be None after UCT: {prev_node}"
-                depth += 1
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
