@@ -18,6 +18,7 @@ import jsonschema
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
 from util import ErrorLogger, format_time, log_exception_handler
 
+base_path = "."
 csv_f: TextIOWrapper = None
 csv_writer = None
 GLOBAL_N_PROCS = None  # set this value to override the number of cpu's to use for all experiments
@@ -37,7 +38,7 @@ def setup_reporting(
         + ["Fitness"]
     )
     global csv_f, csv_writer
-    path = f"results/genetic/{game_name}/"
+    path = f"{base_path}/results/genetic/{game_name}/"
     os.makedirs(path, exist_ok=True)
     print(f"Writing to {path}{sheet_name}.csv")
     csv_f = open(path + f"{sheet_name}.csv", "w", newline="")
@@ -490,7 +491,7 @@ def evaluate_fitness(
             else:
                 print("Game Over. Draw")
 
-    with ErrorLogger(play_game_until_terminal, log_dir="log/game_error/"):
+    with ErrorLogger(play_game_until_terminal, log_dir=f"{base_path}/log/game_error/"):
         # Create AI players with given parameters
         ai1_params = AIParams(player_name, 1, eval_params1, ai_params1)
         ai2_params = AIParams(player_name, 2, eval_params2, ai_params2)
@@ -918,8 +919,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run experiments from a JSON file.")
     parser.add_argument("file", help="The path to the JSON file containing the experiments.")
     parser.add_argument("--n_procs", type=int, help="The number of processors to use.")
-
+    parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
     args = parser.parse_args()
+
+    base_path = args.base_path
+
+    # Validate and create the base directory for logs if it doesn't exist
+    if not os.path.exists(base_path):
+        os.makedirs(base_path)
 
     # Update the global variable based on the argument
     GLOBAL_N_PROCS = args.n_procs
