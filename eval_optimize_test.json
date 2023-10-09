@@ -93,7 +93,7 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
-      "n_moves_cutoff": { "range": [0, 30], "precision": 0 },
+      "n_moves_cutoff": { "range": [0, 35], "precision": 0 },
       "m_kill_s": { "range": [0, 5], "precision": 1 },
       "m_imm": { "range": [0, 5], "precision": 1 },
       "m_mob": { "range": [0, 5], "precision": 1 },
