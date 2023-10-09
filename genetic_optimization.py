@@ -84,12 +84,13 @@ def generate_individual(param_ranges: Dict[str, Tuple[float, float]]) -> Dict[st
     Returns:
         Dict[str, Union[int, float]]: The individual with randomly assigned parameters.
     """
-    return {
+    unsorted_dict = {
         param_name: random.randint(r["range"][0], r["range"][1])
         if r["precision"] == 0
         else round(random.uniform(r["range"][0], r["range"][1]), r["precision"])
         for param_name, r in param_ranges.items()
     }
+    return {k: unsorted_dict[k] for k in sorted(unsorted_dict.keys())}
 
 
 def create_pairs_from_population(population, games_per_pair, debug=False):

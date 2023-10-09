@@ -103,7 +103,7 @@ def expand_rows(json_file_path):
     params_cols = [col for col in df.columns if col.endswith("_params") and df[col].dtype == "object"]
 
     res = []
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         params_values = [
             (json.loads(row[col]) if isinstance(row[col], str) else row[col]) for col in params_cols
         ]
@@ -184,7 +184,7 @@ def run_new_experiment(exp_dict, pool):
         transposition_table_size=game.transposition_table_size,
     )
 
-    exp_name = f"{game}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    exp_name = f"{game}_{exp_dict[ColName.P1_AI_KEY]}_{exp_dict[ColName.P2_AI_KEY]}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     start_game = 0
 
     del game
@@ -213,8 +213,12 @@ def run_new_experiment(exp_dict, pool):
     Write the experiment configuration as a header to a CSV file in the log directory.
     So we can easily find results of a specific experiment.
     """
+    path_to_result = f"{base_path}/results/experiments/{exp_name}"
     path_to_log = f"{base_path}/log/games/{exp_name}"
-    with open(f"{path_to_log}/_results.csv", "w") as f:
+    os.makedirs(f"{path_to_log}", exist_ok=True)
+    os.makedirs(f"{path_to_result}", exist_ok=True)
+
+    with open(f"{path_to_result}/_results.csv", "w") as f:
         f.write(f"{game_name=}\n")
         f.write(f"{game_params=}\n")
         f.write(f"{p1_params=}\n")
@@ -233,12 +237,16 @@ def update_running_experiment_status(exp_name):
     error_games = 0
     draws = 0
     ai_stats = Counter()  # To hold cumulative statistics per AI
+
     path_to_log = f"{base_path}/log/games/{exp_name}"
+    path_to_result = f"{base_path}/results/experiments/{exp_name}"
     os.makedirs(f"{path_to_log}", exist_ok=True)
+    os.makedirs(f"{path_to_result}", exist_ok=True)
+
     log_files = glob.glob(f"{path_to_log}/?.log")
 
     # Open CSV file in append mode
-    with open(f"{path_to_log}/_results.csv", "a", newline="") as f:
+    with open(f"{path_to_result}/_results.csv", "a", newline="") as f:
         writer = csv.writer(f)
 
         for log_file in log_files:
