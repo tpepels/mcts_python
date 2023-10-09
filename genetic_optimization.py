@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import jsonschema
-from games.gamestate import draw, loss, win
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
 from util import ErrorLogger, format_time, log_exception_handler
 
@@ -474,10 +473,18 @@ def evaluate_fitness(
         n_moves += 1
         print(f"Player {player} - chosen action: {action}.\nCurrent game state:\n{game.visualize()}")
         if game.is_terminal():
+            result = game.get_result_tuple()
+            # def get_result_tuple(self) -> cython.tuple:
+            #     if self.winner == 1:
+            #         return (1.0, 0.0)
+            #     elif self.winner == 2:
+            #         return (0.0, 1.0)
+
+            #     return (0.5, 0.5):
             print(f"{n_moves} moves total.")
-            if game.get_reward(1) == win:
+            if result[0] == 1:
                 print("Game Over. Winner: P1")
-            elif game.get_reward(1) == loss:
+            elif result[1] == 1:
                 print("Game Over. Winner: P2")
             else:
                 print("Game Over. Draw")
@@ -487,7 +494,8 @@ def evaluate_fitness(
         ai1_params = AIParams(player_name, 1, eval_params1, ai_params1)
         ai2_params = AIParams(player_name, 2, eval_params2, ai_params2)
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
-        game_result = play_game_until_terminal(game, player1, player2, callback=callback)
+        play_game_until_terminal(game, player1, player2, callback=callback)
+        game_result = game.get_result_tuple()
         n_moves = 0
         # Create AI players with given parameters for the swapped seats game
         ai1_params = AIParams(player_name, 2, eval_params1, ai_params1)
@@ -495,7 +503,8 @@ def evaluate_fitness(
         # This method does not assign any order to the players, it just initializes them
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
-        game_result_sw = play_game_until_terminal(game, player2, player1, callback=callback)
+        play_game_until_terminal(game, player2, player1, callback=callback)
+        game_result_sw = game.get_result_tuple()
 
     res_1 = get_game_result(game_result, draw_score)
     res_2 = get_game_result(game_result_sw, draw_score)
@@ -506,18 +515,12 @@ def evaluate_fitness(
     return individual1, individual1_res, individual2, individual2_res
 
 
-def get_game_result(game_result, draw_score: float) -> Tuple[float, float]:
-    if game_result == draw:
+def get_game_result(game_result: tuple, draw_score: float) -> Tuple[float, float]:
+    if game_result == (0.5, 0.5):
         # Draw
         return draw_score, draw_score
-    elif game_result == win:
-        # Individual1 wins
-        return 1.0, 0.0
-    elif game_result == loss:
-        # Individual2 wins
-        return 0.0, 1.0
     else:
-        assert False, f"Unexpected game result: {game_result}"
+        return game_result
 
 
 def scale_fitnesses(fitnesses):
