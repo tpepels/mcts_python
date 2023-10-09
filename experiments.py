@@ -219,15 +219,14 @@ def run_new_experiment(exp_dict, pool):
     os.makedirs(f"{path_to_log}", exist_ok=True)
     os.makedirs(f"{path_to_result}", exist_ok=True)
 
-    with open(f"{path_to_result}/_results.csv", "w") as f:
-        f.write(f"{game_name=}\n")
-        f.write(f"{game_params=}\n")
-        f.write(f"{p1_params=}\n")
-        f.write(f"{p2_params=}\n")
-        f.write(f"{n_games=}\n")
-        f.write(f"Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write("--" * 20 + "\n")
-
+    tables[exp_name] = {}
+    description_str = f"{game_name=}\n"
+    description_str += f"{game_params=}\n"
+    description_str += f"{p1_params=}\n"
+    description_str += f"{p2_params=}\n"
+    description_str += f"{n_games=}\n"
+    description_str += f"Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n     -------- \n"
+    tables[exp_name]["description"] = description_str
     time.sleep(1)
 
     return async_result, exp_name
@@ -246,8 +245,9 @@ def update_running_experiment_status(exp_name):
 
     log_files = glob.glob(f"{path_to_log}/?.log")
 
-    # Open CSV file in append mode
-    with open(f"{path_to_result}/_results.csv", "a", newline="") as f:
+    # Open CSV file in write mode (it needs to be overwritten every time)
+    with open(f"{path_to_result}/_results.csv", "w", newline="") as f:
+        f.write(tables[exp_name]["description"])
         writer = csv.writer(f)
 
         for log_file in log_files:
@@ -297,7 +297,7 @@ def update_running_experiment_status(exp_name):
         print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"{lower_bound:.2f} - {upper_bound:.2f}"])
 
     # Keep track of all experiments, also the finished ones to print
-    tables[exp_name] = print_stats
+    tables[exp_name]["table"] = print_stats
     print("\n")
     for k, v in tables.items():
         print(v)
