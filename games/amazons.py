@@ -406,7 +406,7 @@ class AmazonsGameState(GameState):
             return win if self.player != player else loss
         return draw
 
-    @cython.cfunc
+    @cython.ccall
     def get_result_tuple(self) -> cython.tuple:
         if not self.player_has_legal_moves:  # The player who has no more legal moves loses
             if self.player == 1:

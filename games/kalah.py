@@ -351,7 +351,7 @@ class KalahGameState(GameState):
         else:
             return loss
 
-    @cython.cfunc
+    @cython.ccall
     def get_result_tuple(self) -> cython.tuple:
         if self.winner == 1:
             return (1.0, 0.0)

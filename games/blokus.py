@@ -625,7 +625,7 @@ class BlokusGameState(GameState):
         else:
             return draw
 
-    @cython.cfunc
+    @cython.ccall
     def get_result_tuple(self) -> cython.tuple:
         result: cython.int = self.get_reward(1)
         if result == win:

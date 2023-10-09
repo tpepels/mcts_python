@@ -24,7 +24,7 @@ cdef class GameState:
 
     cpdef public int get_reward(self, int player) except -1
 
-    cdef public tuple get_result_tuple(self)
+    cpdef public tuple get_result_tuple(self)
 
     cdef public bint is_capture(self, tuple move)
 
