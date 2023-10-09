@@ -274,8 +274,10 @@ def update_running_experiment_status(exp_name):
                 elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
                     writer.writerow([game_number, "Error"])
                     error_games += 1
+
     # Write cumulative table to separate CSV file
     with open(f"{path_to_result}/_cumulative_stats.csv", "w", newline="") as f:
+        f.write(tables[exp_name]["description"])
         writer = csv.writer(f)
         writer.writerow(["AI", "Win %", "95% C.I."])
 
