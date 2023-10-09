@@ -220,7 +220,7 @@ def run_new_experiment(exp_dict, pool):
     os.makedirs(f"{path_to_result}", exist_ok=True)
 
     tables[exp_name] = {}
-    description_str = f"{game_name=}\n"
+    description_str = f"{exp_name=}  --  {game_name=}\n"
     description_str += f"{game_params=}\n"
     description_str += f"{p1_params=}\n"
     description_str += f"{p2_params=}\n"
@@ -264,18 +264,31 @@ def update_running_experiment_status(exp_name):
                     completed_games += 1
                     # Assuming the last line is "Game Over. Winner: Px [px_params]"
                     winner_info = log_contents[-2]  # Last line
-                    winner_params = re.search(r"\[(.*)\]", winner_info).group(
-                        1
-                    )  # Extracts string between [] and ]
+                    winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
                     if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
-                        writer.writerow([exp_name, game_number, winner_params])
+                        writer.writerow([game_number, winner_params])
                         ai_stats[winner_params] += 1  # Update AI statistics
                     else:
                         draws += 1
-                        writer.writerow([exp_name, game_number, "Draw"])
+                        writer.writerow([game_number, "Draw"])
                 elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
-                    writer.writerow([exp_name, game_number, "Error"])
+                    writer.writerow([game_number, "Error"])
                     error_games += 1
+    # Write cumulative table to separate CSV file
+    with open(f"{path_to_result}/_cumulative_stats.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["AI", "Win %", "95% C.I."])
+
+        Z = 1.96
+        for ai, wins in ai_stats.items():
+            if completed_games > 0:
+                win_rate = wins / completed_games
+                ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
+                lower_bound = (win_rate - ci_width) * 100
+                upper_bound = (win_rate + ci_width) * 100
+                writer.writerow([ai, f"{win_rate * 100:.2f}", f"{lower_bound:.2f} - {upper_bound:.2f}"])
+            else:
+                writer.writerow([ai, "N/A", "N/A"])
 
     # Print cumulative statistics per AI to the screen
     os.system("clear")
@@ -294,12 +307,12 @@ def update_running_experiment_status(exp_name):
         ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
         lower_bound = (win_rate - ci_width) * 100
         upper_bound = (win_rate + ci_width) * 100
-        print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"{lower_bound:.2f} - {upper_bound:.2f}"])
+        print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"])
 
     # Keep track of all experiments, also the finished ones to print
     tables[exp_name]["table"] = print_stats
     print("\n")
-    for k, v in tables.items():
+    for _, v in tables.items():
         print(v["description"])
         print(v["table"])
         print("\n")
