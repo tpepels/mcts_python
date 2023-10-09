@@ -438,8 +438,7 @@ class AmazonsGameState(GameState):
         "m_min_mob": 6,
     }
 
-    # default_params = array.array("d", [10, 2.0, 1.5, 13.0, 2.0, 1.0, 50.0])
-    default_params = array.array("d", [20, 1.5, 13.0, 2.0, 1.0, 300.0, 10])
+    default_params = array.array("d", [10, 2.0, 1.5, 13.0, 2.0, 1.0, 50.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)

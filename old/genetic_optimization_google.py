@@ -13,12 +13,17 @@ from operator import itemgetter
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import gspread
 import numpy as np
+from oauth2client.service_account import ServiceAccountCredentials
+
+import util
 import jsonschema
 from games.gamestate import draw, loss, win
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
 from util import ErrorLogger, format_time, log_exception_handler
 
+sheet: gspread.Worksheet = None
 csv_f: TextIOWrapper = None
 csv_writer = None
 GLOBAL_N_PROCS = None  # set this value to override the number of cpu's to use for all experiments
@@ -30,6 +35,7 @@ def setup_reporting(
     game_name: str,
     ai_param_ranges: Dict[str, Tuple[float, float]],
     eval_param_ranges: Dict[str, Tuple[float, float]],
+    no_google: bool = False,
 ):
     csv_header = (
         ["Generation"]
@@ -37,7 +43,24 @@ def setup_reporting(
         + sorted(list(eval_param_ranges.keys()))
         + ["Fitness"]
     )
-    global csv_f, csv_writer
+    global csv_f, csv_writer, sheet
+    try:
+        config = util.read_config()
+        if not no_google:
+            # Use credentials to create a client to interact with the Google Drive API
+            scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            creds = ServiceAccountCredentials.from_json_keyfile_name("client_secret.json", scopes)
+            client = gspread.authorize(creds)
+            sheet = client.create(sheet_name).sheet1
+            sheet.spreadsheet.share(config["Share"]["GoogleAccount"], perm_type="user", role="writer")
+            # Append the header row to the Google Sheets file
+            sheet.append_row(csv_header)
+
+    except gspread.exceptions.APIError as a_ex:
+        print(f"An API error occurred while setting up reporting for {sheet_name}, {str(a_ex)}")
+        print("results only stored in logfiles.")
+        traceback.print_exc()
+
     path = f"results/genetic/{game_name}/"
     os.makedirs(path, exist_ok=True)
     print(f"Writing to {path}{sheet_name}.csv")
@@ -57,6 +80,13 @@ def report_results(
     eval_params = [best_individual["eval"][key] for key in sorted(best_individual["eval"].keys())]
 
     row = [generation] + ai_params + eval_params + [best_individual_fitness]
+    try:
+        if sheet:
+            sheet.append_row(row)
+    except gspread.exceptions.APIError as a_ex:
+        print(f"An API error occurred while writing results to google sheets, {str(a_ex)}")
+        print("results only stored in logfiles.")
+        traceback.print_exc()
 
     csv_writer.writerow(row)
     csv_f.flush()
@@ -70,6 +100,14 @@ def report_final_results(best_overall_individual: Tuple[Dict[str, Dict[str, floa
         best_overall_individual[0]["eval"][key] for key in sorted(best_overall_individual[0]["eval"].keys())
     ]
     row = ["Final"] + ai_params + eval_params + [best_overall_individual[1]]
+
+    try:
+        if sheet:
+            sheet.append_row(row)
+    except gspread.exceptions.APIError as a_ex:
+        print(f"An API error occurred while writing results to google sheets, {str(a_ex)}")
+        print("results only stored in logfiles.")
+        traceback.print_exc()
 
     csv_writer.writerow(row)
     csv_f.flush()
@@ -170,6 +208,7 @@ def genetic_algorithm(
     default_eval_as_elite: dict = {},
     default_ai_as_elite: dict = {},
     debug: bool = True,
+    no_google: bool = False,
 ):
     """
     Run the genetic algorithm to optimize the parameters of the AI and evaluation function.
@@ -193,8 +232,6 @@ def genetic_algorithm(
         tournament_size (int, optional): The size of the tournaments used for selection. Defaults to 5.
         elite_count (int, optional): The number of elites to preserve between generations. Defaults to 2.
         draw_score (float, optional): The score assigned for a draw. Defaults to 0.25.
-        default_eval_as_elite: dict = {},
-        default_ai_as_elite: dict = {},
         debug (bool, optional): Flag to enable debug outputs. Defaults to False.
 
     Example:
@@ -275,7 +312,7 @@ def genetic_algorithm(
             sheet_name = f"{game_name_str}_{player_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
             # This prepares the csv file and google sheet
-            setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
+            setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges, no_google=no_google)
 
         # Calculate the number of wins for each individual as fitness values
         fitnesses = [0.0] * len(population)  # Initialize the fitnesses list
@@ -898,8 +935,6 @@ def validate_experiment_config(config):
             "tournament_size": {"type": "integer"},
             "elite_count": {"type": "integer"},
             "draw_score": {"type": "number"},
-            "default_eval_as_elite": {"type": "object"},
-            "default_ai_as_elite": {"type": "object"},
             "debug": {"type": "boolean"},
             "status": {"type": "string"},
         },

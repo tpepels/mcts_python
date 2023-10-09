@@ -1,8 +1,10 @@
 import argparse
 import cProfile
+import inspect
 import pstats
 import traceback
 import os
+from ai.mcts import MCTSPlayer
 from run_games import AIParams, run_game
 
 ai_choices = ["mcts", "alphabeta"]
@@ -24,6 +26,21 @@ parser.add_argument(
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
 )
+
+
+def get_default_params(func):
+    signature = inspect.signature(func)
+    param_dict = {}
+
+    for name, param in signature.parameters.items():
+        if param.default is not param.empty:
+            param_dict[name] = param.default
+
+    return param_dict
+
+
+print(get_default_params(MCTSPlayer.__init__))
+input()
 
 
 args = parser.parse_args()

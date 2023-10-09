@@ -209,6 +209,19 @@ def run_new_experiment(exp_dict, pool):
     games_params = [game for game in games_params if game[0] >= start_game]
 
     async_result = pool.starmap_async(run_single_experiment, games_params)
+    """
+    Write the experiment configuration as a header to a CSV file in the log directory.
+    So we can easily find results of a specific experiment.
+    """
+    path_to_log = f"{base_path}/log/games/{exp_name}"
+    with open(f"{path_to_log}/_results.csv", "w") as f:
+        f.write(f"{game_name=}\n")
+        f.write(f"{game_params=}\n")
+        f.write(f"{p1_params=}\n")
+        f.write(f"{p2_params=}\n")
+        f.write(f"{n_games=}\n")
+        f.write(f"Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("--" * 20 + "\n")
 
     time.sleep(1)
 
@@ -225,7 +238,7 @@ def update_running_experiment_status(exp_name):
     log_files = glob.glob(f"{path_to_log}/?.log")
 
     # Open CSV file in append mode
-    with open(f"{path_to_log}/_results.csv", "w", newline="") as f:
+    with open(f"{path_to_log}/_results.csv", "a", newline="") as f:
         writer = csv.writer(f)
 
         for log_file in log_files:
