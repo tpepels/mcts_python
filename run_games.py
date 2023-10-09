@@ -2,7 +2,6 @@
 
 from array import array
 import gc
-import inspect
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
@@ -64,12 +63,12 @@ class AIParams:
 
     def __str__(self):
         """Generate string representation of AI parameters."""
-        string_repr = f"P{self.max_player}, {self.ai_key}"
+        string_repr = f"{self.ai_key}"
         if self.ai_params:
-            string_repr += f" params {d_to_s(self.ai_params)}"
+            string_repr += f" {d_to_s(self.ai_params)}"
 
         if self.eval_params:
-            string_repr += f" params {d_to_s(self.eval_params)}."
+            string_repr += f" {d_to_s(self.eval_params)}"
 
         return string_repr
 

@@ -5,6 +5,7 @@ import datetime
 import glob
 import itertools
 import json
+import math
 import multiprocessing as mp
 import os
 import random
@@ -279,14 +280,31 @@ def update_running_experiment_status(exp_name):
     # Print cumulative statistics per AI to the screen
     os.system("clear")
     print_stats = PrettyTable(
-        ["AI", f"Win % (Games: {completed_games}, Errors: {error_games} Draws: {draws})"]
+        [
+            f"AI ({exp_name})",
+            f"Win % (Games: {completed_games}, Errors: {error_games}, Draws: {draws})",
+            "95% C.I.",
+        ]
     )
+    # Z-score for 95% confidence interval
+    Z = 1.96
+    # Add rows to the table
     for ai, wins in ai_stats.items():
-        print_stats.add_row([ai, f"{(wins / completed_games) * 100: .2f}"])
+        win_rate = wins / completed_games
+        ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
+        lower_bound = (win_rate - ci_width) * 100
+        upper_bound = (win_rate + ci_width) * 100
+        print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"{lower_bound:.2f} - {upper_bound:.2f}"])
 
-    print(f"{exp_name} - {completed_games} games completed.")
-    print("***-" * 20)
-    print(print_stats)
+    # Keep track of all experiments, also the finished ones to print
+    tables[exp_name] = print_stats
+    print("\n")
+    for k, v in tables.items():
+        print(v)
+        print("\n")
+
+
+tables = {}
 
 
 def run_single_experiment(
