@@ -1,6 +1,6 @@
 [
   {
-    "population_size": 10,
+    "population_size": 20,
     "num_generations": 3,
     "mutation_rate": 0.05,
     "games_per_pair": 2,
@@ -24,7 +24,7 @@
     "debug": true
   },
   {
-    "population_size": 10,
+    "population_size": 20,
     "num_generations": 3,
     "mutation_rate": 0.05,
     "games_per_pair": 2,
@@ -55,7 +55,7 @@
     "debug": true
   },
   {
-    "population_size": 10,
+    "population_size": 20,
     "num_generations": 3,
     "mutation_rate": 0.05,
     "games_per_pair": 2,
@@ -84,7 +84,7 @@
     "debug": true
   },
   {
-    "population_size": 10,
+    "population_size": 20,
     "num_generations": 3,
     "mutation_rate": 0.05,
     "games_per_pair": 2,
