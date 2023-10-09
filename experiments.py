@@ -300,7 +300,8 @@ def update_running_experiment_status(exp_name):
     tables[exp_name]["table"] = print_stats
     print("\n")
     for k, v in tables.items():
-        print(v)
+        print(v["description"])
+        print(v["table"])
         print("\n")
 
 
