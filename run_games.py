@@ -228,7 +228,8 @@ def run_game(
 
 @log_exception_handler
 def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams):
-    """Run a game experiment with two AI players, and return detailed game information.
+    """
+    Run a game experiment with two AI players, and return detailed game information.
 
     The function initializes the game and players based on the provided parameters. It then runs the game, recording
     the moves made by the AI players and tracking the time taken for each move. The function records the game state

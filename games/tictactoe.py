@@ -115,6 +115,8 @@ class TicTacToeGameState(GameState):
     @cython.ccall
     @cython.locals(x=cython.int, y=cython.int)
     def apply_action(self, action: cython.tuple) -> TicTacToeGameState:
+        assert len(action) == 2, f"Action should be a tuple of length 2, not {action}"
+
         x, y = action
         assert (
             0 <= x < self.size and 0 <= y < self.size

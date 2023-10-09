@@ -408,20 +408,21 @@ cdef class AlphaBetaPlayer:
                 if is_interrupted:
                     break
                 
-                if len(self.last_move_search_times) > depth:
-                    # print(f"Last search time was {self.last_move_search_times[depth]} seconds for depth {depth}.")
-                    if ((start_depth_time - start_time) + (self.last_move_search_times[depth] + 1) >= (self.max_time + self.grace_time)):
-                        if self.debug:
-                            print(f"Because last search, it took me {self.last_move_search_times[depth]} seconds to search depth {depth}.")
-                            print(f"And I have only {time_limit:.2f} seconds left to search this depth, let's leave it here for now.")
-                        break
-                else:
-                    # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
-                    if ((start_depth_time - start_time) + (last_search_time * 4) >= (self.max_time + self.grace_time)):
-                        if self.debug:
-                            print(f"Time limit exceeded, stopping search at depth {depth}.")
-                            print(f"start_depth_time - start_time = {start_depth_time - start_time:.2f} seconds, last_search_time = {last_search_time:.2f} seconds, max_time = {self.max_time:.2f} seconds, grace_time = {self.grace_time:.2f} seconds")
-                        break
+                if depth > 1:
+                    if len(self.last_move_search_times) > depth:
+                        # print(f"Last search time was {self.last_move_search_times[depth]} seconds for depth {depth}.")
+                        if ((start_depth_time - start_time) + (self.last_move_search_times[depth]) >= (self.max_time + self.grace_time)):
+                            if self.debug:
+                                print(f"Because last search, it took me {self.last_move_search_times[depth]} seconds to search depth {depth}.")
+                                print(f"And I have only {time_limit:.2f} seconds left to search this depth, let's leave it here for now.")
+                            break
+                    else:
+                        # Stop searching if the time limit has been exceeded or if there's not enough time to do another search
+                        if ((start_depth_time - start_time) + (last_search_time * 4) >= (self.max_time + self.grace_time)):
+                            if self.debug:
+                                print(f"Time limit exceeded, stopping search at depth {depth}.")
+                                print(f"start_depth_time - start_time = {start_depth_time - start_time:.2f} seconds, last_search_time = {last_search_time:.2f} seconds, max_time = {self.max_time:.2f} seconds, grace_time = {self.grace_time:.2f} seconds")
+                            break
                
                 reached = root_seen = 0
 
@@ -473,6 +474,10 @@ cdef class AlphaBetaPlayer:
                     break
 
             self.grace_time += max(-self.max_time//3, self.max_time - (curr_time() - start_time))
+            if self.debug:
+                print(f"Grace time: {self.grace_time:.2f} seconds")
+                print(f"Total search time: {curr_time() - start_time:.2f} seconds")
+
             self.last_move_search_times = search_times.copy()
 
             if self.debug:

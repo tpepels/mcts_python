@@ -17,7 +17,7 @@ from typing import Any
 import pandas as pd
 from prettytable import PrettyTable
 
-from run_games import AIParams, init_game, init_game_and_players, run_game_experiment
+from run_games import AIParams, init_game, run_game_experiment
 from util import redirect_print_to_log
 
 base_path = "."
