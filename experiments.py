@@ -214,10 +214,10 @@ def run_new_experiment(exp_dict, pool):
     Write the experiment configuration as a header to a CSV file in the log directory.
     So we can easily find results of a specific experiment.
     """
-    path_to_result = f"{base_path}/results/experiments/{exp_name}"
-    path_to_log = f"{base_path}/log/games/{exp_name}"
-    os.makedirs(f"{path_to_log}", exist_ok=True)
-    os.makedirs(f"{path_to_result}", exist_ok=True)
+    path_to_result = os.path.join(base_path, "results", "experiments", exp_name)
+    path_to_log = os.path.join(base_path, "log", "games", exp_name)
+    os.makedirs(path_to_log, exist_ok=True)
+    os.makedirs(path_to_result, exist_ok=True)
 
     tables[exp_name] = {}
     description_str = f"{exp_name=}  --  {game_name=}\n"
@@ -238,15 +238,15 @@ def update_running_experiment_status(exp_name):
     draws = 0
     ai_stats = Counter()  # To hold cumulative statistics per AI
 
-    path_to_log = f"{base_path}/log/games/{exp_name}"
-    path_to_result = f"{base_path}/results/experiments/{exp_name}"
-    os.makedirs(f"{path_to_log}", exist_ok=True)
-    os.makedirs(f"{path_to_result}", exist_ok=True)
+    path_to_result = os.path.join(base_path, "results", "experiments", exp_name)
+    path_to_log = os.path.join(base_path, "log", "games", exp_name)
+    os.makedirs(path_to_log, exist_ok=True)
+    os.makedirs(path_to_result, exist_ok=True)
 
     log_files = glob.glob(f"{path_to_log}/?.log")
 
     # Open CSV file in write mode (it needs to be overwritten every time)
-    with open(f"{path_to_result}/_results.csv", "w", newline="") as f:
+    with open(os.path.join(path_to_result, "_results.csv"), "w", newline="") as f:
         f.write(tables[exp_name]["description"])
         writer = csv.writer(f)
 
@@ -347,15 +347,16 @@ def run_single_experiment(
 
     try:
         # TODO Keep track of all statistics of the game
-        with redirect_print_to_log(f"{base_path}/log/games/{exp_name}/{i}.log"):
+        log_path = os.path.join(base_path, "log", "games", exp_name, f"{i}.log")
+        with redirect_print_to_log(log_path):
             _, _, _, _, result = run_game_experiment(game_key, game_params, p1_params, p2_params)
 
-        with open(f"{base_path}/log/games/{exp_name}/{i}.log", "a") as log_file:
+        with open(log_path, "a") as log_file:
             # Write a status message to the log file
             log_file.write("Experiment completed")
 
     except Exception as e:
-        with open(f"{base_path}/log/games/{exp_name}/{i}.log", "a") as log_file:
+        with open(log_path, "a") as log_file:
             # Writing the traceback
             traceback.print_exc(file=log_file)
             log_file.write(f"Experiment error: {e}")

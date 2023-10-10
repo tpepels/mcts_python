@@ -38,10 +38,12 @@ def setup_reporting(
         + ["Fitness"]
     )
     global csv_f, csv_writer
-    path = f"{base_path}/results/genetic/{game_name}/"
+
+    path = os.path.join(base_path, "results", "genetic", game_name)
     os.makedirs(path, exist_ok=True)
-    print(f"Writing to {path}{sheet_name}.csv")
-    csv_f = open(path + f"{sheet_name}.csv", "w", newline="")
+    path = os.path.join(path, f"{sheet_name}.csv")
+    print(f"Writing to {path}")
+    csv_f = open(path, "w", newline="")
     csv_writer = csv.writer(csv_f)
     csv_writer.writerow(csv_header)
     csv_f.flush()
@@ -167,7 +169,7 @@ def genetic_algorithm(
     convergence_generations: int = 5,
     tournament_size: int = 5,
     elite_count: int = 4,
-    draw_score: float = 0.25,
+    draw_score: float = 0.125,
     default_eval_as_elite: dict = {},
     default_ai_as_elite: dict = {},
     debug: bool = True,
@@ -491,7 +493,7 @@ def evaluate_fitness(
             else:
                 print("Game Over. Draw")
 
-    with ErrorLogger(play_game_until_terminal, log_dir=f"{base_path}/log/game_error/"):
+    with ErrorLogger(play_game_until_terminal, log_dir=os.path.join(base_path, "log", "game_error")):
         # Create AI players with given parameters
         ai1_params = AIParams(player_name, 1, eval_params1, ai_params1)
         ai2_params = AIParams(player_name, 2, eval_params2, ai_params2)
