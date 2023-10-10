@@ -863,7 +863,7 @@ def run_experiments_from_file(file_path: str):
         finally:
             # Always write the status back to the file, whether the experiment completed or failed
             with open(file_path, "w") as f:
-                json.dump(experiments, f)
+                json.dump(experiments, f, indent=4)
 
         # Calculate time taken for the experiment and append it to times list
         exp_end_time = time.time()

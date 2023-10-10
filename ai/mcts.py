@@ -531,14 +531,14 @@ class MCTSPlayer:
         early_term_turns: int = 10,
         early_term_cutoff: float = 0.05,
         e_greedy: bool = False,
-        roulette_epsilon: float = 0.05,
         e_g_subset: int = 20,
+        roulette: bool = False,
+        roulette_epsilon: float = 0.05,
         imm_alpha: float = 0.4,
         imm: bool = False,
         imm_version: int = 0,
         ab_version: int = 0,
         ex_imm_D: int = 2,
-        roulette: bool = False,
         epsilon: float = 0.05,
         prog_bias: bool = False,
         pb_weight: float = 0.5,
@@ -1035,7 +1035,7 @@ class MCTSPlayer:
                     return (0.5, 0.5)
 
             # Dynamic Early termination condition, check every 5 turns if the evaluation has a certain value
-            if self.dyn_early_term == 1 and turns % 6 == 0:
+            elif self.early_term == 0 and self.dyn_early_term == 1 and turns % 6 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
                 evaluation = state.evaluate(params=self.eval_params, player=1, norm=True)
@@ -1063,7 +1063,7 @@ class MCTSPlayer:
                         max_value = value
                         best_action = actions[i]
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
-            elif self.roulette == 1 and c_uniform_random(0, 1) < self.roulette_eps:
+            elif self.e_greedy == 0 and self.roulette == 1 and c_uniform_random(0, 1) < self.roulette_eps:
                 actions = state.get_legal_actions()
                 best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
             # With probability 1-epsilon chose a move at random
