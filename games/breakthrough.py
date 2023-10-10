@@ -10,7 +10,6 @@ from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.pair import pair
 from cython.cimports.includes import c_random, normalize, where_is_k, win, loss, draw, GameState
 from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
-from colorama import Fore, Style
 
 dirs = [-1, 0, 1]
 
@@ -632,15 +631,15 @@ class BreakthroughGameState(GameState):
             colored_row = ""
             for cell in formatted_row.split(" "):
                 if cell == "W":
-                    colored_row += Fore.WHITE + cell + Style.RESET_ALL + " "
+                    colored_row += cell + " "
                 elif cell == "B":
-                    colored_row += Fore.MAGENTA + cell + Style.RESET_ALL + " "
+                    colored_row += cell + " "
                 else:
                     colored_row += cell + " "
             output += f"{i + 1} {colored_row}\n"
 
         output += column_letters
-        output += f"Player: {Fore.GREEN if self.player == 1 else Fore.RED}{self.player}{Style.RESET_ALL}\n"
+        output += f"Player: {self.player}\n"
 
         if full_debug:
             if not self.validate_actions():

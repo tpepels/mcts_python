@@ -15,4 +15,7 @@
 module load 2022
 module load Python/3.10.4-GCCcore-11.3.0
 
-srun python $HOME/mcts_python/genetic_optimization.py --n_procs 192 --base_path $HOME eval_optimise.json
+# Navigate to the directory containing your Python program
+cd $HOME/mcts_python
+
+srun python genetic_optimization.py --n_procs 192 --base_path $HOME eval_optimise.json

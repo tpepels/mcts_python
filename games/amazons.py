@@ -13,7 +13,6 @@ import math
 
 import random
 import numpy as np
-from collections import deque
 from cython.cimports.libc.math import log
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.stack import stack

@@ -223,7 +223,7 @@ class BlokusGameState(GameState):
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple, visibility="public")
     # Private variables
-    passed: cython.unsignedshort[:]
+    passed: cython.ushort[:]
     pieces: BlokusPieces
     positions_checked: cython.int
     n_turns: cython.int
