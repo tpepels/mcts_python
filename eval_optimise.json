@@ -13,7 +13,7 @@
       "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
       "m_power": { "range": [1, 7], "precision": 0 }
     },
-    "ai_static_params": { "max_time": 5, "max_depth": 8 },
+    "ai_static_params": { "max_time": 4, "max_depth": 8 },
     "eval_static_params": {},
     "default_eval_as_elite": {
       "m_centre_bonus": 5,
@@ -40,7 +40,7 @@
       "m_piece_diff": { "range": [0, 20], "precision": 0 },
       "m_opp_disc": { "range": [0.5, 2], "precision": 2 }
     },
-    "ai_static_params": { "max_time": 5, "max_depth": 8 },
+    "ai_static_params": { "max_time": 4, "max_depth": 8 },
     "eval_static_params": {},
     "default_eval_as_elite": {
       "m_lorenz": 20,
@@ -70,7 +70,7 @@
       "m_capture": { "range": [0, 10], "precision": 0 },
       "m_opp_disc": { "range": [0.1, 2], "precision": 2 }
     },
-    "ai_static_params": { "max_time": 5, "max_depth": 8 },
+    "ai_static_params": { "max_time": 4, "max_depth": 8 },
     "eval_static_params": {},
     "default_eval_as_elite": {
       "m_score": 18,
@@ -99,7 +99,7 @@
       "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
       "m_min_mob": { "range": [0, 20], "precision": 0 }
     },
-    "ai_static_params": { "max_time": 5, "max_depth": 8 },
+    "ai_static_params": { "max_time": 4, "max_depth": 8 },
     "eval_static_params": {},
     "default_eval_as_elite": {
       "n_moves_cutoff": 10,
