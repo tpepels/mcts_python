@@ -18,4 +18,8 @@ module load Python/3.10.4-GCCcore-11.3.0
 # Navigate to the directory containing your Python program
 cd $HOME/mcts_python
 
+python clean.py
+
+python setup.py build_ext --inplace
+
 srun python genetic_optimization.py --n_procs 192 --base_path $HOME eval_optimise.json
