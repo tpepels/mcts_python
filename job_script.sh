@@ -3,7 +3,7 @@
 #SBATCH -J GeneticEvaluationFunction
 #SBATCH -o /home/tpepels/Out/Out_%J.out
 #SBATCH -e /home/tpepels/Out/Err_%J.err
-#SBATCH -t 600
+#SBATCH -t 2200
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=192
