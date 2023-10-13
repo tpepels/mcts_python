@@ -557,7 +557,8 @@ class MCTSPlayer:
         self.eval_params = eval_params
 
         # Let the enable/disable of
-        self.imm = self.imm_alpha > 0.0
+        self.imm = imm_alpha > 0.0
+        self.imm_alpha = imm_alpha
         self.prog_bias = prog_bias
         
         if self.prog_bias:
