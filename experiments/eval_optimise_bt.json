@@ -1,0 +1,33 @@
+[
+  {
+    "population_size": 200,
+    "num_generations": 40,
+    "mutation_rate": 0.05,
+    "games_per_pair": 3,
+    "game_name": "breakthrough",
+    "player_name": "alphabeta",
+    "ai_param_ranges": {},
+    "eval_param_ranges": {
+      "m_lorenz": { "range": [0, 20], "precision": 0 },
+      "m_mobility": { "range": [0, 20], "precision": 0 },
+      "m_safe": { "range": [0, 20], "precision": 0 },
+      "m_endgame": { "range": [0, 20], "precision": 0 },
+      "m_cap": { "range": [0, 20], "precision": 0 },
+      "m_piece_diff": { "range": [0, 20], "precision": 0 },
+      "m_opp_disc": { "range": [0.5, 2], "precision": 2 }
+    },
+    "ai_static_params": { "max_time": 4, "max_depth": 8 },
+    "eval_static_params": {},
+    "default_eval_as_elite": {
+      "m_lorenz": 20,
+      "m_mobility": 2,
+      "m_safe": 15,
+      "m_endgame": 11,
+      "m_cap": 10,
+      "m_piece_diff": 13,
+      "m_opp_disc": 1.1
+    },
+    "default_ai_as_elite": {},
+    "debug": true
+  }
+]

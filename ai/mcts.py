@@ -178,14 +178,13 @@ class Node:
             )
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                confidence_i *= beta - alpha
-                uct_val = child_value + (c * confidence_i)
+                uct_val = child_value + (c * (beta - alpha) * confidence_i)
                 ab_bound += 1
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
 
-            if pb_weight != 0.0:
+            if pb_weight <= 0.0:
                 uct_val += pb_weight * (child.eval_value / (1.0 + child.n_visits))
 
             # Find the highest UCT value
@@ -842,6 +841,9 @@ class MCTSPlayer:
         global prunes, non_prunes
         alpha: cython.double[2] = [-INFINITY, -INFINITY]
         beta: cython.double[2] = [INFINITY, INFINITY]
+        # TODO Test this, see if it is the same as using alpha/beta to store everything
+        # alpha_bound: cython.double[2] = [0.0, 0.0]  # bounds around alpha for both players
+        # alpha_val: cython.double[2] = [-INFINITY, -INFINITY]  # alpha values for both players
 
         alpha_val: cython.double[2] = [-INFINITY, -INFINITY]
         beta_val: cython.double[2] = [INFINITY, INFINITY]
@@ -875,6 +877,9 @@ class MCTSPlayer:
                         alpha[p_i] = val - bound
                         alpha_val[p_i] = val
 
+                        original_alpha_results[p_i] = alpha[p_i]
+                        original_beta_results[o_i] = beta[o_i]
+                        
                         # if DEBUG:
                         #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
                         #     bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
@@ -904,6 +909,31 @@ class MCTSPlayer:
                     else:
                         prune = 1
                         prunes += 1
+                        
+                    """
+                    # * I think this can be done more efficiently by observing that:
+                    # * alpha_val[0] == -beta_val[1]
+                    # * alpha_val[1] == -beta_val[0]
+                    # * Hence, if we keep track of the bounds and the alpha_val, then we can always derive the beta_val
+                    
+                    
+                    if (
+                            -val + bound <= -alpha_val[p_i] + alpha_bound[p_i]
+                            and -val - bound >= alpha_val[o_i] - alpha_bound[o_i]
+                            and val - bound > alpha_val[p_i] - alpha_bound[p_i]
+                            and val + bound < -alpha_val[o_i] + alpha_bound[o_i]
+                            and alpha_val[p_i] <= val < -alpha_val[o_i]
+                            and alpha_val[o_i] < -val <= -alpha_val[p_i]
+                        ):
+                            alpha_bound[p_i] = bound
+                            alpha_val[p_i] = val
+                            
+                    """
+                    proposed_alpha_val_results[p_i] = alpha_val[p_i] - alpha_bound[p_i]
+                    proposed_alpha_bound_results[o_i] = -alpha_val[o_i] + alpha_bound[o_i]
+                    for i in range(2):
+                        assert original_alpha_results[i] == proposed_alpha_val_results[i], f"Discrepancy in alpha at index {i}"
+                        assert original_beta_results[i] == proposed_alpha_bound_results[i], f"Discrepancy in beta at index {i}"
 
                     if not prune:
                         non_prunes += 1
