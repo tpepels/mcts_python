@@ -24,7 +24,7 @@ setup(
     name="Cython MCTS",
     ext_modules=cythonize(
         ext_modules,
-        annotate=True,
+        # annotate=True,
         compiler_directives={
             "profile": True,
             "language_level": "3",
