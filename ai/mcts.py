@@ -533,8 +533,7 @@ class MCTSPlayer:
         e_g_subset: int = 20,
         roulette: bool = False,
         roulette_epsilon: float = 0.05,
-        imm_alpha: float = 0.4,
-        imm: bool = False,
+        imm_alpha: float = 0.0,
         imm_version: int = 0,
         ab_version: int = 0,
         ex_imm_D: int = 2,
@@ -557,13 +556,10 @@ class MCTSPlayer:
         self.c = c
         self.eval_params = eval_params
 
-        self.imm = imm
-        if self.imm:
-            self.imm_alpha = imm_alpha
-        else:
-            self.imm_alpha = 0.0
-
+        # Let the enable/disable of
+        self.imm = self.imm_alpha > 0.0
         self.prog_bias = prog_bias
+        
         if self.prog_bias:
             self.pb_weight = pb_weight
         else:

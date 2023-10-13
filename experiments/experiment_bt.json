@@ -1,0 +1,32 @@
+[
+  {
+    "n_games": 500,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "c": [0.2, 0.4, 0.6, 0.8, 1],
+      "imm_alpha": [0, 0.2, 0.4, 0.6, 0.8]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": { "num_simulations": 100000, "imm_alpha": [0, 0.5] },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 500,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "alphabeta",
+    "p1_ai_params": { "max_time": 5 },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "max_time": 5,
+      "c": [0.2, 0.4, 0.6, 0.8, 1],
+      "imm_alpha": [0, 0.2, 0.4, 0.6, 0.8]
+    },
+    "p2_eval_params": {}
+  }
+]
