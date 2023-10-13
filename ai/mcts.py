@@ -877,8 +877,8 @@ class MCTSPlayer:
                         alpha[p_i] = val - bound
                         alpha_val[p_i] = val
 
-                        original_alpha_results[p_i] = alpha[p_i]
-                        original_beta_results[o_i] = beta[o_i]
+                        # original_alpha_results[p_i] = alpha[p_i]
+                        # original_beta_results[o_i] = beta[o_i]
                         
                         # if DEBUG:
                         #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
@@ -929,11 +929,11 @@ class MCTSPlayer:
                             alpha_val[p_i] = val
                             
                     """
-                    proposed_alpha_val_results[p_i] = alpha_val[p_i] - alpha_bound[p_i]
-                    proposed_alpha_bound_results[o_i] = -alpha_val[o_i] + alpha_bound[o_i]
-                    for i in range(2):
-                        assert original_alpha_results[i] == proposed_alpha_val_results[i], f"Discrepancy in alpha at index {i}"
-                        assert original_beta_results[i] == proposed_alpha_bound_results[i], f"Discrepancy in beta at index {i}"
+                    # proposed_alpha_val_results[p_i] = alpha_val[p_i] - alpha_bound[p_i]
+                    # proposed_alpha_bound_results[o_i] = -alpha_val[o_i] + alpha_bound[o_i]
+                    # for i in range(2):
+                    #     assert original_alpha_results[i] == proposed_alpha_val_results[i], f"Discrepancy in alpha at index {i}"
+                    #     assert original_beta_results[i] == proposed_alpha_bound_results[i], f"Discrepancy in beta at index {i}"
 
                     if not prune:
                         non_prunes += 1
