@@ -95,6 +95,10 @@ def generate_individual(param_ranges: Dict[str, Tuple[float, float]]) -> Dict[st
     }
     return {k: unsorted_dict[k] for k in sorted(unsorted_dict.keys())}
 
+def create_pairs_against_opponent(population, fixed_opponent, games_per_pair):
+    pairs = [(ind, fixed_opponent) for ind in population] * games_per_pair
+    return pairs
+        
 
 def create_pairs_from_population(population, games_per_pair, debug=False):
     """
@@ -164,6 +168,8 @@ def genetic_algorithm(
     game_params: Optional[Dict[str, Any]] = {},
     ai_static_params: Optional[Dict[str, Any]] = {},
     eval_static_params: Optional[Dict[str, Any]] = {},
+    opponent_name: Optional[str] = None,
+    fixed_opponent: Optional[dict] = {},
     games_per_pair: int = 5,
     n_procs: int = 8,
     convergence_generations: int = 5,
@@ -249,20 +255,22 @@ def genetic_algorithm(
         game_name,
         game_params,
         player_name,
+        opponent_name if opponent_name is not None else player_name,
         ai_static_params,
         eval_static_params,
         draw_score,
     )
-
     gen_times = []
-
     for generation in range(num_generations):
         if debug:
             print("." * 30 + time.strftime("%H:%M:%S", time.localtime()) + "." * 30)
             print(f"Starting generation {generation}")
 
-        pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
-
+        if opponent_name is None:
+            pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
+        else:
+            pairs = create_pairs_against_opponent(population, fixed_opponent, games_per_pair)
+            
         gen_start_time = time.time()
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
@@ -286,10 +294,13 @@ def genetic_algorithm(
         for individual1, fitness1, individual2, fitness2 in results:
             # Find indices of the individuals
             index1 = population.index(individual1)
-            index2 = population.index(individual2)
-            # Update fitnesses list in-place
             fitnesses[index1] += fitness1
-            fitnesses[index2] += fitness2
+            
+            # Interplay, so we need to also consider the opponent
+            if opponent_name is None:
+                index2 = population.index(individual2)
+                fitnesses[index2] += fitness2
+            # Update fitnesses list in-place
         #     # * Allthough two games are played per pair, we only count one result per individual
         #     n_games[index1] += 1
         #     n_games[index2] += 1
@@ -429,6 +440,7 @@ def evaluate_fitness(
     game_name: str,
     game_params: Dict[str, Any],
     player_name: str,
+    opponent_name:str,
     ai_static_params: Dict[str, Any],
     eval_static_params: Dict[str, Any],
     draw_score: float,
@@ -496,14 +508,14 @@ def evaluate_fitness(
     with ErrorLogger(play_game_until_terminal, log_dir=os.path.join(base_path, "log", "game_error")):
         # Create AI players with given parameters
         ai1_params = AIParams(player_name, 1, eval_params1, ai_params1)
-        ai2_params = AIParams(player_name, 2, eval_params2, ai_params2)
+        ai2_params = AIParams(opponent_name, 2, eval_params2, ai_params2)
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         play_game_until_terminal(game, player1, player2, callback=callback)
         game_result = game.get_result_tuple()
         n_moves = 0
         # Create AI players with given parameters for the swapped seats game
         ai1_params = AIParams(player_name, 2, eval_params1, ai_params1)
-        ai2_params = AIParams(player_name, 1, eval_params2, ai_params2)
+        ai2_params = AIParams(opponent_name, 1, eval_params2, ai_params2)
         # This method does not assign any order to the players, it just initializes them
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
@@ -814,8 +826,8 @@ def _mutate_param(
     Returns:
         float or tuple of float: The mutated parameter.
     """
-
-    mutation = np.random.normal(0, (param_info["range"][1] - param_info["range"][0]) / 10)
+    tot_range = param_info["range"][1] - param_info["range"][0]
+    mutation = np.random.normal(0, tot_range / 10)
     mutated_value = np.clip(param + mutation, param_info["range"][0], param_info["range"][1])
 
     return round(mutated_value, None if param_info["precision"] == 0 else param_info["precision"])

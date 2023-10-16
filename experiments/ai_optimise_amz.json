@@ -2,10 +2,17 @@
   {
     "population_size": 100,
     "num_generations": 20,
-    "mutation_rate": 0.05,
-    "games_per_pair": 2,
+    "mutation_rate": 0.01,
+    "games_per_pair": 3,
     "game_name": "amazons",
     "player_name": "mcts",
+    "opponent_name": "alphabeta",
+    "fixed_opponent": {
+      "ai": {
+        "max_time": 7
+      },
+      "eval": {}
+    },
     "ai_param_ranges": {
       "c": { "range": [0.1, 1], "precision": 1 },
       "dyn_early_term": { "range": [0, 1], "precision": 0 },

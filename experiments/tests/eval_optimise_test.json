@@ -1,115 +1,59 @@
 [
-  {
-    "population_size": 20,
-    "num_generations": 3,
-    "mutation_rate": 0.05,
-    "games_per_pair": 2,
-    "game_name": "ninarow",
-    "game_params": { "board_size": 9, "row_length": 5 },
-    "player_name": "alphabeta",
-    "ai_param_ranges": {},
-    "eval_param_ranges": {
-      "m_centre_bonus": { "range": [1, 10], "precision": 0 },
-      "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
-      "m_power": { "range": [1, 10], "precision": 0 }
-    },
-    "ai_static_params": { "max_time": 2, "max_depth": 3 },
-    "eval_static_params": {},
-    "default_eval_as_elite": {
-      "m_centre_bonus": 5,
-      "m_opp_disc": 0.8,
-      "m_power": 5
-    },
-    "default_ai_as_elite": {},
-    "debug": true
-  },
-  {
-    "population_size": 20,
-    "num_generations": 3,
-    "mutation_rate": 0.05,
-    "games_per_pair": 2,
-    "game_name": "breakthrough",
-    "player_name": "alphabeta",
-    "ai_param_ranges": {},
-    "eval_param_ranges": {
-      "m_lorenz": { "range": [0, 5], "precision": 1 },
-      "m_mobility": { "range": [0, 5], "precision": 1 },
-      "m_safe": { "range": [0, 5], "precision": 1 },
-      "m_endgame": { "range": [0, 5], "precision": 1 },
-      "m_cap": { "range": [0, 5], "precision": 1 },
-      "m_piece_diff": { "range": [0, 5], "precision": 1 },
-      "m_opp_disc": { "range": [0.5, 2], "precision": 2 }
-    },
-    "ai_static_params": { "max_time": 2, "max_depth": 3 },
-    "eval_static_params": {},
-    "default_eval_as_elite": {
-      "m_lorenz": 20,
-      "m_mobility": 2,
-      "m_safe": 15,
-      "m_endgame": 11,
-      "m_cap": 10,
-      "m_piece_diff": 13,
-      "m_opp_disc": 1.1
-    },
-    "default_ai_as_elite": {},
-    "debug": true
-  },
-  {
-    "population_size": 20,
-    "num_generations": 3,
-    "mutation_rate": 0.05,
-    "games_per_pair": 2,
-    "game_name": "kalah",
-    "player_name": "alphabeta",
-    "ai_param_ranges": {},
-    "eval_param_ranges": {
-      "m_score": { "range": [0, 5], "precision": 1 },
-      "m_seed_diff": { "range": [0, 5], "precision": 1 },
-      "m_empty": { "range": [0, 5], "precision": 1 },
-      "m_double": { "range": [0, 5], "precision": 1 },
-      "m_capture": { "range": [0, 5], "precision": 1 },
-      "m_opp_disc": { "range": [0.1, 2], "precision": 2 }
-    },
-    "ai_static_params": { "max_time": 2, "max_depth": 3 },
-    "eval_static_params": {},
-    "default_eval_as_elite": {
-      "m_score": 18,
-      "m_seed_diff": 0.1,
-      "m_empty": 6.5,
-      "m_double": 8.7,
-      "m_capture": 6.5,
-      "m_opp_disc": 0.95
-    },
-    "default_ai_as_elite": {},
-    "debug": true
-  },
-  {
-    "population_size": 20,
-    "num_generations": 3,
-    "mutation_rate": 0.05,
-    "games_per_pair": 2,
-    "game_name": "amazons",
-    "player_name": "alphabeta",
-    "ai_param_ranges": {},
-    "eval_param_ranges": {
-      "m_opp_disc": { "range": [0.5, 2], "precision": 2 },
-      "n_moves_cutoff": { "range": [0, 35], "precision": 0 },
-      "m_kill_s": { "range": [0, 5], "precision": 1 },
-      "m_imm": { "range": [0, 5], "precision": 1 },
-      "m_mob": { "range": [0, 5], "precision": 1 },
-      "m_min_mob": { "range": [0, 5], "precision": 1 }
-    },
-    "ai_static_params": { "max_time": 2, "max_depth": 3 },
-    "eval_static_params": {
-      "n_moves_cutoff": 10,
-      "m_kill_s": 2,
-      "m_imm": 1.5,
-      "m_mob": 13,
-      "m_opp_disc": 2,
-      "m_min_mob": 50
-    },
-    "default_eval_as_elite": {},
-    "default_ai_as_elite": {},
-    "debug": true
-  }
+    {
+        "population_size": 20,
+        "num_generations": 3,
+        "mutation_rate": 0.05,
+        "games_per_pair": 2,
+        "game_name": "ninarow",
+        "game_params": {
+            "board_size": 9,
+            "row_length": 5
+        },
+        "player_name": "alphabeta",
+        "opponent_name": "alphabeta",
+        "fixed_opponent": {
+            "ai": {
+                "max_time": 2,
+                "max_depth": 3
+            },
+            "eval": {}
+        },
+        "ai_param_ranges": {},
+        "eval_param_ranges": {
+            "m_centre_bonus": {
+                "range": [
+                    1,
+                    10
+                ],
+                "precision": 0
+            },
+            "m_opp_disc": {
+                "range": [
+                    0.5,
+                    2
+                ],
+                "precision": 2
+            },
+            "m_power": {
+                "range": [
+                    1,
+                    10
+                ],
+                "precision": 0
+            }
+        },
+        "ai_static_params": {
+            "max_time": 2,
+            "max_depth": 3
+        },
+        "eval_static_params": {},
+        "default_eval_as_elite": {
+            "m_centre_bonus": 5,
+            "m_opp_disc": 0.8,
+            "m_power": 5
+        },
+        "default_ai_as_elite": {},
+        "debug": true,
+        "status": "complete"
+    }
 ]
