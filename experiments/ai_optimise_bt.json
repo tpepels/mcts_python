@@ -1,11 +1,18 @@
 [
   {
-    "population_size": 100,
+    "population_size": 80,
     "num_generations": 20,
-    "mutation_rate": 0.05,
-    "games_per_pair": 2,
+    "mutation_rate": 0.01,
+    "games_per_pair": 6,
     "game_name": "breakthrough",
     "player_name": "mcts",
+    "opponent_name": "alphabeta",
+    "fixed_opponent": {
+      "ai": {
+        "max_time": 5
+      },
+      "eval": {}
+    },
     "ai_param_ranges": {
       "c": { "range": [0.1, 1], "precision": 1 },
       "dyn_early_term": { "range": [0, 1], "precision": 0 },
@@ -18,8 +25,7 @@
       "epsilon": { "range": [0.01, 0.2], "precision": 2 },
       "roulette": { "range": [0, 1], "precision": 0 },
       "roulette_epsilon": { "range": [0.01, 0.2], "precision": 2 },
-      "imm": { "range": [0, 1], "precision": 0 },
-      "imm_alpha": { "range": [0.1, 0.9], "precision": 1 },
+      "imm_alpha": { "range": [0.0, 0.9], "precision": 1 },
       "prog_bias": { "range": [0, 1], "precision": 0 },
       "pb_weight": { "range": [0.1, 1], "precision": 1 }
     },

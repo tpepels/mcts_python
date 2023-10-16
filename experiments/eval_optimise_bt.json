@@ -1,19 +1,27 @@
 [
   {
-    "population_size": 200,
-    "num_generations": 40,
-    "mutation_rate": 0.05,
+    "population_size": 80,
+    "num_generations": 20,
+    "mutation_rate": 0.01,
     "games_per_pair": 3,
     "game_name": "breakthrough",
     "player_name": "alphabeta",
+    "opponent_name": "alphabeta",
+    "fixed_opponent": {
+      "ai": {
+        "max_time": 4,
+        "max_depth": 9
+      },
+      "eval": {}
+    },
     "ai_param_ranges": {},
     "eval_param_ranges": {
-      "m_lorenz": { "range": [0, 20], "precision": 0 },
-      "m_mobility": { "range": [0, 20], "precision": 0 },
-      "m_safe": { "range": [0, 20], "precision": 0 },
-      "m_endgame": { "range": [0, 20], "precision": 0 },
-      "m_cap": { "range": [0, 20], "precision": 0 },
-      "m_piece_diff": { "range": [0, 20], "precision": 0 },
+      "m_lorenz": { "range": [0, 20], "precision": 1 },
+      "m_mobility": { "range": [0, 20], "precision": 1 },
+      "m_safe": { "range": [0, 20], "precision": 1 },
+      "m_endgame": { "range": [0, 20], "precision": 1 },
+      "m_cap": { "range": [0, 20], "precision": 1 },
+      "m_piece_diff": { "range": [0, 20], "precision": 1 },
       "m_opp_disc": { "range": [0.5, 2], "precision": 2 }
     },
     "ai_static_params": { "max_time": 4, "max_depth": 8 },
