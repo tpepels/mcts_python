@@ -159,7 +159,7 @@ def start_experiments_from_json(json_file_path, n_procs=4):
             while not async_result.ready():
                 # Update running experiment status every 10 seconds
                 update_running_experiment_status(exp_name=sheet_name)
-                time.sleep(10)  # Sleep for 10 seconds
+                time.sleep(60)
 
             # Now the experiment is done, update the status one last time
             update_running_experiment_status(exp_name=sheet_name)
