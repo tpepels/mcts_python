@@ -293,7 +293,9 @@ def update_running_experiment_status(exp_name):
                 writer.writerow([ai, "N/A", "N/A"])
 
     # Print cumulative statistics per AI to the screen
-    os.system("clear")
+    if os.environ.get("TERM"):
+        os.system("clear")
+        
     print_stats = PrettyTable(
         [
             f"AI ({exp_name})",
