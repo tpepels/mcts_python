@@ -1054,9 +1054,9 @@ class MCTSPlayer:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
                 evaluation: cython.double = state.evaluate(params=self.eval_params, player=1, norm=True)
-                if evaluation > self.early_term_cutoff:
+                if evaluation >= self.early_term_cutoff:
                     return (1.0, 0.0)
-                elif evaluation < -self.early_term_cutoff:
+                elif evaluation <= -self.early_term_cutoff:
                     return (0.0, 1.0)
                 else:
                     return (0.5, 0.5)
@@ -1067,9 +1067,9 @@ class MCTSPlayer:
                 # TODO Figure out the a (max range) for each evaluation function
                 evaluation = state.evaluate(params=self.eval_params, player=1, norm=True)
 
-                if evaluation > self.dyn_early_term_cutoff:
+                if evaluation >= self.dyn_early_term_cutoff:
                     return (1.0, 0.0)
-                elif evaluation < -self.dyn_early_term_cutoff:
+                elif evaluation <= -self.dyn_early_term_cutoff:
                     return (0.0, 1.0)
 
             best_action: cython.tuple = ()

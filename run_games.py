@@ -198,16 +198,25 @@ def run_game(
         p1_params (AIParams): The parameters for player 1's AI.
         p2_params (AIParams): The parameters for player 2's AI.
     """
-
+    max_eval = -float("inf")
+    n_moves = 0
     def callback(player, action, game: GameState, time):
         print("--" * 20)
         print(f"\n\n{player}\n\n -> mv.: {action}.\n\n{game.visualize(full_debug=debug)}\n")
+        if debug:
+            nonlocal max_eval, n_moves
+            n_moves += 1
+            if game.evaluate(1, game.default_params) > max_eval:
+                max_eval = game.evaluate(1, game.default_params)
         print("--" * 20)
 
         if pause:
             input("Press Enter to continue...")
 
         if game.is_terminal():
+            if debug:
+                print(f"{max_eval=}")
+                print(f"{n_moves=}")
             if game.get_reward(1) == win:
                 print("Game Over. Winner: P1")
             elif game.get_reward(1) == loss:
