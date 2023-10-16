@@ -160,7 +160,8 @@ def start_experiments_from_json(json_file_path, n_procs=4):
                 # Update running experiment status every 10 seconds
                 update_running_experiment_status(exp_name=sheet_name)
                 time.sleep(60)
-
+            
+            time.sleep(10)
             # Now the experiment is done, update the status one last time
             update_running_experiment_status(exp_name=sheet_name)
 
@@ -243,7 +244,7 @@ def update_running_experiment_status(exp_name):
     os.makedirs(path_to_log, exist_ok=True)
     os.makedirs(path_to_result, exist_ok=True)
 
-    log_files = glob.glob(f"{path_to_log}/?.log")
+    log_files = glob.glob(f"{path_to_log}/*.log")
 
     # Open CSV file in write mode (it needs to be overwritten every time)
     with open(os.path.join(path_to_result, "_results.csv"), "w", newline="") as f:
@@ -288,7 +289,7 @@ def update_running_experiment_status(exp_name):
                 ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
                 lower_bound = (win_rate - ci_width) * 100
                 upper_bound = (win_rate + ci_width) * 100
-                writer.writerow([ai, f"{win_rate * 100:.2f}", f"{lower_bound:.2f} - {upper_bound:.2f}"])
+                writer.writerow([ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"])
             else:
                 writer.writerow([ai, "N/A", "N/A"])
 
@@ -324,6 +325,12 @@ def update_running_experiment_status(exp_name):
 
 tables = {}
 
+def update_all_experiments():
+    experiments_path = os.path.join(base_path, "results", "experiments")
+    for dir_name in os.listdir(experiments_path):
+        full_dir_path = os.path.join(experiments_path, dir_name)
+        if os.path.isdir(full_dir_path):
+            update_running_experiment_status(dir_name)
 
 def run_single_experiment(
     i: int,
@@ -384,11 +391,19 @@ def main():
     parser.add_argument(
         "--json_file", type=str, required=True, help="JSON file containing experiment configurations."
     )
+    parser.add_argument(
+        "--collect_results", type=bool, help="Collect results of a previous experiment."
+    )
 
     args = parser.parse_args()
     global base_path
     base_path = args.base_path
-
+    
+    if args.collect_results:
+        print(f"Collecting all results from {base_path}")
+        update_all_experiments()
+        return
+    
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
