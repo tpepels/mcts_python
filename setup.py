@@ -34,7 +34,7 @@ setup(
             "boundscheck": False,
             "nonecheck": False,
             "cdivision": True,
-            "infer_types": False,
+            "infer_types": True,
         },
     ),
 )

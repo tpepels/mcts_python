@@ -29,6 +29,7 @@ cdef inline void c_shuffle_array(long[:] arr):
     cdef int n = arr.shape[0]
     cdef int swap_idx
     cdef long tmp
+    cdef int i
 
     for i in range(n-1, 0, -1):
         swap_idx = c_random(0, i)

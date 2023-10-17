@@ -4,11 +4,6 @@
 import array
 import cython
 
-from cython.cimports import numpy as cnp
-from cython.cimports.cython.view import array as cvarray
-
-cnp.import_array()
-
 import math
 
 import random
