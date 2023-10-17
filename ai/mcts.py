@@ -169,7 +169,7 @@ class Node:
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
-            ) + c_uniform_random(0, 0.01)
+            ) + c_uniform_random(0, 0.001)
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 uct_val = child_value + (c * (beta - alpha) * confidence_i)

@@ -289,9 +289,11 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
 
     if result == win:
         result = 1
+        print(f"Game Over. Loser: P2 [{p2_params}]")
         print(f"Game Over. Winner: P1 [{p1_params}]")
     elif result == loss:
         result = 2
+        print(f"Game Over. Loser: P1 [{p1_params}]")
         print(f"Game Over. Winner: P2 [{p2_params}]")
     else:
         result = 0
