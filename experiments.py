@@ -335,9 +335,6 @@ def update_running_experiment_status(exp_name, print_tables=True):
 
 tables = {}
 
-import re
-
-
 def aggregate_csv_results(output_file):
     files = []
     experiments_path = os.path.join(base_path, "results", "experiments")
@@ -348,7 +345,7 @@ def aggregate_csv_results(output_file):
 
     with open(output_file, 'w', newline='') as outfile:
         writer = csv.writer(outfile)
-        writer.writerow(['Result File', 'Experiment Name', 'Game Name', 'Game Parameters', 'p1_params', 'p2_params', 'AI1', 'Win_rate', 'AI2', 'Win_rate', '± 95% C.I.'])
+        writer.writerow(['Experiment Name', 'Date-Time', 'Game Name', 'Game Parameters', 'p1_params', 'p2_params', 'AI1', 'Win_rate', 'AI2', 'Win_rate', '± 95% C.I.'])
 
         for file in files:
             ai_stats = {}
@@ -366,6 +363,7 @@ def aggregate_csv_results(output_file):
                 # Parse metadata using regular expressions
                 try:
                     metadata["exp_name"] = re.search(r"exp_name='(.*?)'", lines[0]).group(1)
+                    metadata["date_time"] = re.search(r"(\d{8}_\d{6})", metadata["exp_name"]).group(1)
                     metadata["game_name"] = re.search(r"game_name='(.*?)'", lines[0]).group(1)
                     metadata["game_params"] = re.search(r"game_params\s*=\s*(\{.*?\})", lines[1]).group(1)
                     metadata["p1_params"] = lines[2].split('=', 1)[1].strip()
@@ -396,7 +394,7 @@ def aggregate_csv_results(output_file):
                 ai_results.append((ai_config, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"))
 
             # Construct the row for this file
-            row = [os.path.basename(file), metadata["exp_name"], metadata["game_name"], metadata["game_params"], metadata["p1_params"], metadata["p2_params"]]
+            row = [metadata["exp_name"], metadata["date_time"], metadata["game_name"], metadata["game_params"], metadata["p1_params"], metadata["p2_params"]]
             
             # Ensure proper column alignment for AI results
             if len(ai_results) == 2:
@@ -407,6 +405,7 @@ def aggregate_csv_results(output_file):
                 row.extend(["N/A", "N/A", "N/A", "N/A", "N/A"])
 
             writer.writerow(row)
+
 
 
 def run_single_experiment(
@@ -457,20 +456,15 @@ def main():
 
     args = parser.parse_args()
 
-    if not (args.json_file or args.collect_results or args.aggregate_results):
-        parser.error("Either --json_file should be set OR --collect_results OR --aggregate_resultsshould be enabled.")
+    if not (args.json_file or args.aggregate_results):
+        parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")
     elif args.json_file and (args.collect_results):
         parser.error("--json_file and --collect_results cannot be used simultaneously.")
 
     global base_path
     base_path = args.base_path
     print("Base path:", base_path)
-    
-    if args.collect_results:
-        print(f"Collecting all results from {base_path}")
-        update_all_experiments()
-        if not args.collect_results:
-            return
+
         
     if args.aggregate_results and not args.json_file:
         # If no json file was given, just aggregate the results

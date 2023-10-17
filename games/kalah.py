@@ -84,9 +84,9 @@ class KalahGameState(GameState):
     @cython.locals(next_player=cython.int, winner=cython.int)
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
         next_player, winner = self._apply_action_logic(action[0], self.board)
-        # The first two moves, no doubles
-        if self.n_moves < 2:  # This is the reason for resetting the number of moves above
-            next_player = 3 - self.player
+        # # The first two moves, no doubles
+        # if self.n_moves < 2:  # This is the reason for resetting the number of moves above
+        #     next_player = 3 - self.player
 
         self.winner = winner
         self.player = next_player
@@ -115,9 +115,9 @@ class KalahGameState(GameState):
         else:
             next_player, winner = self._apply_action_logic(action_i, new_board)
 
-            # The first two moves, no doubles
-            if self.n_moves < 2:  # This is the reason for resetting the number of moves above
-                next_player = 3 - self.player
+            # # The first two moves, no doubles
+            # if self.n_moves < 2:  # This is the reason for resetting the number of moves above
+            #     next_player = 3 - self.player
 
         return KalahGameState(
             board=new_board,
