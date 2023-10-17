@@ -18,7 +18,6 @@ ext_modules = [
     Extension("ai.mcts", ["ai/mcts.py"], include_dirs=["."]),
     Extension("run_games", ["run_games.py"]),
     Extension("includes.dynamic_bin", ["includes/dynamic_bin.py"]),
-    Extension("test_rand", ["test_rand.py"]),
 ]
 
 setup(
@@ -35,7 +34,7 @@ setup(
             "boundscheck": False,
             "nonecheck": False,
             "cdivision": True,
-            "infer_types": True,
+            "infer_types": False,
         },
     ),
 )
