@@ -451,16 +451,13 @@ def main():
     parser.add_argument("--n_procs", type=int, default=4, help="Number of processes for parallel execution.")
     parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
     parser.add_argument("--json_file", type=str, help="JSON file containing experiment configurations.")
-    parser.add_argument("--collect_results", help="Collect results of a previous experiment.", action="store_true", default=False)
     parser.add_argument("--aggregate_results", help="Aggregate results of a previous experiment to an aggregate file.", type=str, default=None)
 
     args = parser.parse_args()
 
     if not (args.json_file or args.aggregate_results):
         parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")
-    elif args.json_file and (args.collect_results):
-        parser.error("--json_file and --collect_results cannot be used simultaneously.")
-
+        
     global base_path
     base_path = args.base_path
     print("Base path:", base_path)
