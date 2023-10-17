@@ -15,7 +15,7 @@ from games.breakthrough import BreakthroughGameState
 
 import cython
 from cython.cimports.includes import GameState, loss, win, c_random_seed
-from cython.cimports.libc.time import time
+from cython.cimports.libc.time import time as c_time
 
 from games.kalah import KalahGameState
 from games.tictactoe import TicTacToeGameState
@@ -162,7 +162,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
         int: The result of the game. gamestate.draw for a draw, gamestate.win if player 1 won, and gamestate.loss if player 2 won.
     """
     # Make sure that the seed is always reset to a different value
-    c_random_seed(time(cython.NULL))
+    c_random_seed(c_time(cython.NULL))
 
     current_player: AIPlayer = player1
     turns = 1
