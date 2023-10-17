@@ -18,6 +18,7 @@ ext_modules = [
     Extension("ai.mcts", ["ai/mcts.py"], include_dirs=["."]),
     Extension("run_games", ["run_games.py"]),
     Extension("includes.dynamic_bin", ["includes/dynamic_bin.py"]),
+    Extension("test_rand", ["test_rand.py"]),
 ]
 
 setup(

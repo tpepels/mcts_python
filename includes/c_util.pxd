@@ -2,17 +2,14 @@
 
 from libc.stdlib cimport srand, rand, RAND_MAX
 from libc.math cimport tanh
-from libc.time cimport time
 
 cdef double Z
 
 cdef inline void c_random_seed(unsigned int seed):
     srand(seed)
 
-srand(time(NULL))
-
 cdef inline double c_uniform_random(double low, double high) except -99999:
-    return low + (rand() / RAND_MAX) * (high - low)
+    return low + (<double>rand() / <double>RAND_MAX) * (high - low)
 
 cdef inline int c_random(int _min, int _max) except -99999:
     return _min + rand() % (_max - _min + 1)

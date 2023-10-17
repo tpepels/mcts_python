@@ -1,6 +1,5 @@
 # cython: language_level=3
 
-import gc
 import random
 from colorama import Back, Fore, init
 
@@ -15,7 +14,7 @@ from cython.cimports.includes import GameState, win, loss
 # from cython.cimports.includes import DynamicBin
 
 from util import abbreviate, format_time
-
+    
 just_play: cython.bint = 0
 DEBUG: cython.bint = 0
 n_bins = 14
@@ -170,7 +169,7 @@ class Node:
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
-            )
+            ) + c_uniform_random(0, 0.01)
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 uct_val = child_value + (c * (beta - alpha) * confidence_i)

@@ -4,7 +4,6 @@ import inspect
 import pstats
 import traceback
 import os
-from ai.mcts import MCTSPlayer
 from run_games import AIParams, run_game
 
 ai_choices = ["mcts", "alphabeta"]
@@ -41,7 +40,7 @@ def get_default_params(func):
 
 args = parser.parse_args()
 # Clearing the Screen
-os.system("clear")
+# os.system("clear")
 # c: float = 1.0,
 # dyn_early_term: bool = False,
 # dyn_early_term_cutoff: float = 0.9,
@@ -103,6 +102,7 @@ if not args.battle:
         ai_params=ai_params,
     )
 else:
+    # * Battle
     algo = args.algo
     eval_params = {}
     # alphabeta player
@@ -114,26 +114,24 @@ else:
         "num_simulations": 100_000,
         "debug": args.debug,
         "c": 0.6,
-        # "imm_version": 0,
         "early_term": True,
         "early_term_turns": 20,
         "early_term_cutoff": 0.05,
         # # "roulette": True,
         # # "roulette_epsilon": 0.05,
-        "imm_alpha": 0.6,
-        "ab_version": 2,
+        "imm_alpha": 0.4,
+        "ab_version": 0,
     }
     ai_2_params = {
         "num_simulations": 100_000,
         "debug": args.debug,
         "c": 0.6,
-        "imm_version": 0,
         "early_term": True,
         "early_term_turns": 20,
         "early_term_cutoff": 0.05,
         # # "roulette": True,
         # # "roulette_epsilon": 0.05,
-        "imm_alpha": 0.6,
+        "imm_alpha": 0.4,
         "ab_version": 0,
     }
 

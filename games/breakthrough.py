@@ -642,6 +642,11 @@ class BreakthroughGameState(GameState):
         output += f"Player: {self.player}\n"
 
         if full_debug:
+            rand_actions = [self.get_random_action() for _ in range(10)]
+            output += "Random actions: "
+            for action in rand_actions:
+                output += f"{self.readable_move(action)}, "
+            output += "\n"
             if not self.validate_actions():
                 print(" !!! Invalid actions detected !!! ")
             output += "..." * 10 + "debug info" + "..." * 10 + "\n"
