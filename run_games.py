@@ -13,7 +13,9 @@ from games.amazons import AmazonsGameState
 from games.blokus import BlokusGameState
 from games.breakthrough import BreakthroughGameState
 
-from cython.cimports.includes import GameState, loss, win
+import cython
+from cython.cimports.includes import GameState, loss, win, c_random_seed
+from cython.cimports.libc.time import time
 
 from games.kalah import KalahGameState
 from games.tictactoe import TicTacToeGameState
@@ -159,6 +161,9 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     Returns:
         int: The result of the game. gamestate.draw for a draw, gamestate.win if player 1 won, and gamestate.loss if player 2 won.
     """
+    # Make sure that the seed is always reset to a different value
+    c_random_seed(time(cython.NULL))
+
     current_player: AIPlayer = player1
     turns = 1
     while not game.is_terminal():
