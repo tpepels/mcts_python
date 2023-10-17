@@ -197,14 +197,14 @@ def run_new_experiment(exp_dict, pool):
     for i in range(n_games):
         if i < n_games / 2:
             games_params.append(
-                (game_name, game_params, deepcopy(p1_params), deepcopy(p2_params), False, exp_name)
+                (game_name, game_params, deepcopy(p1_params), deepcopy(p2_params), exp_name)
             )
         else:
             new_p1_params = deepcopy(p2_params)
             new_p2_params = deepcopy(p1_params)
             new_p1_params.max_player = 1
             new_p2_params.max_player = 2
-            games_params.append((game_name, game_params, new_p1_params, new_p2_params, True, exp_name))
+            games_params.append((game_name, game_params, new_p1_params, new_p2_params, exp_name))
 
     random.shuffle(games_params)
     games_params = [(i, *params) for i, params in enumerate(games_params)]
@@ -233,7 +233,7 @@ def run_new_experiment(exp_dict, pool):
     return async_result, exp_name
 
 
-def update_running_experiment_status(exp_name):
+def update_running_experiment_status(exp_name, print_tables=True):
     completed_games = 0
     error_games = 0
     draws = 0
@@ -248,7 +248,9 @@ def update_running_experiment_status(exp_name):
 
     # Open CSV file in write mode (it needs to be overwritten every time)
     with open(os.path.join(path_to_result, "_results.csv"), "w", newline="") as f:
-        f.write(tables[exp_name]["description"])
+        if exp_name in tables:
+            f.write(tables[exp_name]["description"])
+            
         writer = csv.writer(f)
 
         for log_file in log_files:
@@ -278,7 +280,8 @@ def update_running_experiment_status(exp_name):
 
     # Write cumulative table to separate CSV file
     with open(f"{path_to_result}/_cumulative_stats.csv", "w", newline="") as f:
-        f.write(tables[exp_name]["description"])
+        if exp_name in tables:
+            f.write(tables[exp_name]["description"])
         writer = csv.writer(f)
         writer.writerow(["AI", "Win %", "95% C.I."])
 
@@ -293,34 +296,35 @@ def update_running_experiment_status(exp_name):
             else:
                 writer.writerow([ai, "N/A", "N/A"])
 
+    if print_tables:
     # Print cumulative statistics per AI to the screen
-    if os.environ.get("TERM"):
-        os.system("clear")
+        if os.environ.get("TERM"):
+            os.system("clear")
         
-    print_stats = PrettyTable(
-        [
-            f"AI ({exp_name})",
-            f"Win % (Games: {completed_games}, Errors: {error_games}, Draws: {draws})",
-            "95% C.I.",
-        ]
-    )
-    # Z-score for 95% confidence interval
-    Z = 1.96
-    # Add rows to the table
-    for ai, wins in ai_stats.items():
-        win_rate = wins / completed_games
-        ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
-        lower_bound = (win_rate - ci_width) * 100
-        upper_bound = (win_rate + ci_width) * 100
-        print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"])
+        print_stats = PrettyTable(
+            [
+                f"AI ({exp_name})",
+                f"Win % (Games: {completed_games}, Errors: {error_games}, Draws: {draws})",
+                "95% C.I.",
+            ]
+        )
+        # Z-score for 95% confidence interval
+        Z = 1.96
+        # Add rows to the table
+        for ai, wins in ai_stats.items():
+            win_rate = wins / completed_games
+            ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
+            lower_bound = (win_rate - ci_width) * 100
+            upper_bound = (win_rate + ci_width) * 100
+            print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"])
 
-    # Keep track of all experiments, also the finished ones to print
-    tables[exp_name]["table"] = print_stats
-    print("\n")
-    for _, v in tables.items():
-        print(v["description"])
-        print(v["table"])
+        # Keep track of all experiments, also the finished ones to print
+        tables[exp_name]["table"] = print_stats
         print("\n")
+        for _, v in tables.items():
+            print(v["description"])
+            print(v["table"])
+            print("\n")
 
 
 tables = {}
@@ -330,7 +334,50 @@ def update_all_experiments():
     for dir_name in os.listdir(experiments_path):
         full_dir_path = os.path.join(experiments_path, dir_name)
         if os.path.isdir(full_dir_path):
-            update_running_experiment_status(dir_name)
+            update_running_experiment_status(dir_name, print_tables=False)
+
+def aggregate_csv_results(output_file):
+    files = []
+    experiments_path = os.path.join(base_path, "results", "experiments")
+    for dir_name in os.listdir(experiments_path):
+        full_dir_path = os.path.join(experiments_path, dir_name)
+        if os.path.isdir(full_dir_path):
+            files.append(os.path.join(full_dir_path, "_results.csv"))
+            
+    with open(output_file, 'w', newline='') as outfile:
+        writer = csv.writer(outfile)
+        writer.writerow(['Result File', 'AI1', 'Win_rate', 'AI2', 'Win_rate', '± 95% C.I.'])
+
+        for file in files:
+            ai_stats = {}
+            total_games = 0
+
+            with open(file, 'r') as infile:
+                reader = csv.reader(infile)
+                for _, ai_config in reader:
+                    # Remove commas from the AI configuration string
+                    ai_config_cleaned = ai_config.replace(',', '')
+                    total_games += 1
+                    ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
+
+            Z = 1.96
+            ai_results = []
+
+            for ai_config, wins in ai_stats.items():
+                win_rate = wins / total_games
+                ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / total_games)
+                lower_bound = (win_rate - ci_width) * 100
+                upper_bound = (win_rate + ci_width) * 100
+                ai_results.append((ai_config, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"))
+
+            # Construct the row for this file
+            row = [file]  # Start with the result file path
+            for result in ai_results:
+                row.extend(result[:2])
+            if len(ai_results) > 0:
+                row.append(ai_results[0][2])  # Using the C.I. of the first AI
+
+            writer.writerow(row)
 
 def run_single_experiment(
     i: int,
@@ -338,7 +385,6 @@ def run_single_experiment(
     game_params: dict[str, Any],
     p1_params: AIParams,
     p2_params: AIParams,
-    players_switched: bool,
     exp_name: str,
 ) -> None:
     """Run a single game experiment and log the results in the worksheet.
@@ -350,15 +396,13 @@ def run_single_experiment(
         p1_params (AIParams): The parameters for player 1's AI.
         p2_params (AIParams): The parameters for player 2's AI.
         worksheet_name (str): The name of the sheet to place the results in.
-        players_switched (bool): Whether player 1 and 2 are switched.
         worksheet_name (str): String used to identify the experiment
     """
 
     try:
-        # TODO Keep track of all statistics of the game
         log_path = os.path.join(base_path, "log", "games", exp_name, f"{i}.log")
         with redirect_print_to_log(log_path):
-            _, _, _, _, result = run_game_experiment(game_key, game_params, p1_params, p2_params)
+            run_game_experiment(game_key, game_params, p1_params, p2_params)
 
         with open(log_path, "a") as log_file:
             # Write a status message to the log file
@@ -371,37 +415,35 @@ def run_single_experiment(
             log_file.write(f"Experiment error: {e}")
             log_file.flush()
 
-    # Keep track of results per AI not for p1/p2
-    # Map game result to player's outcomes
-    results_map = {
-        1: (1, 0),
-        2: (0, 1),
-        0: (0, 0),
-    }
-    p1_result, p2_result = results_map[result]
-    # If players were switched, swap the results
-    if players_switched:
-        p1_result, p2_result = p2_result, p1_result
-
 
 def main():
     parser = argparse.ArgumentParser(description="Start experiments based on JSON config.")
     parser.add_argument("--n_procs", type=int, default=4, help="Number of processes for parallel execution.")
     parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
-    parser.add_argument(
-        "--json_file", type=str, required=True, help="JSON file containing experiment configurations."
-    )
-    parser.add_argument(
-        "--collect_results", type=bool, help="Collect results of a previous experiment."
-    )
+    parser.add_argument("--json_file", type=str, help="JSON file containing experiment configurations.")
+    parser.add_argument("--collect_results", help="Collect results of a previous experiment.", action="store_true", default=False)
+    parser.add_argument("--aggregate_results", help="Aggregate results of a previous experiment to an aggregate file.", type=str, default=None)
 
     args = parser.parse_args()
+
+    if not (args.json_file or args.collect_results or args.aggregate_results):
+        parser.error("Either --json_file should be set OR --collect_results OR --aggregate_resultsshould be enabled.")
+    elif args.json_file and (args.collect_results or args.aggregate_results):
+        parser.error("--json_file and --collect_results or --aggregate_results cannot be used simultaneously.")
+
     global base_path
     base_path = args.base_path
     
     if args.collect_results:
         print(f"Collecting all results from {base_path}")
         update_all_experiments()
+        
+
+    if args.aggregate_results:
+        print(f"Aggregating results from {base_path} to {args.aggregate_results}")
+        aggregate_csv_results(args.aggregate_results)
+    
+    if args.collect_results or args.aggregate_results:
         return
     
     # Validate and create the base directory for logs if it doesn't exist

@@ -9,11 +9,10 @@ init(autoreset=True)
 import cython
 
 from cython.cimports.includes import c_uniform_random, c_random
-from cython.cimports.includes.c_util import c_random_seed, Z
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log, INFINITY, erf
 from cython.cimports.includes import GameState, win, loss
-from cython.cimports.includes import DynamicBin
+# from cython.cimports.includes import DynamicBin
 
 from util import abbreviate, format_time
 
@@ -51,10 +50,6 @@ cutoffs: cython.int = 0
 @cython.exceptval(-1, check=False)
 def curr_time() -> cython.long:
     return time(cython.NULL)
-
-
-c_random_seed(curr_time())
-
 
 @cython.cfunc
 @cython.returns(cython.int)
