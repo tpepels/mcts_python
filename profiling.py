@@ -106,34 +106,35 @@ else:
     algo = args.algo
     eval_params = {}
     # alphabeta player
-    ai_2_params = {
-        "max_time": 2,
-        "debug": args.debug,
-    }
+    # ai_2_params = {
+    #     "max_time": 2,
+    #     "debug": args.debug,
+    # }
     ai_1_params = {
-        "max_time": 2,
+        # "max_time": 2,
+        "num_simulations": 100_000,
         "debug": args.debug,
-        "c": 0.6,
-        # "early_term": True,
-        # "early_term_turns": 20,
-        # "early_term_cutoff": 0.05,
+        "c": 0.2,
+        "early_term": True,
+        "early_term_turns": 20,
+        "early_term_cutoff": 0.05,
         # # "roulette": True,
         # # "roulette_epsilon": 0.05,
         # "imm_alpha": 0.4,
         # "ab_version": 0,
     }
-    # ai_2_params = {
-    #     "num_simulations": 100_000,
-    #     "debug": args.debug,
-    #     "c": 0.6,
-    #     "early_term": True,
-    #     "early_term_turns": 20,
-    #     "early_term_cutoff": 0.05,
-    #     # # "roulette": True,
-    #     # # "roulette_epsilon": 0.05,
-    #     "imm_alpha": 0.4,
-    #     "ab_version": 0,
-    # }
+    ai_2_params = {
+        "num_simulations": 100_000,
+        "debug": args.debug,
+        "c": 1,
+        "early_term": True,
+        "early_term_turns": 20,
+        "early_term_cutoff": 0.05,
+        # # "roulette": True,
+        # # "roulette_epsilon": 0.05,
+        # "imm_alpha": 0.4,
+        # "ab_version": 0,
+    }
 
     p1_params = AIParams(
         ai_key="mcts",
@@ -142,7 +143,7 @@ else:
         ai_params=ai_1_params,
     )
     p2_params = AIParams(
-        ai_key="alphabeta",
+        ai_key="mcts",
         eval_params=eval_params,
         max_player=2,
         ai_params=ai_2_params,
