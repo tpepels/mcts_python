@@ -10,6 +10,7 @@ import multiprocessing as mp
 import os
 import random
 import re
+import shutil
 import time
 
 from collections import Counter
@@ -453,26 +454,36 @@ def main():
     parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
     parser.add_argument("--json_file", type=str, help="JSON file containing experiment configurations.")
     parser.add_argument("--aggregate_results", help="Aggregate results of a previous experiment to an aggregate file.", type=str, default=None)
-
+    parser.add_argument("--clean", help="Clean the log directory before starting experiments.", action="store_true")
     args = parser.parse_args()
 
     if not (args.json_file or args.aggregate_results):
         parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")
         
     global base_path
-    base_path = args.base_path
-    print("Base path:", base_path)
-
-        
+    
     if args.aggregate_results and not args.json_file:
+        base_path = args.base_path
         # If no json file was given, just aggregate the results
         print(f"Aggregating results from {base_path} to {args.aggregate_results}")
         aggregate_csv_results(args.aggregate_results)
         return
     
+    # Include the experiment file in the base_path
+    base_path = os.path.join(args.base_path, os.path.splitext(args.json_file)[0])
+    print("Base path:", base_path)
+    
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
+    elif args.clean:
+        # Remove the log directory from the base_path
+        log_path = os.path.join(base_path, "log")
+        if os.path.exists(log_path):
+            print(f"Removing {log_path}")
+            shutil.rmtree(log_path)
+        else:
+            print(f"{log_path} does not exist.")
 
     # Read the JSON file to see if it exists and is a valid JSON
     try:
