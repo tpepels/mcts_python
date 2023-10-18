@@ -5,7 +5,7 @@ import array
 import cython
 import numpy as np
 from cython.cimports.libcpp.vector import vector
-from cython.cimports.includes import GameState, win, loss, draw, normalize, c_random
+from cython.cimports.includes import GameState, win, loss, draw, normalize
 
 import random
 
@@ -267,7 +267,7 @@ class KalahGameState(GameState):
         opp_store: cython.int = self.p1_pit if self.player == 2 else self.p2_pit
 
         start_h: cython.int = 0 if self.player == 1 else self.num_houses + 1
-        start_i: cython.int = c_random(0, self.num_houses - 1)
+        start_i: cython.int = random.randint(0, self.num_houses - 1)
 
         caps: cython.list = []
         doubles: cython.list = []
@@ -298,13 +298,10 @@ class KalahGameState(GameState):
         # * Make captures whenever you can, otherwise double moves, otherwise regular moves
         if caps != []:
             return random.choice(caps)
-            # return caps[c_random(0, len(caps) - 1)]
         elif doubles != []:
             return random.choice(doubles)
-            # return doubles[c_random(0, len(doubles) - 1)]
         elif moves != []:
             return random.choice(moves)
-            # return moves[c_random(0, len(moves) - 1)]
 
         assert False, "No legal actions found!"
 

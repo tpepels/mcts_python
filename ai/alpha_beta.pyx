@@ -1,11 +1,11 @@
 # cython: language_level=3
 import cython
+import random
 
 from util import pretty_print_dict, abbreviate
 from operator import itemgetter
-
 from libc.time cimport time
-from includes cimport GameState, win, loss, draw, c_uniform_random
+from includes cimport GameState, win, loss, draw
 from ai.transpos_table cimport TranspositionTable, MoveHistory
 from libc.math cimport INFINITY
 
@@ -98,9 +98,9 @@ cdef double value(
         n_actions = len(actions)
         # Put moves that were in the move history before the rest by giving them a really high score
         if move_history is not None:
-            actions = [(actions[i][0], (actions[i][1] + (move_history.get(actions[i][0]) * hist_mult)) + c_uniform_random(0.0001, 0.001)) for i in range(n_actions)]
+            actions = [(actions[i][0], (actions[i][1] + (move_history.get(actions[i][0]) * hist_mult)) + random.uniform(0.0001, 0.001)) for i in range(n_actions)]
         else:
-            actions = [(actions[i][0], actions[i][1] + c_uniform_random(0.0001, 0.001)) for i in range(n_actions)]
+            actions = [(actions[i][0], actions[i][1] + random.uniform(0.0001, 0.001)) for i in range(n_actions)]
         
         actions.sort(key=itemgetter(1), reverse=is_max_player)
         actions = [actions[i][0] for i in range(n_actions)]

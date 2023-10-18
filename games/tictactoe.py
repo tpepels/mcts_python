@@ -2,6 +2,7 @@
 
 import array
 import itertools
+import random
 from random import gauss, randint
 import cython
 import numpy as np
@@ -18,8 +19,6 @@ from cython.cimports.includes import (
     normalize,
     where_is_k2d,
     generate_spiral,
-    c_uniform_random,
-    c_random,
     find_2d_index,
 )
 from cython.cimports.games.tictactoe import MIN_SIZE, MAX_SIZE, SPIRALS
@@ -185,16 +184,16 @@ class TicTacToeGameState(GameState):
         Move in a spiral pattern starting from a position close to the center of the board.
         """
 
-        if self.n_moves > 2 and c_uniform_random(0, 1) < 0.01:
+        if self.n_moves > 2 and random.uniform(0, 1) < 0.01:
             act_idx = find_2d_index(SPIRALS[self.size - MIN_SIZE], self.last_action[0], self.last_action[1])
             start_i = abs(cython.cast(cython.int, gauss(act_idx, (self.size / 2) ** 2)))
             start_i = start_i % (self.size**2)
-        elif c_uniform_random(0, 1) < 0.001:  # Little bit greedy to the center to prevent endless games
+        elif random.uniform(0, 1) < 0.001:  # Little bit greedy to the center to prevent endless games
             # Select a start index close to the start (which is the center of the board)
             start_i = abs(cython.cast(cython.int, gauss(0, (self.size / 2) ** 2)))
             start_i = start_i % (self.size**2)  # Wrap to valid range
         else:
-            start_i = c_random(0, self.size**2 - 1)
+            start_i = random.randint(0, self.size**2 - 1)
 
         for i in range(self.size**2):
             x, y = SPIRALS[self.size - MIN_SIZE][(start_i + i) % (self.size**2)]

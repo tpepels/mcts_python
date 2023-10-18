@@ -8,7 +8,7 @@ import random
 
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.pair import pair
-from cython.cimports.includes import c_random, normalize, where_is_k, win, loss, draw, GameState
+from cython.cimports.includes import normalize, where_is_k, win, loss, draw, GameState
 from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
 
 dirs = [-1, 0, 1]
@@ -276,7 +276,7 @@ class BreakthroughGameState(GameState):
             dr = 1
 
         n: cython.int = len(self.positions[self.player - 1])
-        start: cython.int = c_random(0, n - 1)  # This allows us to start at a random piece
+        start: cython.int = random.randint(0, n - 1)  # This allows us to start at a random piece
 
         i: cython.int
 
@@ -291,7 +291,7 @@ class BreakthroughGameState(GameState):
             row: cython.int = position // 8
             col: cython.int = position % 8
 
-            start_dc: cython.int = c_random(0, 2)  # This allows us to start at in a random direction
+            start_dc: cython.int = random.randint(0, 2)  # This allows us to start at in a random direction
             k: cython.int
 
             for k in range(3):
@@ -340,11 +340,9 @@ class BreakthroughGameState(GameState):
         if not safe_captures.empty():
             if safe_captures.size() > 1:
                 return random.choice(safe_captures)
-                # return safe_captures[c_random(0, safe_captures.size() - 1)]
             return safe_captures[0]
         # All_moves includes captures, they'll be selected with a higher probability
         return random.choice(all_moves)
-        # return all_moves[c_random(0, all_moves.size() - 1)]
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list[cython.tuple]:

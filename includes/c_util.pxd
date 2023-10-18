@@ -5,19 +5,6 @@ from libc.math cimport tanh
 
 cdef double Z
 
-import random
-from libc.math cimport tanh
-
-cdef double Z
-
-cdef inline double c_uniform_random(double low, double high) except -99999:
-    return random.uniform(low, high)
-
-cdef inline int c_random(int _min, int _max) except -99999:
-    return random.randint(_min, _max)
-
-cdef inline void c_shuffle(list arr):
-    random.shuffle(arr)
 
 # cdef inline void c_random_seed(unsigned int seed):
 #     srand(seed)
@@ -39,17 +26,17 @@ cdef inline void c_shuffle(list arr):
 #        arr[i] = arr[swap_idx]
 #        arr[swap_idx] = tmp
 
-cdef inline void c_shuffle_array(long[:] arr):
-    cdef int n = arr.shape[0]
-    cdef int swap_idx
-    cdef long tmp
-    cdef int i
+#cdef inline void c_shuffle_array(long[:] arr):
+#    cdef int n = arr.shape[0]
+#    cdef int swap_idx
+#    cdef long tmp
+#    cdef int i
 
-    for i in range(n-1, 0, -1):
-        swap_idx = c_random(0, i)
-        tmp = arr[i]
-        arr[i] = arr[swap_idx]
-        arr[swap_idx] = tmp
+#    for i in range(n-1, 0, -1):
+#        swap_idx = c_random(0, i)
+#        tmp = arr[i]
+#        arr[i] = arr[swap_idx]
+#        arr[swap_idx] = tmp
 
 cdef inline double normalize(double value, double a) except -99999:
     """

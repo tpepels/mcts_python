@@ -12,7 +12,7 @@ from cython.cimports.libc.math import log
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.stack import stack
 from cython.cimports.libcpp.set import set as cset
-from cython.cimports.includes import c_random, normalize, GameState, win, loss, draw, f_index
+from cython.cimports.includes import normalize, GameState, win, loss, draw, f_index
 from cython.cimports.games.amazons import DIRECTIONS, N_DIRECTIONS
 
 
@@ -221,7 +221,7 @@ class AmazonsGameState(GameState):
         """
         assert self.player_has_legal_moves, "Getting or making a move should not be possible"
 
-        s_q: cython.int = c_random(0, 3)  # A random queen to start with
+        s_q: cython.int = random.randint(0, 3)  # A random queen to start with
         s: cython.int = self.board_size
 
         q_i: cython.int
@@ -246,7 +246,7 @@ class AmazonsGameState(GameState):
     @cython.exceptval(-2, check=False)
     @cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int, i=cython.int, idx=cython.int)
     def find_direction(self, x: cython.int, y: cython.int, s: cython.int) -> cython.int:
-        start_idx: cython.int = c_random(0, N_DIRECTIONS - 1)  # Get a random starting index
+        start_idx: cython.int = random.randint(0, N_DIRECTIONS - 1)  # Get a random starting index
 
         for i in range(N_DIRECTIONS):
             idx: cython.int = (start_idx + i) % N_DIRECTIONS  # Loop around using modulo
@@ -690,7 +690,7 @@ def get_random_distance(
 
     # Generate a random distance within the valid range
     if max_dist > 0:
-        return c_random(1, max_dist)
+        return random.randint(1, max_dist)
     else:
         return -1
 

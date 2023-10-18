@@ -2,13 +2,13 @@
 # distutils: language=c++
 
 import array
-
+import random
 import cython
 from cython.cimports.libcpp.set import set as cset
 from cython.cimports.libcpp.pair import pair
 from cython.cimports.libcpp.vector import vector
 from cython.cimports import numpy as cnp
-from cython.cimports.includes import c_random, normalize, GameState, draw, loss, win
+from cython.cimports.includes import normalize, GameState, draw, loss, win
 from cython.cimports.games.blokus import (
     BOARD_SIZE,
     PASS_MOVE,
@@ -390,14 +390,14 @@ class BlokusGameState(GameState):
         for ppair in perimeter_points:
             px, py = ppair.first, ppair.second
             for _ in range(100):  # ! TODO Check this number
-                piece_index: cython.int = avail_pieces[c_random(0, len(avail_pieces) - 1)]
-                rotation: cython.int = c_random(0, UNIQUE_ROTATIONS[piece_index] - 1)
+                piece_index: cython.int = avail_pieces[random.randint(0, len(avail_pieces) - 1)]
+                rotation: cython.int = random.randint(0, UNIQUE_ROTATIONS[piece_index] - 1)
                 piece: cython.int[:, :] = ROTATED_PIECES[piece_index][rotation]
                 piece_width: cython.int = piece.shape[0]
                 piece_height: cython.int = piece.shape[1]
 
-                dx = c_random(max(-piece_width + 1, -px), min(piece_width, 20 - px))
-                dy = c_random(max(-piece_height + 1, -py), min(piece_height, 20 - py))
+                dx = random.randint(max(-piece_width + 1, -px), min(piece_width, 20 - px))
+                dy = random.randint(max(-piece_height + 1, -py), min(piece_height, 20 - py))
 
                 x, y = px + dx, py + dy
                 # Check if piece can be physically placed, considering its shape
@@ -933,8 +933,8 @@ def find_corners_for_color_cpp(board, color) -> cset[pair[cython.int, cython.int
     height, width = board.shape[0], board.shape[1]
 
     # Generate random start points
-    start_i = c_random(0, height - 1)
-    start_j = c_random(0, width - 1)
+    start_i = random.randint(0, height - 1)
+    start_j = random.randint(0, width - 1)
 
     # Loop from the random start point, wrapping around
     for i_offset in range(height):

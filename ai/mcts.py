@@ -7,7 +7,6 @@ init(autoreset=True)
 
 import cython
 
-from cython.cimports.includes import c_uniform_random, c_random
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log, INFINITY, erf
 from cython.cimports.includes import GameState, win, loss
@@ -169,7 +168,7 @@ class Node:
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
-            ) + c_uniform_random(0, 0.001)
+            ) + random.uniform(0, 0.001)
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 uct_val = child_value + (c * (beta - alpha) * confidence_i)
@@ -371,7 +370,6 @@ class Node:
 
         # Return a random child for another visit
         return random.choice(self.children)
-        # return self.children[c_random(0, len(self.children) - 1)]
 
     @cython.cfunc
     def add_all_children(
@@ -728,7 +726,6 @@ class MCTSPlayer:
                     print("\n".join([str(child) for child in self.root.children]))
 
             # return a random action if all children are losing moves
-            # max_node = self.root.children[c_random(0, n_children - 1)]
             max_node = random.choice(self.root.children)
 
         if DEBUG:
@@ -1070,7 +1067,7 @@ class MCTSPlayer:
 
             best_action: cython.tuple = ()
             # With probability epsilon choose the best action from a subset of moves
-            if self.e_greedy == 1 and c_uniform_random(0, 1) < self.epsilon:
+            if self.e_greedy == 1 and random.uniform(0, 1) < self.epsilon:
                 actions = state.get_legal_actions()
                 actions = actions[: self.e_g_subset]
 
@@ -1081,12 +1078,12 @@ class MCTSPlayer:
                         params=self.eval_params,
                         player=state.player,
                         norm=False,
-                    ) + c_uniform_random(0.000001, 0.00001)
+                    ) + random.uniform(0.000001, 0.00001)
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
-            elif self.e_greedy == 0 and self.roulette == 1 and c_uniform_random(0, 1) < self.roulette_eps:
+            elif self.e_greedy == 0 and self.roulette == 1 and random.uniform(0, 1) < self.roulette_eps:
                 actions = state.get_legal_actions()
                 best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
             # With probability 1-epsilon chose a move at random
