@@ -470,7 +470,7 @@ def main():
         return
     
     # Include the experiment file in the base_path
-    base_path = os.path.join(args.base_path, os.path.splitext(args.json_file)[0])
+    base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
     print("Base path:", base_path)
     
     # Validate and create the base directory for logs if it doesn't exist
