@@ -667,7 +667,7 @@ class MCTSPlayer:
                 # Only check the time every once in a while to save cost
                 counter += 1
                 if counter > 500:
-                    if curr_time() - start_time < self.max_time:
+                    if curr_time() - start_time >= self.max_time:
                         break
                     counter = 0
 
