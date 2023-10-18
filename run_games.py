@@ -2,6 +2,7 @@
 
 from array import array
 import gc
+import random
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
@@ -13,9 +14,7 @@ from games.amazons import AmazonsGameState
 from games.blokus import BlokusGameState
 from games.breakthrough import BreakthroughGameState
 
-import cython
-from cython.cimports.includes import GameState, loss, win, c_random_seed
-from cython.cimports.libc.time import time as c_time
+from cython.cimports.includes import GameState, loss, win
 
 from games.kalah import KalahGameState
 from games.tictactoe import TicTacToeGameState
@@ -161,9 +160,12 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     Returns:
         int: The result of the game. gamestate.draw for a draw, gamestate.win if player 1 won, and gamestate.loss if player 2 won.
     """
-    # Make sure that the seed is always reset to a different value
-    c_random_seed(c_time(cython.NULL))
+    # Create an instance of SystemRandom
+    sys_rng = random.SystemRandom()
 
+    # Get a random number from SystemRandom and combine it with the current time
+    random.seed(int(sys_rng.random() * 1e8) + int(time.time() * 1e6))
+    
     current_player: AIPlayer = player1
     turns = 1
     while not game.is_terminal():

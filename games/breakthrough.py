@@ -339,10 +339,12 @@ class BreakthroughGameState(GameState):
         # Always do a safe capture if you can
         if not safe_captures.empty():
             if safe_captures.size() > 1:
-                return safe_captures[c_random(0, safe_captures.size() - 1)]
+                return random.choice(safe_captures)
+                # return safe_captures[c_random(0, safe_captures.size() - 1)]
             return safe_captures[0]
         # All_moves includes captures, they'll be selected with a higher probability
-        return all_moves[c_random(0, all_moves.size() - 1)]
+        return random.choice(all_moves)
+        # return all_moves[c_random(0, all_moves.size() - 1)]
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list[cython.tuple]:

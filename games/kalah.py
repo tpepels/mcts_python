@@ -297,11 +297,14 @@ class KalahGameState(GameState):
 
         # * Make captures whenever you can, otherwise double moves, otherwise regular moves
         if caps != []:
-            return caps[c_random(0, len(caps) - 1)]
+            return random.choice(caps)
+            # return caps[c_random(0, len(caps) - 1)]
         elif doubles != []:
-            return doubles[c_random(0, len(doubles) - 1)]
+            return random.choice(doubles)
+            # return doubles[c_random(0, len(doubles) - 1)]
         elif moves != []:
-            return moves[c_random(0, len(moves) - 1)]
+            return random.choice(moves)
+            # return moves[c_random(0, len(moves) - 1)]
 
         assert False, "No legal actions found!"
 
@@ -315,6 +318,7 @@ class KalahGameState(GameState):
         """
         start: cython.int = 0 if self.player == 1 else self.num_houses + 1
         result: cython.list = []
+        
         for i in range(start, start + self.num_houses):
             if self.board[i] > 0:
                 result.append((i,))

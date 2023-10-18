@@ -5,25 +5,39 @@ from libc.math cimport tanh
 
 cdef double Z
 
-cdef inline void c_random_seed(unsigned int seed):
-    srand(seed)
+import random
+from libc.math cimport tanh
+
+cdef double Z
 
 cdef inline double c_uniform_random(double low, double high) except -99999:
-    return low + (<double>rand() / <double>RAND_MAX) * (high - low)
+    return random.uniform(low, high)
 
 cdef inline int c_random(int _min, int _max) except -99999:
-    return _min + rand() % (_max - _min + 1)
+    return random.randint(_min, _max)
 
 cdef inline void c_shuffle(list arr):
-    cdef int n = len(arr)
-    cdef int swap_idx
-    cdef object tmp
+    random.shuffle(arr)
 
-    for i in range(n-1, 0, -1):
-        swap_idx = c_random(0, i)
-        tmp = arr[i]
-        arr[i] = arr[swap_idx]
-        arr[swap_idx] = tmp
+# cdef inline void c_random_seed(unsigned int seed):
+#     srand(seed)
+
+# cdef inline double c_uniform_random(double low, double high) except -99999:
+#     return low + (<double>rand() / <double>RAND_MAX) * (high - low)
+
+# cdef inline int c_random(int _min, int _max) except -99999:
+#     return _min + rand() % (_max - _min + 1)
+
+#cdef inline void c_shuffle(list arr):
+#    cdef int n = len(arr)
+#    cdef int swap_idx
+#    cdef object tmp
+
+#    for i in range(n-1, 0, -1):
+#        swap_idx = c_random(0, i)
+#        tmp = arr[i]
+#        arr[i] = arr[swap_idx]
+#        arr[swap_idx] = tmp
 
 cdef inline void c_shuffle_array(long[:] arr):
     cdef int n = arr.shape[0]

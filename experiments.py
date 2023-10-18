@@ -272,6 +272,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
                     if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
                         loser_info = log_contents[-3] 
                         loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
+                        
                         # Make sure there's a line for each player
                         if winner_params not in ai_stats:
                             ai_stats[winner_params] = 0

@@ -196,7 +196,7 @@ class Node:
             # We do this here because the node may have been expanded and solved elsewhere in the tree
             self.solved_player = 3 - self.player
             # just return a random child, they all lead to a loss anyway
-            return self.children[c_random(0, n_children - 1)]
+            return random.choice(self.children)
         elif children_lost == (n_children - 1) and self.solved_player == 0:
             # There's only one move that does not lead to a loss. This is an anti-decisive move.
             self.anti_decisive = 1
@@ -370,7 +370,8 @@ class Node:
             return best_node
 
         # Return a random child for another visit
-        return self.children[c_random(0, len(self.children) - 1)]
+        return random.choice(self.children)
+        # return self.children[c_random(0, len(self.children) - 1)]
 
     @cython.cfunc
     def add_all_children(
@@ -727,7 +728,8 @@ class MCTSPlayer:
                     print("\n".join([str(child) for child in self.root.children]))
 
             # return a random action if all children are losing moves
-            max_node = self.root.children[c_random(0, n_children - 1)]
+            # max_node = self.root.children[c_random(0, n_children - 1)]
+            max_node = random.choice(self.root.children)
 
         if DEBUG:
             print("--*--" * 20)

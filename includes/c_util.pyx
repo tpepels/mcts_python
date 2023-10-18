@@ -3,8 +3,6 @@ from libc.time cimport time
 
 Z = 1.96  # 95% confidence interval
 
-c_random_seed(time(cython.NULL))
-
 @cython.cdivision(False) # * Important * - without this the results differ and are incorrect
 cpdef list generate_spiral(int size):
     x = y = 0
