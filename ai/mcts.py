@@ -18,25 +18,6 @@ just_play: cython.bint = 0
 DEBUG: cython.bint = 0
 n_bins = 14
 q_searches: cython.int = 0
-
-# bins_dict = {
-#     "p1_value_bins": {"bin": DynamicBin(n_bins), "label": "p1 ab Values"},
-#     "p2_value_bins": {"bin": DynamicBin(n_bins), "label": "p2 ab Values"},
-#     "bound_bins": {"bin": DynamicBin(n_bins), "label": "Bounds around a/b"},
-#     "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Effective Alpha values"},
-#     "beta_bins": {"bin": DynamicBin(n_bins), "label": "Effective Beta values"},
-#     "ab_visits_bins": {"bin": DynamicBin(n_bins), "label": "a/b/ Node visit counts"},
-#     "ab_depth_bins": {"bin": DynamicBin(n_bins), "label": "Depth of a/b nodes"},
-#     "dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha"},
-#     "alpha_1_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 1 nodes"},
-#     "beta_1_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 1 nodes"},
-#     "1_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 1"},
-#     "alpha_2_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 2 nodes"},
-#     "beta_2_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 2 nodes"},
-#     "2_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 2"},
-#     "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "Best UCB values"},
-# }
-
 prunes: cython.int = 0
 non_prunes: cython.int = 0
 ab_bound: cython.int = 0
@@ -168,10 +149,32 @@ class Node:
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
-            ) + random.uniform(0, 0.001)
+            ) + random.uniform(0, 0.00001)
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                uct_val = child_value + (c * (beta - alpha) * confidence_i)
+                if ab_version == 1:
+                    uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
+                if ab_version == 2:
+                    # Cut off the confidence interval by alpha and beta
+                    confidence_i = min(max(c * confidence_i, alpha), beta)
+                    uct_val = child_value + confidence_i
+                if ab_version == 3:
+                    # Cut off the value by alpha and beta
+                    child_value = min(max(child_value, alpha), beta)
+                    uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
+                if ab_version == 4:
+                    # Cutoff the confidence interval by beta
+                    confidence_i = min(c * confidence_i, beta)
+                    uct_val = child_value + confidence_i
+                if ab_version == 5:
+                    # Cut value by alpha and beta and cut confidence interval by beta - alpha
+                    child_value = min(max(child_value, alpha), beta)
+                    confidence_i = min(max(c * confidence_i, alpha), beta)
+                    uct_val = child_value + confidence_i
+                if ab_version == 6:
+                    # Cut value by alpha and beta and cut confidence interval by beta - alpha
+                    child_value = min(max(child_value, alpha), beta)
+                    uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
                 ab_bound += 1
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
@@ -184,10 +187,6 @@ class Node:
             if uct_val >= best_val:
                 selected_child = child
                 best_val = uct_val
-
-        # if DEBUG:
-        #     if ab_version == 4 and alpha != -INFINITY and beta != INFINITY and selected_child.n_visits > 0:
-        #         bins_dict["ab_uct_bins"]["bin"].add_data(best_val)
 
         # It may happen that somewhere else in the tree all my children have been found to be proven losses.
         if children_lost == n_children:
@@ -398,7 +397,7 @@ class Node:
     @cython.locals(child=Node, i=cython.int)
     def check_loss_node(self):
         # I'm solved, nothing to see here.
-        if self.solved_player != 0.0:
+        if self.solved_player != 0:
             return
 
         for i in range(len(self.children)):
@@ -764,48 +763,7 @@ class MCTSPlayer:
             sorted_children = sorted(self.root.children[:30], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
-            # if self.ab_version == 4:
-            #     plot_width = 160
-            #     plot_height = 30
-            #     if not just_play:
-            #         plot_selected_bins(bins_dict, plot_width, plot_height)
-            #         # Clear bins
-            #         print("clearing bins, this takes a while..")
-            #         for _, bin_value in bins_dict.items():
-            #             del bin_value["bin"]
-            #             print(f"\rclearing {bin_value['label']}", end=" ")
-            #             bin_value["bin"] = DynamicBin(n_bins)
-
-            #         print("\rCollecting garbage")
-            #         gc.collect()
-            #         print("Done\n\n")
-            #         if not just_play:
-            #             second_run = input("Do another run? [y/N]: ")
-            #             if second_run.lower() == "y":
-            #                 try:
-            #                     self.c = float(input(f"Enter new c value (currently: {self.c}): "))
-            #                 except ValueError:
-            #                     # Just keep the c the same
-            #                     pass
-            #                 try:
-            #                     self.imm_alpha = float(
-            #                         input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
-            #                     )
-            #                 except ValueError:
-            #                     # Just keep the imm_alpha the same
-            #                     pass
-            #                 self.root = None
-            #                 return self.best_action(state)
-            # else:
-            #     # Clear bins
-            #     print("clearing bins, this takes a while..")
-            #     for _, bin_value in bins_dict.items():
-            #         del bin_value["bin"]
-            #         print(f"\rclearing {bin_value['label']}", end=" ")
-            #         bin_value["bin"] = DynamicBin(n_bins)
-            #     print("\rCollecting garbage")
-            #     gc.collect()
-
+            
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
         return max_node.action, max_value  # return the most visited state
@@ -831,12 +789,6 @@ class MCTSPlayer:
         global prunes, non_prunes
         alpha: cython.double[2] = [-INFINITY, -INFINITY]
         beta: cython.double[2] = [INFINITY, INFINITY]
-        # TODO Test this, see if it is the same as using alpha/beta to store everything
-        # alpha_bound: cython.double[2] = [0.0, 0.0]  # bounds around alpha for both players
-        # alpha_val: cython.double[2] = [-INFINITY, -INFINITY]  # alpha values for both players
-
-        alpha_val: cython.double[2] = [-INFINITY, -INFINITY]
-        beta_val: cython.double[2] = [INFINITY, INFINITY]
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
@@ -858,99 +810,39 @@ class MCTSPlayer:
                         and -val - bound >= alpha[o_i]
                         and val - bound > alpha[p_i]
                         and val + bound < beta[p_i]
-                        and alpha_val[p_i] <= val < beta_val[p_i]
-                        and alpha_val[o_i] < -val <= beta_val[o_i]
                     ):
                         beta[o_i] = -val + bound
-                        beta_val[o_i] = -val
-
                         alpha[p_i] = val - bound
-                        alpha_val[p_i] = val
-
-                        # original_alpha_results[p_i] = alpha[p_i]
-                        # original_beta_results[o_i] = beta[o_i]
-                        
-                        # if DEBUG:
-                        #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
-                        #     bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
-                        #     bins_dict["bound_bins"]["bin"].add_data(bound)
-
-                        #     if alpha_val[player_i] != -INFINITY:
-                        #         bins_dict["alpha_bins"]["bin"].add_data(alpha_val[player_i])
-                        #     if beta_val[player_i] != INFINITY:
-                        #         bins_dict["beta_bins"]["bin"].add_data(beta_val[player_i])
-
-                        #     bins_dict["ab_visits_bins"]["bin"].add_data(node.n_visits)
-                        #     bins_dict["ab_depth_bins"]["bin"].add_data(depth)
-
-                        #     if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
-                        #         bins_dict["dist_bins"]["bin"].add_data((beta[player_i] - alpha[player_i]))
-                        #     #  ======
-                        #     if alpha_val[0] != -INFINITY:
-                        #         bins_dict["alpha_1_bins"]["bin"].add_data(alpha[0])
-                        #         bins_dict["beta_1_bins"]["bin"].add_data(beta[0])
-                        #         if beta[0] != INFINITY:
-                        #             bins_dict["1_dist_bins"]["bin"].add_data(beta[0] - alpha[0])
-                        #     if alpha_val[1] != -INFINITY:
-                        #         bins_dict["alpha_2_bins"]["bin"].add_data(alpha[1])
-                        #         bins_dict["beta_2_bins"]["bin"].add_data(beta[1])
-                        #         if beta[1] != INFINITY:
-                        #             bins_dict["2_dist_bins"]["bin"].add_data(beta[1] - alpha[1])
                     else:
                         prune = 1
                         prunes += 1
-                        
-                    """
-                    # * I think this can be done more efficiently by observing that:
-                    # * alpha_val[0] == -beta_val[1]
-                    # * alpha_val[1] == -beta_val[0]
-                    # * Hence, if we keep track of the bounds and the alpha_val, then we can always derive the beta_val
-                    
-                    
-                    if (
-                            -val + bound <= -alpha_val[p_i] + alpha_bound[p_i]
-                            and -val - bound >= alpha_val[o_i] - alpha_bound[o_i]
-                            and val - bound > alpha_val[p_i] - alpha_bound[p_i]
-                            and val + bound < -alpha_val[o_i] + alpha_bound[o_i]
-                            and alpha_val[p_i] <= val < -alpha_val[o_i]
-                            and alpha_val[o_i] < -val <= -alpha_val[p_i]
-                        ):
-                            alpha_bound[p_i] = bound
-                            alpha_val[p_i] = val
-                            
-                    """
-                    # proposed_alpha_val_results[p_i] = alpha_val[p_i] - alpha_bound[p_i]
-                    # proposed_alpha_bound_results[o_i] = -alpha_val[o_i] + alpha_bound[o_i]
-                    # for i in range(2):
-                    #     assert original_alpha_results[i] == proposed_alpha_val_results[i], f"Discrepancy in alpha at index {i}"
-                    #     assert original_beta_results[i] == proposed_alpha_bound_results[i], f"Discrepancy in beta at index {i}"
 
                     if not prune:
                         non_prunes += 1
 
-                    if self.ab_version == 5 and prune:
+                    if self.ab_version == 10 and prune:
                         alpha[0] = 0
                         alpha[1] = 0
                         beta[0] = 0
                         beta[1] = 0
-                        alpha_val[0] = 0
-                        alpha_val[1] = 0
-                        beta_val[0] = 0
-                        beta_val[1] = 0
-
-                    elif self.ab_version == 6 and prune:
+                    elif self.ab_version == 11 and prune:
                         alpha[0] = -INFINITY
                         alpha[1] = -INFINITY
                         beta[0] = INFINITY
                         beta[1] = INFINITY
-                        alpha_val[0] = -INFINITY
-                        alpha_val[1] = -INFINITY
-                        beta_val[0] = INFINITY
-                        beta_val[1] = INFINITY
+                    elif self.ab_version == 12 and prune:
+                        alpha[0] = -2
+                        alpha[1] = -2
+                        beta[0] = 2
+                        beta[1] = 2
+                    elif self.ab_version == 13 and prune:
+                        alpha[0] = -0.5
+                        alpha[1] = -0.5
+                        beta[0] = 0.5
+                        beta[1] = 0.5
 
                 prev_node = node
-                if self.ab_version != 2 and self.ab_version != 0:
-                    # Apply this one to all versions except 2 / so you can choose whether to use alpha or alpha_val etc.
+                if self.ab_version != 0:
                     node = node.uct(
                         self.c,
                         self.pb_weight,
@@ -958,16 +850,6 @@ class MCTSPlayer:
                         ab_version=self.ab_version,
                         alpha=alpha[node.player - 1],  # Alpha and beta including the bounds
                         beta=beta[node.player - 1],
-                    )
-                elif self.ab_version == 2:
-                    # Use this to determine whether to use version 1 or 2, then also use the best of the two for 5 and 6
-                    node = node.uct(
-                        self.c,
-                        self.pb_weight,
-                        self.imm_alpha,
-                        ab_version=self.ab_version,
-                        alpha=alpha_val[node.player - 1],  # Alpha and beta excluding the bounds
-                        beta=alpha_val[node.player - 1],
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
@@ -1239,3 +1121,90 @@ def quiescence(
             stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
 
     return stand_pat  # Return the best score found
+
+# if self.ab_version == 4:
+#     plot_width = 160
+#     plot_height = 30
+#     if not just_play:
+#         plot_selected_bins(bins_dict, plot_width, plot_height)
+#         # Clear bins
+#         print("clearing bins, this takes a while..")
+#         for _, bin_value in bins_dict.items():
+#             del bin_value["bin"]
+#             print(f"\rclearing {bin_value['label']}", end=" ")
+#             bin_value["bin"] = DynamicBin(n_bins)
+
+#         print("\rCollecting garbage")
+#         gc.collect()
+#         print("Done\n\n")
+#         if not just_play:
+#             second_run = input("Do another run? [y/N]: ")
+#             if second_run.lower() == "y":
+#                 try:
+#                     self.c = float(input(f"Enter new c value (currently: {self.c}): "))
+#                 except ValueError:
+#                     # Just keep the c the same
+#                     pass
+#                 try:
+#                     self.imm_alpha = float(
+#                         input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
+#                     )
+#                 except ValueError:
+#                     # Just keep the imm_alpha the same
+#                     pass
+#                 self.root = None
+#                 return self.best_action(state)
+# else:
+#     # Clear bins
+#     print("clearing bins, this takes a while..")
+#     for _, bin_value in bins_dict.items():
+#         del bin_value["bin"]
+#         print(f"\rclearing {bin_value['label']}", end=" ")
+#         bin_value["bin"] = DynamicBin(n_bins)
+#     print("\rCollecting garbage")
+#     gc.collect()
+
+# if DEBUG:
+#     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
+#     bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
+#     bins_dict["bound_bins"]["bin"].add_data(bound)
+
+#     if alpha_val[player_i] != -INFINITY:
+#         bins_dict["alpha_bins"]["bin"].add_data(alpha_val[player_i])
+#     if beta_val[player_i] != INFINITY:
+#         bins_dict["beta_bins"]["bin"].add_data(beta_val[player_i])
+
+#     bins_dict["ab_visits_bins"]["bin"].add_data(node.n_visits)
+#     bins_dict["ab_depth_bins"]["bin"].add_data(depth)
+
+#     if alpha_val[player_i] != -INFINITY and beta_val[player_i] != INFINITY:
+#         bins_dict["dist_bins"]["bin"].add_data((beta[player_i] - alpha[player_i]))
+#     #  ======
+#     if alpha_val[0] != -INFINITY:
+#         bins_dict["alpha_1_bins"]["bin"].add_data(alpha[0])
+#         bins_dict["beta_1_bins"]["bin"].add_data(beta[0])
+#         if beta[0] != INFINITY:
+#             bins_dict["1_dist_bins"]["bin"].add_data(beta[0] - alpha[0])
+#     if alpha_val[1] != -INFINITY:
+#         bins_dict["alpha_2_bins"]["bin"].add_data(alpha[1])
+#         bins_dict["beta_2_bins"]["bin"].add_data(beta[1])
+#         if beta[1] != INFINITY:
+#             bins_dict["2_dist_bins"]["bin"].add_data(beta[1] - alpha[1])
+
+# bins_dict = {
+#     "p1_value_bins": {"bin": DynamicBin(n_bins), "label": "p1 ab Values"},
+#     "p2_value_bins": {"bin": DynamicBin(n_bins), "label": "p2 ab Values"},
+#     "bound_bins": {"bin": DynamicBin(n_bins), "label": "Bounds around a/b"},
+#     "alpha_bins": {"bin": DynamicBin(n_bins), "label": "Effective Alpha values"},
+#     "beta_bins": {"bin": DynamicBin(n_bins), "label": "Effective Beta values"},
+#     "ab_visits_bins": {"bin": DynamicBin(n_bins), "label": "a/b/ Node visit counts"},
+#     "ab_depth_bins": {"bin": DynamicBin(n_bins), "label": "Depth of a/b nodes"},
+#     "dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha"},
+#     "alpha_1_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 1 nodes"},
+#     "beta_1_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 1 nodes"},
+#     "1_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 1"},
+#     "alpha_2_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 2 nodes"},
+#     "beta_2_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 2 nodes"},
+#     "2_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 2"},
+#     "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "Best UCB values"},
+# }

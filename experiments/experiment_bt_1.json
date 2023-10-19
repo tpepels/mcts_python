@@ -6,13 +6,49 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "c": [0.4, 0.6, 0.8, 1]
+      "c": 0.6,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2,
+      "ab_version": [1, 2, 3, 4, 5, 6, 10, 11, 12, 13]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 100000,
-      "c": 1
+      "c": 0.6,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2
+    },
+    "p2_eval_params": {}
+  },
+
+  {
+    "n_games": 192,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.4,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2,
+      "ab_version": [1, 2, 3, 4, 5, 6, 10, 11, 12, 13]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.6,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2
     },
     "p2_eval_params": {}
   },
@@ -23,15 +59,22 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "c": [0.4, 0.6, 0.8, 1],
-      "imm_alpha": [0, 0.2, 0.4, 0.6, 0.8]
+      "c": 0.8,
+      "imm_alpha": 0.4,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2,
+      "ab_version": [1, 2, 3, 4, 5, 6, 10, 11, 12, 13]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 100000,
       "c": 0.6,
-      "imm_alpha": 0.6
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2
     },
     "p2_eval_params": {}
   }
