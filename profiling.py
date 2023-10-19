@@ -2,9 +2,11 @@ import argparse
 import cProfile
 import inspect
 import pstats
+import time
 import traceback
 import os
 from run_games import AIParams, run_game
+from util import format_time
 
 ai_choices = ["mcts", "alphabeta"]
 # Set up argument parser
@@ -105,19 +107,15 @@ else:
     # * Battle
     algo = args.algo
     eval_params = {}
-    # alphabeta player
-    # ai_2_params = {
-    #     "max_time": 2,
-    #     "debug": args.debug,
-    # }
+    
     ai_1_params = {
         # "max_time": 2,
         "num_simulations": 100_000,
         "debug": args.debug,
-        "c": 0.2,
+        "c": 0.6,
         "early_term": True,
-        "early_term_turns": 20,
-        "early_term_cutoff": 0.05,
+        "early_term_turns": 10,
+        "early_term_cutoff": 0.2,
         # # "roulette": True,
         # # "roulette_epsilon": 0.05,
         # "imm_alpha": 0.4,
@@ -126,10 +124,10 @@ else:
     ai_2_params = {
         "num_simulations": 100_000,
         "debug": args.debug,
-        "c": 1,
+        "c": 0.6,
         "early_term": True,
-        "early_term_turns": 20,
-        "early_term_cutoff": 0.05,
+        "early_term_turns": 10,
+        "early_term_cutoff": 0.2,
         # # "roulette": True,
         # # "roulette_epsilon": 0.05,
         # "imm_alpha": 0.4,
@@ -160,7 +158,8 @@ def run_game_code():
         debug=args.debug,
     )
 
-
+# Time the game:
+start_time = time.time()
 if args.no_profile:
     print(" --- Running without profiler ---")
     try:
@@ -184,3 +183,7 @@ else:
     p = pstats.Stats("profiler_results.out")
     p.sort_stats("tottime")
     p.print_stats(30)
+
+end_time = time.time()
+
+print(f" --- Game took {format_time(end_time - start_time)} seconds ---")
