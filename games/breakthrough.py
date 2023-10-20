@@ -276,11 +276,10 @@ class BreakthroughGameState(GameState):
             dr = 1
 
         n: cython.int = len(self.positions[self.player - 1])
-        start: cython.int = random.randint(0, n - 1)  # This allows us to start at a random piece
+        start: cython.int = random.randint(1, n)  # This allows us to start at a random piece
 
         i: cython.int
 
-        safe_captures: vector[pair[cython.int, cython.int]]
         all_moves: vector[pair[cython.int, cython.int]]
         all_moves.reserve(n * 4)
 
@@ -298,10 +297,12 @@ class BreakthroughGameState(GameState):
                 dc: cython.int = dirs[(start_dc + k) % 3]
                 new_row: cython.int = row + dr
                 new_col: cython.int = col + dc
+                
                 if not (
                     (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
                 ):  # if the new position is not in bounds, skip to the next direction
                     continue
+                
                 new_position: cython.int = new_row * 8 + new_col
 
                 # Straight, no capture or diagonal capture / empty cell
@@ -319,30 +320,29 @@ class BreakthroughGameState(GameState):
                         # Prioritize safe captures
                         # To make sure that the piece is not itself counted as defending the position
                         self.board[position] = 0
+                        
+                        # give captures higher chance of being selected
+                        capture_pair: pair[cython.int, cython.int] = pair[cython.int, cython.int](
+                            position, new_position
+                        )
+                        all_moves.push_back(capture_pair)
+                        all_moves.push_back(capture_pair)
+                        all_moves.push_back(capture_pair)
+                        all_moves.push_back(capture_pair)
+                        
                         if is_safe(new_position, self.player, self.board):
-                            safe_captures.push_back(pair[cython.int, cython.int](position, new_position))
-                        elif safe_captures.empty():
-                            # give captures higher chance of being selected
-                            capture_pair: pair[cython.int, cython.int] = pair[cython.int, cython.int](
-                                position, new_position
-                            )
                             all_moves.push_back(capture_pair)
                             all_moves.push_back(capture_pair)
                             all_moves.push_back(capture_pair)
                             all_moves.push_back(capture_pair)
+                            
                         self.board[position] = self.player  # Put the piece back
 
                     # Safe captures are prioritized anyway so no need to add non-captures
-                    if safe_captures.empty():
-                        all_moves.push_back(pair[cython.int, cython.int](position, new_position))
-
-        # Always do a safe capture if you can
-        if not safe_captures.empty():
-            if safe_captures.size() > 1:
-                return random.choice(safe_captures)
-            return safe_captures[0]
+                    all_moves.push_back(pair[cython.int, cython.int](position, new_position))
+                    
         # All_moves includes captures, they'll be selected with a higher probability
-        return random.choice(all_moves)
+        return all_moves[random.randint(0, all_moves.size() - 1)]
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list[cython.tuple]:
