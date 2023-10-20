@@ -477,8 +477,8 @@ class BlokusGameState(GameState):
 
         return legal_actions
 
-    param_order: dict = {"m_corn_diff": 0, "m_piece_size": 1, "m_turn": 2, "a": 3}
-    default_params = array.array("d", [10, 2, 0.9, 150])
+    param_order: dict = {"m_corn_diff": 0, "m_piece_size": 1, "a": 2}
+    default_params = array.array("d", [1, 1, 200])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -504,13 +504,11 @@ class BlokusGameState(GameState):
         piece_size_diff: cython.int = self.pieces.sum_piece_size(3 - player) - self.pieces.sum_piece_size(
             player
         )
-        # "m_corn_diff": 0, "m_piece_size": 1, "m_turn": 2, "a": 3
+        # "m_corn_diff": 0, "m_piece_size": 1, a": 2
         score: cython.double = (params[0] * corner_diff) + (params[1] * piece_size_diff)
-        # If it's the player's turn, then multiply by m_turn
-        score *= 1 if self.player == player else params[2]
 
         if norm:
-            return normalize(score, params[3])
+            return normalize(score, params[2])
         else:
             return score
 

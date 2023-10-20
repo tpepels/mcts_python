@@ -272,6 +272,8 @@ def genetic_algorithm(
             pairs = create_pairs_against_opponent(population, fixed_opponent, games_per_pair)
             
         gen_start_time = time.time()
+        if debug:
+            print(f"Created {len(pairs)} pairs of individuals.")
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
