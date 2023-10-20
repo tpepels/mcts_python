@@ -1,8 +1,8 @@
 [
   {
-    "population_size": 100,
+    "population_size": 50,
     "num_generations": 20,
-    "mutation_rate": 0.05,
+    "mutation_rate": 0.01,
     "games_per_pair": 5,
     "game_name": "amazons",
     "player_name": "alphabeta",
@@ -17,9 +17,9 @@
     "ai_param_ranges": {},
     "eval_param_ranges": {
       "n_moves_cutoff": { "range": [2, 40], "precision": 0 },
-      "m_kill_s": { "range": [0, 100], "precision": 0 },
-      "m_imm": { "range": [0, 100], "precision": 0 },
-      "m_mob": { "range": [0, 100], "precision": 0 },
+      "m_kill_s": { "range": [0, 2], "precision": 1 },
+      "m_imm": { "range": [0, 2], "precision": 1 },
+      "m_mob": { "range": [0, 2], "precision": 1 },
       "m_opp_disc": { "range": [0.5, 1], "precision": 2 },
       "m_min_mob": { "range": [0, 100], "precision": 0 }
     },

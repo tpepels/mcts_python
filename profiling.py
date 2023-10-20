@@ -111,7 +111,7 @@ else:
     ai_1_params = {
         "max_time": 5,
         "debug": args.debug,
-        "c": 0.6,
+        "c": 1.0,
         # "early_term": True,
         # "early_term_turns": 10,
         # "early_term_cutoff": 0.05,
