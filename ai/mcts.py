@@ -507,6 +507,7 @@ class MCTSPlayer:
     imm_version: cython.int
     ex_imm_D: cython.int  # The extra depth that will be searched
     ab_version: cython.int
+    ab_prune_version: cython.int
 
     def __init__(
         self,
@@ -528,6 +529,7 @@ class MCTSPlayer:
         imm_alpha: float = 0.0,
         imm_version: int = 0,
         ab_version: int = 0,
+        ab_prune_version: int = 0,
         ex_imm_D: int = 2,
         epsilon: float = 0.05,
         prog_bias: bool = False,
@@ -585,6 +587,7 @@ class MCTSPlayer:
         self.imm_version = imm_version
         self.ex_imm_D = ex_imm_D
         self.ab_version = ab_version
+        self.ab_prune_version = ab_prune_version
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
@@ -820,22 +823,22 @@ class MCTSPlayer:
                     if not prune:
                         non_prunes += 1
 
-                    if self.ab_version == 10 and prune:
+                    if self.ab_prune_version == 1 and prune:
                         alpha[0] = 0
                         alpha[1] = 0
                         beta[0] = 0
                         beta[1] = 0
-                    elif self.ab_version == 11 and prune:
+                    elif self.ab_prune_version == 2 and prune:
                         alpha[0] = -INFINITY
                         alpha[1] = -INFINITY
                         beta[0] = INFINITY
                         beta[1] = INFINITY
-                    elif self.ab_version == 12 and prune:
+                    elif self.ab_prune_version == 3 and prune:
                         alpha[0] = -2
                         alpha[1] = -2
                         beta[0] = 2
                         beta[1] = 2
-                    elif self.ab_version == 13 and prune:
+                    elif self.ab_prune_version == 4 and prune:
                         alpha[0] = -0.5
                         alpha[1] = -0.5
                         beta[0] = 0.5
