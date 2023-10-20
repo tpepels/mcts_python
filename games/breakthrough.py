@@ -431,12 +431,11 @@ class BreakthroughGameState(GameState):
         "m_endgame": 3,
         "m_cap": 4,
         "m_piece_diff": 5,
-        "m_opp_disc": 6,
-        "m_decisive": 7,
-        "a": 8,
+        "m_decisive": 6,
+        "a": 7,
     }
 
-    default_params = array.array("d", [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 80.0])
+    default_params = array.array("d", [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 80.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -500,15 +499,15 @@ class BreakthroughGameState(GameState):
         # "m_opp_disc": 6,
         # "m_decisive": 7,
         # "a": 8,
-        if params[7] != 0.0:
+        if params[6] != 0.0:
             player_1_decisive, player_2_decisive = is_decisive(self)
 
             if player == 1:
-                decisive_values = params[7] if player_1_decisive else 0
-                decisive_values -= params[7] if player_2_decisive else 0
+                decisive_values = params[6] if player_1_decisive else 0
+                decisive_values -= params[6] if player_2_decisive else 0
             else:  # self.player == 2
-                decisive_values = params[7] if player_2_decisive else 0
-                decisive_values -= params[7] if player_1_decisive else 0
+                decisive_values = params[6] if player_2_decisive else 0
+                decisive_values -= params[6] if player_1_decisive else 0
 
         if params[4] >= 0:
             caps = count_capture_moves(self.board, self.positions[player - 1], player) - count_capture_moves(
@@ -539,11 +538,8 @@ class BreakthroughGameState(GameState):
         #     f"{player=} decisive: {decisive_values:.3f} | board: {board_values:.3f} | mobility: {mobility_values:.3f} | safety: {safety_values:.3f} | endgame: {endgame_values:.3f} | caps: {caps:.3f} | piece_diff: {piece_diff:.3f}"
         # )
 
-        if self.player == opponent:
-            eval_value *= params[6]
-
         if norm:
-            return normalize(eval_value, params[8])
+            return normalize(eval_value, params[7])
         else:
             return eval_value
 

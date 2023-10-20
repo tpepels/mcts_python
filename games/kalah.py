@@ -519,11 +519,10 @@ class KalahGameState(GameState):
         "m_empty": 2,
         "m_double": 3,
         "m_capture": 4,
-        "m_opp_disc": 5,
-        "a": 6,
+        "a": 5,
     }
 
-    default_params = array.array("d", [18.0, 0.1, 6.5, 8.7, 6.5, 0.95, 200])
+    default_params = array.array("d", [1.0, 0.0, 0.0, 0.0, 0.0, 200])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -596,11 +595,8 @@ class KalahGameState(GameState):
             + (params[4] * capture_diff)
         )
 
-        if self.player == 3 - player:
-            evaluation *= params[5]
-
         if norm:
-            return normalize(evaluation, params[6])
+            return normalize(evaluation, params[5])
         else:
             return evaluation
 

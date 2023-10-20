@@ -427,12 +427,11 @@ class AmazonsGameState(GameState):
         "m_kill_s": 1,
         "m_imm": 2,
         "m_mob": 3,
-        "m_opp_disc": 4,
+        "m_min_mob": 4,
         "a": 5,
-        "m_min_mob": 6,
     }
 
-    default_params = array.array("d", [10, 2.0, 1.5, 13.0, 2.0, 1.0, 50.0])
+    default_params = array.array("d", [10, 0.0, 0.0, 1.0, 0.0, 20.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -497,11 +496,8 @@ class AmazonsGameState(GameState):
             (params[1] * kill_save)
             + (params[2] * imm_mob)
             + (params[3] * mob_heur)
-            + (params[6] * (min_mob_opp_queen - min_mob_my_queen))
+            + (params[4] * (min_mob_opp_queen - min_mob_my_queen))
         )
-
-        if self.player == 3 - player:
-            utility *= params[4]
 
         if norm:
             return normalize(utility, params[5])
