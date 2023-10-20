@@ -1,4 +1,4 @@
-from games.tictactoe import TicTacToeGameState, MARKS
+from games.tictactoe import TicTacToeGameState
 import pygame
 import time
 
@@ -41,8 +41,8 @@ def draw_window(state):
         for j in range(COLS):
             if state.board[i][j] > 2:
                 continue
-            mark = MARKS[state.board[i][j]]
-            if mark == "X":
+            mark = state.board[i][j]
+            if mark == 1:
                 pygame.draw.line(
                     WIN,
                     RED,
@@ -57,7 +57,7 @@ def draw_window(state):
                     (j * SQUARE_SIZE + 5, (i + 1) * SQUARE_SIZE - 5),
                     10,
                 )
-            elif mark == "O":
+            elif mark == 2:
                 pygame.draw.circle(
                     WIN,
                     RED,
@@ -74,10 +74,10 @@ def main():
     game_state = TicTacToeGameState(board_size=ROWS, row_length=5)
     ai_player = 2
     ai_params = AIParams(
-        ai_key="alphabeta",
+        ai_key="mcts",
         eval_params={},
         max_player=2,
-        ai_params={"max_depth": 20, "max_time": 5, "debug": True},
+        ai_params={"max_time": 5, "debug": True, "imm_alpha": 0.6, "c": 1},
         transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, TicTacToeGameState.param_order, TicTacToeGameState.default_params)
@@ -96,7 +96,7 @@ def main():
                     game_state = game_state.apply_action((row, col))
                 except ValueError:
                     pass  # Illegal move, ignore and let player try again.
-                print(f" AI EVAL 1: {ai.evaluate(game_state, 1)}")
+                # print(f" AI EVAL 1: {ai.evaluate(game_state, 1)}")
         draw_window(game_state)
 
         if ai_to_play:
@@ -104,7 +104,7 @@ def main():
             move, _ = ai.best_action(game_state)
             game_state = game_state.apply_action(move)
             print(f"    ---- AI moved {move} ---- ")
-            print(f" AI EVAL 2:  {ai.evaluate(game_state, 2)}")
+            # print(f" AI EVAL 2:  {ai.evaluate(game_state, 2)}")
 
         draw_window(game_state)
 

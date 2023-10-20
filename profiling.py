@@ -109,27 +109,26 @@ else:
     eval_params = {}
     
     ai_1_params = {
-        # "max_time": 2,
-        "num_simulations": 100_000,
+        "max_time": 5,
         "debug": args.debug,
         "c": 0.6,
-        "early_term": True,
-        "early_term_turns": 10,
-        "early_term_cutoff": 0.2,
-        # # "roulette": True,
-        # # "roulette_epsilon": 0.05,
-        # "imm_alpha": 0.4,
-        # "ab_version": 0,
+        # "early_term": True,
+        # "early_term_turns": 10,
+        # "early_term_cutoff": 0.05,
+        # "roulette": True,
+        # "roulette_epsilon": 0.05,
+        "imm_alpha": 0.6,
+        # "ab_version": 4,
     }
     ai_2_params = {
-        "num_simulations": 100_000,
+        "max_time": 5,
         "debug": args.debug,
-        "c": 0.6,
-        "early_term": True,
-        "early_term_turns": 10,
-        "early_term_cutoff": 0.2,
-        # # "roulette": True,
-        # # "roulette_epsilon": 0.05,
+        # "c": 0.6,
+        # "early_term": True,
+        # "early_term_turns": 10,
+        # "early_term_cutoff": 0.2,
+        # "roulette": True,
+        # "roulette_epsilon": 0.05,
         # "imm_alpha": 0.4,
         # "ab_version": 0,
     }
@@ -141,7 +140,7 @@ else:
         ai_params=ai_1_params,
     )
     p2_params = AIParams(
-        ai_key="mcts",
+        ai_key="alphabeta",
         eval_params=eval_params,
         max_player=2,
         ai_params=ai_2_params,

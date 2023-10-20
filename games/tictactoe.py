@@ -428,9 +428,9 @@ class TicTacToeGameState(GameState):
         )
         return game
 
-    param_order: dict = {"m_power": 0, "m_opp_disc": 1, "m_centre_bonus": 2, "a": 3}
+    param_order: dict = {"m_power": 0, "m_centre_bonus": 1, "a": 2}
 
-    default_params = array.array("d", [5, 0.8, 5, 100])
+    default_params = array.array("d", [5, 5, 250])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -462,7 +462,7 @@ class TicTacToeGameState(GameState):
         params: cython.double[:],
         norm: cython.bint = 0,
     ) -> cython.double:
-        # "m_power": 0, "m_opp_disc": 1, "m_centre_bonus": 2, "a": 3
+        # "m_power": 0, "m_centre_bonus": 1, "a": 2
         score_p1 = 0
         score_p2 = 0
 
@@ -479,9 +479,9 @@ class TicTacToeGameState(GameState):
                         self.center - abs(y - self.center)
                     )
                     if p == 1:
-                        score_p1 += params[2] * centrality_score
+                        score_p1 += params[1] * centrality_score
                     else:
-                        score_p2 += params[2] * centrality_score
+                        score_p2 += params[1] * centrality_score
 
         if self.n_moves > self.row_length:
             for p in range(1, 3):
@@ -572,12 +572,10 @@ class TicTacToeGameState(GameState):
                                     else:
                                         score_p2 += count**power
         if norm:
-            return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[3])
+            return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
 
-        if self.player == player:
-            return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
-        else:
-            return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1) * params[1]
+        return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
+        
 
 
 def evaluate_tictactoe(self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0) -> float:

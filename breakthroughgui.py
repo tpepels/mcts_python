@@ -69,10 +69,18 @@ def main():
     game_state = BreakthroughGameState()
     ai_player = 2
     ai_params = AIParams(
-        ai_key="alphabeta",
+        ai_key="mcts",
         eval_params={},
         max_player=2,
-        ai_params={"max_depth": 10, "max_time": 10, "debug": True, "use_null_moves": True},
+        ai_params={      
+     "max_time": 5,
+      "c": 0.6,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 10,
+      "early_term_cutoff": 0.1,
+      "ab_version": 4,
+      "debug":True},
         transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, BreakthroughGameState.param_order, BreakthroughGameState.default_params)
