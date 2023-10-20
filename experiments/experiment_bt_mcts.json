@@ -1,0 +1,28 @@
+[
+  {
+    "n_games": 500,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.6,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2,
+      "ab_version": [2, 4, 5]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.6,
+      "imm_alpha": 0.6,
+      "early_term": 1,
+      "early_term_turns": 5,
+      "early_term_cutoff": 0.2
+    },
+    "p2_eval_params": {}
+  }
+]

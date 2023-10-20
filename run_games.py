@@ -162,10 +162,10 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     """
     # Create an instance of SystemRandom
     sys_rng = random.SystemRandom()
-
+    seed = int(sys_rng.random() * 1e8) + int(time.time() * 1e6)
     # Get a random number from SystemRandom and combine it with the current time
-    random.seed(int(sys_rng.random() * 1e8) + int(time.time() * 1e6))
-    
+    random.seed(seed)
+    print(f"Random seed set to: {seed}")
     current_player: AIPlayer = player1
     turns = 1
     while not game.is_terminal():
