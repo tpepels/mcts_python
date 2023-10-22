@@ -1,6 +1,6 @@
 [
   {
-    "population_size": 80,
+    "population_size": 120,
     "num_generations": 20,
     "mutation_rate": 0.01,
     "games_per_pair": 6,
@@ -30,7 +30,7 @@
       "pb_weight": { "range": [0.1, 1], "precision": 1 }
     },
     "eval_param_ranges": {},
-    "ai_static_params": { "max_time": 5 },
+    "ai_static_params": { "max_time": 6 },
     "eval_static_params": {},
     "default_eval_as_elite": {},
     "default_ai_as_elite": {},

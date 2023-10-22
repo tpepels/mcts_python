@@ -435,7 +435,7 @@ class BreakthroughGameState(GameState):
         "a": 7,
     }
 
-    default_params = array.array("d", [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 80.0])
+    default_params = array.array("d", [1.5, 0.6, 0.3, 0.3, 1.2, 1.3, 2.0, 40.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
