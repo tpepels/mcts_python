@@ -33,8 +33,7 @@
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 60000,
-      "c": [0.4, 0.6, 0.8],
-      "imm_alpha": [0, 0.4, 0.6, 0.8]
+      "c": [0.4, 0.6, 0.8]
     },
     "p2_eval_params": {}
   }
