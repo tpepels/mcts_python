@@ -1,6 +1,75 @@
 [
   {
     "population_size": 80,
+    "num_generations": 30,
+    "mutation_rate": 0.01,
+    "games_per_pair": 3,
+    "game_name": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "player_name": "alphabeta",
+    "opponent_name": "alphabeta",
+    "fixed_opponent": {
+      "ai": {
+        "max_time": 5,
+        "max_depth": 11
+      },
+      "eval": {}
+    },
+    "eval_param_ranges": {
+      "m_centre_bonus": { "range": [0, 5], "precision": 0 },
+      "m_power": { "range": [1, 7], "precision": 0 }
+    },
+    "ai_static_params": { "max_time": 5, "max_depth": 11 },
+    "eval_static_params": {},
+    "default_eval_as_elite": {
+      "m_power": 5,
+      "m_centre_bonus": 1
+    },
+    "default_ai_as_elite": {},
+    "debug": true
+  },
+  {
+    "population_size": 80,
+    "num_generations": 30,
+    "mutation_rate": 0.01,
+    "games_per_pair": 3,
+    "game_name": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "player_name": "mcts",
+    "opponent_name": "alphabeta",
+    "fixed_opponent": {
+      "ai": {
+        "max_time": 5,
+        "max_depth": 11
+      },
+      "eval": {}
+    },
+    "ai_param_ranges": {
+      "c": { "range": [0.1, 1], "precision": 1 },
+      "dyn_early_term": { "range": [0, 1], "precision": 0 },
+      "dyn_early_term_cutoff": { "range": [0.01, 0.3], "precision": 2 },
+      "early_term": { "range": [0, 1], "precision": 0 },
+      "early_term_turns": { "range": [2, 20], "precision": 0 },
+      "early_term_cutoff": { "range": [0.01, 0.3], "precision": 2 },
+      "e_greedy": { "range": [0, 1], "precision": 0 },
+      "e_g_subset": { "range": [0, 20], "precision": 0 },
+      "epsilon": { "range": [0.01, 0.2], "precision": 2 },
+      "roulette": { "range": [0, 1], "precision": 0 },
+      "roulette_epsilon": { "range": [0.01, 0.2], "precision": 2 },
+      "imm": { "range": [0, 1], "precision": 0 },
+      "imm_alpha": { "range": [0.1, 0.9], "precision": 1 },
+      "prog_bias": { "range": [0, 1], "precision": 0 },
+      "pb_weight": { "range": [0.1, 1], "precision": 1 }
+    },
+    "eval_param_ranges": {},
+    "ai_static_params": { "max_time": 5 },
+    "eval_static_params": {},
+    "default_eval_as_elite": {},
+    "default_ai_as_elite": {},
+    "debug": true
+  },
+  {
+    "population_size": 80,
     "num_generations": 40,
     "mutation_rate": 0.01,
     "games_per_pair": 3,
@@ -34,35 +103,6 @@
       "m_cap": 0,
       "m_decisive": 0,
       "m_piece_diff": 0
-    },
-    "default_ai_as_elite": {},
-    "debug": true
-  },
-  {
-    "population_size": 80,
-    "num_generations": 40,
-    "mutation_rate": 0.01,
-    "games_per_pair": 3,
-    "game_name": "ninarow",
-    "game_params": { "board_size": 9, "row_length": 5 },
-    "player_name": "alphabeta",
-    "opponent_name": "alphabeta",
-    "fixed_opponent": {
-      "ai": {
-        "max_time": 5,
-        "max_depth": 11
-      },
-      "eval": {}
-    },
-    "eval_param_ranges": {
-      "m_centre_bonus": { "range": [0, 5], "precision": 0 },
-      "m_power": { "range": [1, 7], "precision": 0 }
-    },
-    "ai_static_params": { "max_time": 5, "max_depth": 11 },
-    "eval_static_params": {},
-    "default_eval_as_elite": {
-      "m_power": 5,
-      "m_centre_bonus": 1
     },
     "default_ai_as_elite": {},
     "debug": true
