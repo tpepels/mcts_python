@@ -2,67 +2,25 @@
 
 import random
 from colorama import Back, Fore, init
-
 init(autoreset=True)
-
 import cython
-
 from cython.cimports.libc.time import time
-from cython.cimports.libc.math import sqrt, log, INFINITY, erf
+from cython.cimports.libc.math import sqrt, log, INFINITY
 from cython.cimports.includes import GameState, win, loss
-# from cython.cimports.includes import DynamicBin
-
 from util import abbreviate, format_time
-    
-just_play: cython.bint = 0
+
 DEBUG: cython.bint = 0
-n_bins = 14
 q_searches: cython.int = 0
 prunes: cython.int = 0
 non_prunes: cython.int = 0
 ab_bound: cython.int = 0
 ucb_bound: cython.int = 0
-cutoffs: cython.int = 0
 
 
 @cython.cfunc
 @cython.exceptval(-1, check=False)
 def curr_time() -> cython.long:
     return time(cython.NULL)
-
-@cython.cfunc
-@cython.returns(cython.int)
-@cython.exceptval(-1, check=False)
-def bin_probability(p: cython.double, num_bins: cython.int = 12):
-    """Assign a probability to a bin.
-
-    Parameters:
-        p (float): The probability to bin, between 0 and 1.
-        num_bins (int): The number of bins.
-
-    Returns:
-        int: The bin number (0-indexed).
-    """
-    if p < 0 or p > 1:
-        raise ValueError("Probability must be between 0 and 1.")
-
-    if p == 0:
-        return 0
-    elif p == 1:
-        return num_bins - 1
-    else:
-        # Calculate bin size
-        bin_size: cython.double = 1.0 / (num_bins - 1)
-        # Find the bin number
-        bin_number: cython.int = cython.cast(cython.int, (p // bin_size) + 1)
-        return bin_number
-
-
-@cython.cfunc
-@cython.exceptval(-999999, check=False)
-def cdf(x: cython.double, mean: cython.double = 0, std_dev: cython.double = 1) -> cython.double:
-    return 0.5 * (1 + erf((x - mean) / (std_dev * sqrt(2))))
-
 
 @cython.freelist(10000)
 @cython.cclass
@@ -110,8 +68,6 @@ class Node:
         beta: cython.double = INFINITY,
     ) -> Node:
         n_children: cython.int = len(self.children)
-
-        assert n_children > 0, "Trying to uct a node without children"
         assert self.expanded, "Trying to uct a node that is not expanded"
 
         global ab_bound, ucb_bound
@@ -130,7 +86,6 @@ class Node:
             # Make sure that every child is seen at least once.
             if child.n_visits == 0:
                 return child
-
             # Check for solved children
             if child.solved_player != 0:
                 if child.solved_player == self.player:  # Winning move, let's go champ
@@ -140,7 +95,7 @@ class Node:
                 elif child.solved_player == 3 - self.player:  # Losing move
                     children_lost += 1
                     continue  # Skip this child, we need to check if all children are losses to mark this node as solved
-
+                
             # Check whether all moves lead to a draw
             if child.draw:
                 children_draw += 1
@@ -149,7 +104,7 @@ class Node:
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
-            ) + random.uniform(0, 0.00001)
+            )
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 if ab_version == 1:
@@ -195,7 +150,7 @@ class Node:
             self.solved_player = 3 - self.player
             # just return a random child, they all lead to a loss anyway
             return random.choice(self.children)
-        elif children_lost == (n_children - 1) and self.solved_player == 0:
+        elif children_lost == (n_children - 1) and self.solved_player == 0 or self.solved_player == self.player:
             # There's only one move that does not lead to a loss. This is an anti-decisive move.
             self.anti_decisive = 1
         # Proven draw
@@ -215,7 +170,8 @@ class Node:
         imm_ex_D: cython.int = 0,
     ) -> Node:
         assert not self.expanded, f"Trying to re-expand an already expanded node, you madman. {str(self)}"
-
+        assert self.player == init_state.player, f"Player mismatch in expand! {self.player=} != {init_state.player=}"
+        
         if self.children == []:
             # * Idee: move ordering!
             self.actions = init_state.get_legal_actions()
@@ -325,7 +281,8 @@ class Node:
                                 alpha=-INFINITY,  # ? Can we set these to some meaningful values?
                                 beta=INFINITY,  # ? Can we set these to some more meaningful values?
                             )
-
+                    
+                    child.n_visits += 1
                     # This means that player 2 is minimizing the evaluated value and player 1 is maximizing it
                     if (self.player != self.max_player and child.im_value < self.im_value) or (
                         self.player == self.max_player and child.im_value > self.im_value
@@ -333,20 +290,18 @@ class Node:
                         # The child improves the current evaluation, hence we can update the evaluation value
                         self.im_value = child.im_value
                     elif imm_version == 3 or imm_version == 13 or imm_version == 23:
-                        # Give each child a visit, to make sure the imm score is used in the uct selection and no unnessesary nodes are added
-                        child.n_visits += 1
                         # Keep adding nodes until we find a node that improves the im value, i.e. don't return just yet
                         continue
 
             return child  # Return the chlid, this is the node we will explore next.
+        
         # If we've reached this point, then the node is fully expanded so we can switch to UCT selection
         self.expanded = 1
+        
         # Check if all my nodes lead to a loss.
         self.check_loss_node()
 
         if imm:
-            # TODO Moet dit wel hier, want de node is selected dus je doet het ook in simulate
-            # TODO In imm3 zou elke node al een visit moeten hebben, dus dit is niet nodig
             # Do the full minimax back-up
             best_im: cython.double
             best_node: Node
@@ -356,10 +311,11 @@ class Node:
             i: cython.int
             for i in range(len(self.children)):
                 child = self.children[i]
+                
+                # * Minimize or Maximize my im value over all children
                 if (self.player == self.max_player and child.im_value > best_im) or (
                     self.player != self.max_player and child.im_value < best_im
                 ):
-                    # * Minimize or Maximize my im value over all children
                     best_im = child.im_value
                     best_node = child
 
@@ -592,9 +548,6 @@ class MCTSPlayer:
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
-        global bin_counts
-        bin_counts = [0] * 12  # DEBUG 12 bins (0 for exactly 0 and 11 for exactly 1)
-
         self.n_moves += 1
         # Check if we can reutilize the root
         # If the root is None then this is either the first move, or something else..
@@ -605,6 +558,7 @@ class MCTSPlayer:
                     f"Checking children of root node {str(self.root)} with {len(self.root.children)} children"
                 )
                 print(f"Last action: {str(state.last_action)}")
+            
             children: cython.list = self.root.children
             self.root = None  # In case we cannot find the action, mark the root as None to assert
 
@@ -638,10 +592,6 @@ class MCTSPlayer:
 
         if self.num_simulations:
             for i in range(self.num_simulations):
-                # if DEBUG:
-                #     if (i + 1) % 100 == 0:
-                #         print(f"\rSimulation: {i+1:,} ", end="")
-
                 self.simulate(state)
                 # The root is solved, no need to look any further, since we have a winning/losing move
                 if self.root.solved_player != 0:
@@ -653,9 +603,6 @@ class MCTSPlayer:
         else:
             counter: cython.int = 0
             while True:
-                # if DEBUG:
-                #     if (i + 1) % 100 == 0:
-                #         print(f"\rSimulation: {i+1:,} ", end="")
                 self.simulate(state)
                 i += 1
                 # The root is solved, no need to look any further, since we have a winning/losing move
@@ -665,7 +612,6 @@ class MCTSPlayer:
                     break
                 if self.root.draw:
                     break
-
                 # Only check the time every once in a while to save cost
                 counter += 1
                 if counter > 500:
@@ -686,21 +632,20 @@ class MCTSPlayer:
             if self.root.solved_player != 0:
                 print(f"*** Root node is solved for player {self.root.solved_player} ***")
             if self.root.anti_decisive:
-                print(f"*** Anti-decisive move found ***")
+                print("*** Anti-decisive move found ***")
             if self.root.draw:
                 print("*** Proven draw ***")
 
         # retrieve the node with the most visits
-        assert (
-            len(self.root.children) > 0
-        ), f"No children found for root node {self.root}, after {i:,} simulations"
+        # assert (
+        #     len(self.root.children) > 0
+        # ), f"No children found for root node {self.root}, after {i:,} simulations"
 
         max_node: Node = None
         max_value: cython.double = -INFINITY
         n_children: cython.int = len(self.root.children)
 
         c_i: cython.int
-        # TODO Idea, use the im_value to decide which child to select
         for c_i in range(0, n_children):
             node: Node = self.root.children[c_i]
             if node.solved_player == self.player:  # We found a winning move, let's go champ
@@ -712,7 +657,7 @@ class MCTSPlayer:
                 continue
 
             value: cython.double = node.n_visits
-            if value > max_value:
+            if value >= max_value:
                 max_node = node
                 max_value = value
 
@@ -753,13 +698,10 @@ class MCTSPlayer:
             print(
                 f"prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}% | alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
             )
-
             ucb_bound = ab_bound = 0
             prunes = q_searches = non_prunes = 0
             self.max_depth = self.avg_depth = 0
             print("--*--" * 20)
-
-        if DEBUG:
             print(f":: {self.root} :: ")
             print(":: Children ::")
             comparator = ChildComparator()
@@ -856,8 +798,6 @@ class MCTSPlayer:
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
-
-                assert node is not None, f"Node should not be None after UCT: {prev_node}"
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
@@ -869,12 +809,12 @@ class MCTSPlayer:
                     imm_ex_D=self.ex_imm_D,
                 )
                 expanded = 1
-                assert node is not None, f"Node should not be None after expand: {prev_node}"
             elif expanded:
                 break
 
             next_state = next_state.apply_action(node.action)
             is_terminal = next_state.is_terminal()
+            
             selected.append(node)
 
         # * Playout / Terminal node reached
@@ -891,8 +831,6 @@ class MCTSPlayer:
                 result = (1.0, 0.0)
             elif node.solved_player == 2:
                 result = (0.0, 1.0)
-            else:
-                assert False, "This should not happen!"
 
         # Keep track of the max depth of the tree
         self.max_depth = max(self.max_depth, len(selected))
@@ -919,6 +857,7 @@ class MCTSPlayer:
 
             node.v[0] += result[0]
             node.v[1] += result[1]
+            
             node.n_visits += 1
 
     @cython.cfunc
@@ -939,7 +878,7 @@ class MCTSPlayer:
                 else:
                     return (0.5, 0.5)
 
-            # Dynamic Early termination condition, check every 5 turns if the evaluation has a certain value
+            # Dynamic Early termination condition, check every few turns if the evaluation has a certain value
             elif self.early_term == 0 and self.dyn_early_term == 1 and turns % 6 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
@@ -964,19 +903,23 @@ class MCTSPlayer:
                         player=state.player,
                         norm=False,
                     ) + random.uniform(0.000001, 0.00001)
+                    # Keep track of the best action
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
+                        
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
-            elif self.e_greedy == 0 and self.roulette == 1 and random.uniform(0, 1) < self.roulette_eps:
+            elif self.e_greedy == 0 and self.roulette == 1 and random.uniform(0, 1) <= self.roulette_eps:
                 actions = state.get_legal_actions()
                 best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
             # With probability 1-epsilon chose a move at random
             if best_action == ():
                 best_action = state.get_random_action()
+                
             state.apply_action_playout(best_action)
 
         self.avg_po_moves += turns
+        
         # Map the result to the players
         return state.get_result_tuple()
 
@@ -991,7 +934,8 @@ class MCTSPlayer:
             f"dyn_early_term_cutoff={self.dyn_early_term_cutoff}, early_term={self.early_term}, "
             f"early_term_turns={self.early_term_turns}, e_greedy={self.e_greedy}, "
             f"e_g_subset={self.e_g_subset}, roulette={self.roulette}, epsilon={self.epsilon}, "
-            f"prog_bias={self.prog_bias}, imm={self.imm}, imm_alpha={self.imm_alpha}, imm_version={self.imm_version}, ab_version={self.ab_version}, ex_imm_D={self.ex_imm_D})"
+            f"prog_bias={self.prog_bias}, imm={self.imm}, imm_alpha={self.imm_alpha}, imm_version={self.imm_version}, "
+            f"ab_version={self.ab_version}, ex_imm_D={self.ex_imm_D})"
         )
 
 

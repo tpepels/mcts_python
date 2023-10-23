@@ -79,7 +79,7 @@ def main():
       "early_term": 1,
       "early_term_turns": 10,
       "early_term_cutoff": 0.1,
-      "ab_version": 4,
+      "ab_version": 5,
       "debug":True},
         transposition_table_size=game_state.transposition_table_size,
     )
