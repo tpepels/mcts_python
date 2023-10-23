@@ -331,9 +331,8 @@ def update_running_experiment_status(exp_name, print_tables=True):
         print("\n")
         for _, v in tables.items():
             print(v["description"])
+            print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             print(v["table"])
-            print("\n")
-
 
 tables = {}
 

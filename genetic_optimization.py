@@ -39,7 +39,7 @@ def setup_reporting(
     )
     global csv_f, csv_writer
 
-    path = os.path.join(base_path, "results", "genetic", game_name)
+    path = os.path.join(base_path, game_name)
     os.makedirs(path, exist_ok=True)
     path = os.path.join(path, f"{sheet_name}.csv")
     print(f"Writing to {path}")
@@ -170,6 +170,7 @@ def genetic_algorithm(
     eval_static_params: Optional[Dict[str, Any]] = {},
     opponent_name: Optional[str] = None,
     fixed_opponent: Optional[dict] = {},
+    best_as_opponent: bool = False,
     games_per_pair: int = 5,
     n_procs: int = 8,
     convergence_generations: int = 5,
@@ -270,29 +271,25 @@ def genetic_algorithm(
             pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
         else:
             pairs = create_pairs_against_opponent(population, fixed_opponent, games_per_pair)
-            
+        # 
         gen_start_time = time.time()
         if debug:
             print(f"Created {len(pairs)} pairs of individuals.")
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
-
         # Create a new sheet for this experiment, do this after the first results so we don't create a lot of unused sheets
         if generation == 0:
             if game_params and "board_size" in game_params:
                 game_name_str = game_name + str(game_params["board_size"])
             else:
                 game_name_str = game_name
-
             sheet_name = f"{game_name_str}_{player_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
             # This prepares the csv file and google sheet
             setup_reporting(sheet_name, game_name, ai_param_ranges, eval_param_ranges)
 
         # Calculate the number of wins for each individual as fitness values
         fitnesses = [0.0] * len(population)  # Initialize the fitnesses list
-        # n_games = [0.0] * len(population)
         for individual1, fitness1, individual2, fitness2 in results:
             # Find indices of the individuals
             index1 = population.index(individual1)
@@ -302,16 +299,6 @@ def genetic_algorithm(
             if opponent_name is None:
                 index2 = population.index(individual2)
                 fitnesses[index2] += fitness2
-            # Update fitnesses list in-place
-        #     # * Allthough two games are played per pair, we only count one result per individual
-        #     n_games[index1] += 1
-        #     n_games[index2] += 1
-
-        # # normalize the fitnesses to an average
-        # for i in range(len(fitnesses)):
-        #     if n_games[i] != 0:
-        #         fitnesses[i] /= n_games[i]
-        #     fitnesses[i] = round(fitnesses[i], 2)
 
         if debug:
             # print the fitnesses per individual:
@@ -325,6 +312,14 @@ def genetic_algorithm(
         # Get the best individual and its fitness
         best_individual_index = fitnesses.index(max(fitnesses))
         best_individual = population[best_individual_index]
+        
+        # * Select the best individual as the opponent for the next generation
+        if best_as_opponent:
+            fixed_opponent = best_individual
+            # ! If player_name == opponent_name, nothing changes
+            # ! If player_name != opponent_name, we need to be sure that we are playing against the same algorithm otherwise the parameters don't make any sense
+            opponent_name = player_name
+            
         # Append the best individual of each generation to the best_individuals list
         best_individuals.append(json.dumps(best_individual))
 
@@ -938,8 +933,9 @@ if __name__ == "__main__":
     parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
     args = parser.parse_args()
 
-    base_path = args.base_path
-
+    base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.file))[0])
+    print("Base path:", base_path)
+    
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
