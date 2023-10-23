@@ -249,6 +249,7 @@ def genetic_algorithm(
 
     best_overall_individual = None
     best_individuals = []
+    best_fitnesses = []
 
     # Pre-fill the evaluate_fitness function with the game parameters
     partial_evaluate_fitness = partial(
@@ -322,6 +323,7 @@ def genetic_algorithm(
             
         # Append the best individual of each generation to the best_individuals list
         best_individuals.append(json.dumps(best_individual))
+        best_fitnesses.append(max(fitnesses))
 
         if debug:
             print(f"Best individual: {best_individual}")
@@ -379,12 +381,18 @@ def genetic_algorithm(
             population[replace_index] = elite
 
         # Convergence criterion
-        if (
-            len(best_individuals) > convergence_generations
-            and len(set(best_individuals[-convergence_generations:])) == 1
-        ):
-            print(f"Converged at generation {generation}.")
-            break
+        if len(best_individuals) > convergence_generations:
+            # The same individual was the best for the pas few generations
+            if len(set(best_individuals[-convergence_generations:])) == 1:
+                print(f"Converged at generation {generation}.")
+                break
+            
+            # Extract the fitness values of the last 'convergence_generations'
+            last_generations_fitness = best_fitnesses[-convergence_generations:]
+            # Check if none of the fitness values increased
+            if not any(x < y for x, y in zip(last_generations_fitness, last_generations_fitness[1:])):
+                print(f"Converged at generation {generation}.")
+                break
         elif debug:
             unique_individuals = len(set(best_individuals[-convergence_generations:]))
             print(

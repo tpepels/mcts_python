@@ -125,6 +125,7 @@
             "m_decisive": 2
         },
         "default_ai_as_elite": {},
-        "debug": true
+        "debug": true,
+        "status": "complete"
     }
 ]
