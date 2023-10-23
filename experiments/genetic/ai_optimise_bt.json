@@ -25,11 +25,11 @@
       "epsilon": { "range": [0.01, 0.2], "precision": 2 },
       "roulette": { "range": [0, 1], "precision": 0 },
       "roulette_epsilon": { "range": [0.01, 0.2], "precision": 2 },
-      "imm_alpha": { "range": [0.0, 0.9], "precision": 1 },
+      "imm_alpha": { "range": [0.1, 0.9], "precision": 1 },
       "prog_bias": { "range": [0, 1], "precision": 0 },
       "pb_weight": { "range": [0.1, 1], "precision": 1 }
     },
-    "eval_param_ranges": {},
+    "eval_param_ranges": { "a": { "range": [20, 80], "precision": 0 } },
     "ai_static_params": { "max_time": 6 },
     "eval_static_params": {},
     "default_eval_as_elite": {},

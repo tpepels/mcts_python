@@ -18,7 +18,6 @@ import jsonschema
 from run_games import AIParams, init_game_and_players, play_game_until_terminal
 from util import ErrorLogger, format_time, log_exception_handler
 
-base_path = "."
 csv_f: TextIOWrapper = None
 csv_writer = None
 GLOBAL_N_PROCS = None  # set this value to override the number of cpu's to use for all experiments
@@ -261,6 +260,7 @@ def genetic_algorithm(
         ai_static_params,
         eval_static_params,
         draw_score,
+        base_path
     )
     gen_times = []
     for generation in range(num_generations):
@@ -276,9 +276,11 @@ def genetic_algorithm(
         gen_start_time = time.time()
         if debug:
             print(f"Created {len(pairs)} pairs of individuals.")
+            
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
+            
         # Create a new sheet for this experiment, do this after the first results so we don't create a lot of unused sheets
         if generation == 0:
             if game_params and "board_size" in game_params:
@@ -345,7 +347,6 @@ def genetic_algorithm(
             for individual in parents:
                 print(f"parent {i}: {individual}")
                 i += 1
-
         # Preserve the elites
         potential_elites = sorted(zip(population, scaled_fitnesses), key=itemgetter(1))
         # Get the unique elites / this function preserves the order of the elites
@@ -449,6 +450,7 @@ def evaluate_fitness(
     ai_static_params: Dict[str, Any],
     eval_static_params: Dict[str, Any],
     draw_score: float,
+    base_path: str,
     pair: Tuple[Dict[str, Any], Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], float, Dict[str, Any], float]:
     """
@@ -705,14 +707,14 @@ def crossover(parent1: dict, parent2: dict) -> Tuple[dict, dict]:
     child1 = {}
     child2 = {}
 
-    if len(parent1["ai"]) > 0:
+    if len(parent1["ai"]) > 1:
         crossover_point_ai = random.randint(1, len(parent1["ai"]) - 1)
         child1["ai"], child2["ai"] = crossover_dict(parent1["ai"], parent2["ai"], crossover_point_ai)
     else:
         child1["ai"] = parent1["ai"]
         child2["ai"] = parent2["ai"]
 
-    if len(parent2["eval"]) > 0:
+    if len(parent2["eval"]) > 1:
         crossover_point_eval = random.randint(1, len(parent1["eval"]) - 1)
         child1["eval"], child2["eval"] = crossover_dict(
             parent1["eval"], parent2["eval"], crossover_point_eval

@@ -213,8 +213,9 @@ def run_game(
         if debug:
             nonlocal max_eval, n_moves
             n_moves += 1
-            if game.evaluate(1, game.default_params) > max_eval:
-                max_eval = game.evaluate(1, game.default_params)
+            if abs(game.evaluate(1, game.default_params)) > max_eval:
+                max_eval = abs(game.evaluate(1, game.default_params))
+                
         print("--" * 20)
 
         if pause:

@@ -467,6 +467,7 @@ class MCTSPlayer:
     ex_imm_D: cython.int  # The extra depth that will be searched
     ab_version: cython.int
     ab_prune_version: cython.int
+    reuse_tree: cython.bint
 
     def __init__(
         self,
@@ -476,48 +477,40 @@ class MCTSPlayer:
         num_simulations: int = 0,
         max_time: int = 0,
         c: float = 1.0,
-        dyn_early_term: bool = False,
-        dyn_early_term_cutoff: float = 0.9,
-        early_term: bool = False,
-        early_term_turns: int = 10,
-        early_term_cutoff: float = 0.05,
-        e_greedy: bool = False,
+        dyn_early_term_cutoff: float = 0.0,
+        early_term_turns: int = 0,
+        early_term_cutoff: float = 0.0,
+        epsilon: float = 0.0,
         e_g_subset: int = 20,
-        roulette: bool = False,
-        roulette_epsilon: float = 0.05,
+        roulette_epsilon: float = 0.0,
         imm_alpha: float = 0.0,
         imm_version: int = 0,
         ab_version: int = 0,
         ab_prune_version: int = 0,
         ex_imm_D: int = 2,
-        epsilon: float = 0.05,
-        prog_bias: bool = False,
-        pb_weight: float = 0.5,
+        pb_weight: float = 0.0,
+        reuse_tree: bool = True,
         debug: bool = False,
     ):
         self.player = player
-        self.dyn_early_term = dyn_early_term
+        self.dyn_early_term = dyn_early_term_cutoff > 0.0
         self.dyn_early_term_cutoff = dyn_early_term_cutoff
         self.early_term_cutoff = early_term_cutoff
-        self.e_greedy = e_greedy
+        self.e_greedy = epsilon > 0.0
         self.epsilon = epsilon
+        self.roulette = roulette_epsilon > 0.0
         self.roulette_eps = roulette_epsilon
         self.e_g_subset = e_g_subset
-        self.early_term = early_term
+        self.early_term = early_term_cutoff > 0.0 or early_term_turns > 0
         self.early_term_turns = early_term_turns
-        self.roulette = roulette
         self.c = c
         self.eval_params = eval_params
 
         # Let the enable/disable of
         self.imm = imm_alpha > 0.0
         self.imm_alpha = imm_alpha
-        self.prog_bias = prog_bias
-        
-        if self.prog_bias:
-            self.pb_weight = pb_weight
-        else:
-            self.pb_weight = 0.0
+        self.prog_bias = pb_weight > 0.0
+        self.pb_weight = pb_weight
 
         # either we base the time on a fixed number of simulations or on a fixed time
         if num_simulations:
@@ -547,35 +540,41 @@ class MCTSPlayer:
         self.ex_imm_D = ex_imm_D
         self.ab_version = ab_version
         self.ab_prune_version = ab_prune_version
+        self.reuse_tree = reuse_tree
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
+        
         self.n_moves += 1
-        # Check if we can reutilize the root
-        # If the root is None then this is either the first move, or something else..
-        if state.REUSE and self.root is not None and self.root.expanded:
-            child: Node
-            if DEBUG:
-                print(
-                    f"Checking children of root node {str(self.root)} with {len(self.root.children)} children"
-                )
-                print(f"Last action: {str(state.last_action)}")
-            
-            children: cython.list = self.root.children
-            self.root = None  # In case we cannot find the action, mark the root as None to assert
+        
+        if self.reuse_tree:
+            # Check if we can reutilize the root
+            # If the root is None then this is either the first move, or something else..
+            if state.REUSE and self.root is not None and self.root.expanded:
+                child: Node
+                if DEBUG:
+                    print(
+                        f"Checking children of root node {str(self.root)} with {len(self.root.children)} children"
+                    )
+                    print(f"Last action: {str(state.last_action)}")
+                
+                children: cython.list = self.root.children
+                self.root = None  # In case we cannot find the action, mark the root as None to assert
 
-            for child in children:
-                if child.action == state.last_action:
-                    self.root = child
+                for child in children:
+                    if child.action == state.last_action:
+                        self.root = child
 
-                    if DEBUG:
-                        print(f"Reusing root node {str(child)}")
+                        if DEBUG:
+                            print(f"Reusing root node {str(child)}")
 
-                    self.root.action = ()  # This is what identifies the root node
-                    break
-        elif not state.REUSE or (self.root is not None and not self.root.expanded):
-            # This sets the same condition as the one in the if statement above, make sure that a new root is generated
+                        self.root.action = ()  # This is what identifies the root node
+                        break
+            elif not state.REUSE or (self.root is not None and not self.root.expanded):
+                # This sets the same condition as the one in the if statement above, make sure that a new root is generated
+                self.root = None
+        else:
             self.root = None
 
         if self.root is None:
@@ -819,8 +818,6 @@ class MCTSPlayer:
             
             elif expanded:
                 break
-            
-            
             
             next_state = next_state.apply_action(node.action)
             is_terminal = next_state.is_terminal()

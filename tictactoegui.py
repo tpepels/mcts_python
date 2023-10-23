@@ -77,7 +77,7 @@ def main():
         ai_key="mcts",
         eval_params={},
         max_player=2,
-        ai_params={"max_time": 5, "debug": True, "imm_alpha": 0.6, "c": 0.8, "ab_version": 5},
+        ai_params={"max_time": 5, "debug": True, "imm_alpha": 0.6, "c": 0.8},
         transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, TicTacToeGameState.param_order, TicTacToeGameState.default_params)
