@@ -69,7 +69,6 @@ class Node:
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-
         global ab_bound, ucb_bound
 
         selected_child: Node = None
@@ -103,9 +102,13 @@ class Node:
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
-                log(cython.cast(cython.double, self.n_visits)) / cython.cast(cython.double, child.n_visits)
+                log(cython.cast(cython.double, max(1 ,self.n_visits))) / cython.cast(cython.double, child.n_visits)
             )
-
+            # print(f"{confidence_i=}")
+            # print(f"{child_value=}")
+            # print(f"{child.n_visits=}")
+            # print(f"{max(1 ,self.n_visits)}")
+            
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 if ab_version == 1:
                     uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
@@ -137,7 +140,7 @@ class Node:
 
             if pb_weight <= 0.0:
                 uct_val += pb_weight * (child.eval_value / (1.0 + child.n_visits))
-
+            
             # Find the highest UCT value
             if uct_val >= best_val:
                 selected_child = child
@@ -798,6 +801,8 @@ class MCTSPlayer:
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
+                
+                assert node is not None, f"Node is None after UCT {prev_node}"
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
@@ -809,9 +814,14 @@ class MCTSPlayer:
                     imm_ex_D=self.ex_imm_D,
                 )
                 expanded = 1
+                
+                assert node is not None, f"Node is None after expansion {prev_node}"
+            
             elif expanded:
                 break
-
+            
+            
+            
             next_state = next_state.apply_action(node.action)
             is_terminal = next_state.is_terminal()
             
