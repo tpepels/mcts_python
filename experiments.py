@@ -394,6 +394,9 @@ def aggregate_csv_results(output_file):
                 upper_bound = (win_rate + ci_width) * 100
                 ai_results.append((ai_config, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"))
 
+            # Sort ai_results based on ai_config to ensure consistent order
+            ai_results.sort(key=lambda x: len(x[0]))
+            
             # Construct the row for this file
             row = [metadata["exp_name"], metadata["date_time"], metadata["game_name"], metadata["game_params"], metadata["p1_params"], metadata["p2_params"]]
             

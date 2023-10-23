@@ -118,7 +118,7 @@ else:
         # "roulette": True,
         # "roulette_epsilon": 0.05,
         "imm_alpha": 0.6,
-        # "ab_version": 4,
+        "ab_version": 4,
     }
     ai_2_params = {
         "max_time": 5,
