@@ -94,10 +94,11 @@ def generate_individual(param_ranges: Dict[str, Tuple[float, float]]) -> Dict[st
     }
     return {k: unsorted_dict[k] for k in sorted(unsorted_dict.keys())}
 
+
 def create_pairs_against_opponent(population, fixed_opponent, games_per_pair):
     pairs = [(ind, fixed_opponent) for ind in population] * games_per_pair
     return pairs
-        
+
 
 def create_pairs_from_population(population, games_per_pair, debug=False):
     """
@@ -260,7 +261,7 @@ def genetic_algorithm(
         ai_static_params,
         eval_static_params,
         draw_score,
-        base_path
+        base_path,
     )
     gen_times = []
     for generation in range(num_generations):
@@ -272,15 +273,15 @@ def genetic_algorithm(
             pairs = create_pairs_from_population(population, games_per_pair, debug=debug)
         else:
             pairs = create_pairs_against_opponent(population, fixed_opponent, games_per_pair)
-        # 
+        #
         gen_start_time = time.time()
         if debug:
             print(f"Created {len(pairs)} pairs of individuals.")
-            
+
         # Evaluate the fitness of each pair of individuals in the population
         with multiprocessing.Pool(n_procs) as pool:
             results = pool.map(partial_evaluate_fitness, pairs)
-            
+
         # Create a new sheet for this experiment, do this after the first results so we don't create a lot of unused sheets
         if generation == 0:
             if game_params and "board_size" in game_params:
@@ -297,7 +298,7 @@ def genetic_algorithm(
             # Find indices of the individuals
             index1 = population.index(individual1)
             fitnesses[index1] += fitness1
-            
+
             # Interplay, so we need to also consider the opponent
             if opponent_name is None:
                 index2 = population.index(individual2)
@@ -315,14 +316,14 @@ def genetic_algorithm(
         # Get the best individual and its fitness
         best_individual_index = fitnesses.index(max(fitnesses))
         best_individual = population[best_individual_index]
-        
+
         # * Select the best individual as the opponent for the next generation
         if best_as_opponent:
             fixed_opponent = best_individual
             # ! If player_name == opponent_name, nothing changes
             # ! If player_name != opponent_name, we need to be sure that we are playing against the same algorithm otherwise the parameters don't make any sense
             opponent_name = player_name
-            
+
         # Append the best individual of each generation to the best_individuals list
         best_individuals.append(json.dumps(best_individual))
         best_fitnesses.append(max(fitnesses))
@@ -387,7 +388,7 @@ def genetic_algorithm(
             if len(set(best_individuals[-convergence_generations:])) == 1:
                 print(f"Converged at generation {generation}.")
                 break
-            
+
             # Extract the fitness values of the last 'convergence_generations'
             last_generations_fitness = best_fitnesses[-convergence_generations:]
             # Check if none of the fitness values increased
@@ -446,7 +447,7 @@ def evaluate_fitness(
     game_name: str,
     game_params: Dict[str, Any],
     player_name: str,
-    opponent_name:str,
+    opponent_name: str,
     ai_static_params: Dict[str, Any],
     eval_static_params: Dict[str, Any],
     draw_score: float,
@@ -514,15 +515,39 @@ def evaluate_fitness(
 
     with ErrorLogger(play_game_until_terminal, log_dir=os.path.join(base_path, "log", "game_error")):
         # Create AI players with given parameters
-        ai1_params = AIParams(player_name, 1, eval_params1, ai_params1)
-        ai2_params = AIParams(opponent_name, 2, eval_params2, ai_params2)
+        ai1_params = AIParams(
+            ai_key=player_name,
+            max_player=1,
+            eval_params=eval_params1,
+            ai_params=ai_params1,
+            game_name=game_name,
+        )
+        ai2_params = AIParams(
+            ai_key=opponent_name,
+            max_player=2,
+            eval_params=eval_params2,
+            ai_params=ai_params2,
+            game_name=game_name,
+        )
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         play_game_until_terminal(game, player1, player2, callback=callback)
         game_result = game.get_result_tuple()
         n_moves = 0
         # Create AI players with given parameters for the swapped seats game
-        ai1_params = AIParams(player_name, 2, eval_params1, ai_params1)
-        ai2_params = AIParams(opponent_name, 1, eval_params2, ai_params2)
+        ai1_params = AIParams(
+            ai_key=player_name,
+            max_player=2,
+            eval_params=eval_params1,
+            ai_params=ai_params1,
+            game_name=game_name,
+        )
+        ai2_params = AIParams(
+            ai_key=opponent_name,
+            max_player=1,
+            eval_params=eval_params2,
+            ai_params=ai_params2,
+            game_name=game_name,
+        )
         # This method does not assign any order to the players, it just initializes them
         game, player1, player2 = init_game_and_players(game_name, game_params, ai1_params, ai2_params)
         # For this function, order does matter, so we swap the players
@@ -945,7 +970,7 @@ if __name__ == "__main__":
 
     base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.file))[0])
     print("Base path:", base_path)
-    
+
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)

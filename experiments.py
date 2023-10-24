@@ -23,7 +23,6 @@ from run_games import AIParams, init_game, run_game_experiment
 from util import redirect_print_to_log
 
 
-
 class ColName:
     N_GAMES = "n_games"
     COMPLETED_GAMES = "completed_games"
@@ -160,7 +159,7 @@ def start_experiments_from_json(json_file_path, n_procs=4):
                 # Update running experiment status every 10 seconds
                 update_running_experiment_status(exp_name=sheet_name)
                 time.sleep(60)
-            
+
             time.sleep(10)
             # Now the experiment is done, update the status one last time
             update_running_experiment_status(exp_name=sheet_name)
@@ -176,6 +175,7 @@ def run_new_experiment(exp_dict, pool):
         ai_params=exp_dict[ColName.P1_AI_PARAMS],
         max_player=1,
         eval_params=exp_dict[ColName.P1_EVAL_PARAMS],
+        game_name=game_name,
         transposition_table_size=game.transposition_table_size,
     )
     p2_params = AIParams(
@@ -183,6 +183,7 @@ def run_new_experiment(exp_dict, pool):
         ai_params=exp_dict[ColName.P2_AI_PARAMS],
         max_player=2,
         eval_params=exp_dict[ColName.P2_EVAL_PARAMS],
+        game_name=game_name,
         transposition_table_size=game.transposition_table_size,
     )
 
@@ -250,7 +251,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
     with open(os.path.join(path_to_result, "_results.csv"), "w", newline="") as f:
         if exp_name in tables:
             f.write(tables[exp_name]["description"])
-            
+
         writer = csv.writer(f)
 
         for log_file in log_files:
@@ -266,20 +267,19 @@ def update_running_experiment_status(exp_name, print_tables=True):
                 ):  # Assuming "Experiment completed" is second to last line
                     completed_games += 1
                     # Assuming the last line is "Game Over. Winner: Px [px_params]"
-                    winner_info = log_contents[-2]  
+                    winner_info = log_contents[-2]
                     winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
-                    
-                        
+
                     if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
-                        loser_info = log_contents[-3] 
+                        loser_info = log_contents[-3]
                         loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
-                        
+
                         # Make sure there's a line for each player
                         if winner_params not in ai_stats:
                             ai_stats[winner_params] = 0
                         if loser_params not in ai_stats:
                             ai_stats[loser_params] = 0
-                            
+
                         writer.writerow([game_number, winner_params])
                         ai_stats[winner_params] += 1  # Update AI statistics
                     else:
@@ -303,7 +303,9 @@ def update_running_experiment_status(exp_name, print_tables=True):
                 ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
                 lower_bound = (win_rate - ci_width) * 100
                 upper_bound = (win_rate + ci_width) * 100
-                writer.writerow([ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}", completed_games])
+                writer.writerow(
+                    [ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}", completed_games]
+                )
             else:
                 writer.writerow([ai, "N/A", "N/A", 0])
 
@@ -334,7 +336,9 @@ def update_running_experiment_status(exp_name, print_tables=True):
             print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             print(v["table"])
 
+
 tables = {}
+
 
 def aggregate_csv_results(output_file):
     files = []
@@ -344,16 +348,30 @@ def aggregate_csv_results(output_file):
         if os.path.isdir(full_dir_path):
             files.append(os.path.join(full_dir_path, "_results.csv"))
 
-    with open(output_file, 'w', newline='') as outfile:
+    with open(output_file, "w", newline="") as outfile:
         writer = csv.writer(outfile)
-        writer.writerow(['Experiment Name', 'Date-Time', 'Game Name', 'Game Parameters', 'p1_params', 'p2_params', 'AI1', 'Win_rate', 'AI2', 'Win_rate', '± 95% C.I.'])
+        writer.writerow(
+            [
+                "Experiment Name",
+                "Date-Time",
+                "Game Name",
+                "Game Parameters",
+                "p1_params",
+                "p2_params",
+                "AI1",
+                "Win_rate",
+                "AI2",
+                "Win_rate",
+                "± 95% C.I.",
+            ]
+        )
 
         for file in files:
             ai_stats = {}
             total_games = 0
             metadata = {}
 
-            with open(file, 'r') as infile:
+            with open(file, "r") as infile:
                 lines = infile.readlines()
 
                 # Check for enough lines in the file
@@ -367,8 +385,8 @@ def aggregate_csv_results(output_file):
                     metadata["date_time"] = re.search(r"(\d{8}_\d{6})", metadata["exp_name"]).group(1)
                     metadata["game_name"] = re.search(r"game_name='(.*?)'", lines[0]).group(1)
                     metadata["game_params"] = re.search(r"game_params\s*=\s*(\{.*?\})", lines[1]).group(1)
-                    metadata["p1_params"] = lines[2].split('=', 1)[1].strip()
-                    metadata["p2_params"] = lines[3].split('=', 1)[1].strip()
+                    metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
+                    metadata["p2_params"] = lines[3].split("=", 1)[1].strip()
                 except (AttributeError, IndexError) as e:
                     print(f"Error parsing metadata for {file}.")
                     print("Lines causing issues:")
@@ -377,7 +395,7 @@ def aggregate_csv_results(output_file):
 
                 # Continue with game results
                 for line in lines[7:]:
-                    _, ai_config = line.strip().split(',', 1)
+                    _, ai_config = line.strip().split(",", 1)
                     ai_config_cleaned = ai_config.strip().strip('"')
                     if ai_config_cleaned == "Draw":
                         continue
@@ -396,20 +414,28 @@ def aggregate_csv_results(output_file):
 
             # Sort ai_results based on ai_config to ensure consistent order
             ai_results.sort(key=lambda x: len(x[0]))
-            
+
             # Construct the row for this file
-            row = [metadata["exp_name"], metadata["date_time"], metadata["game_name"], metadata["game_params"], metadata["p1_params"], metadata["p2_params"]]
-            
+            row = [
+                metadata["exp_name"],
+                metadata["date_time"],
+                metadata["game_name"],
+                metadata["game_params"],
+                metadata["p1_params"],
+                metadata["p2_params"],
+            ]
+
             # Ensure proper column alignment for AI results
             if len(ai_results) == 2:
-                row.extend([ai_results[0][0], ai_results[0][1], ai_results[1][0], ai_results[1][1], ai_results[0][2]])
+                row.extend(
+                    [ai_results[0][0], ai_results[0][1], ai_results[1][0], ai_results[1][1], ai_results[0][2]]
+                )
             elif len(ai_results) == 1:
                 row.extend([ai_results[0][0], ai_results[0][1], "N/A", "N/A", ai_results[0][2]])
             else:
                 row.extend(["N/A", "N/A", "N/A", "N/A", "N/A"])
 
             writer.writerow(row)
-
 
 
 def run_single_experiment(
@@ -455,26 +481,33 @@ def main():
     parser.add_argument("--n_procs", type=int, default=4, help="Number of processes for parallel execution.")
     parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
     parser.add_argument("--json_file", type=str, help="JSON file containing experiment configurations.")
-    parser.add_argument("--aggregate_results", help="Aggregate results of a previous experiment to an aggregate file.", type=str, default=None)
-    parser.add_argument("--clean", help="Clean the log directory before starting experiments.", action="store_true")
+    parser.add_argument(
+        "--aggregate_results",
+        help="Aggregate results of a previous experiment to an aggregate file.",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--clean", help="Clean the log directory before starting experiments.", action="store_true"
+    )
     args = parser.parse_args()
 
     if not (args.json_file or args.aggregate_results):
         parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")
-        
+
     global base_path
-    
+
     if args.aggregate_results and not args.json_file:
         base_path = args.base_path
         # If no json file was given, just aggregate the results
         print(f"Aggregating results from {base_path} to {args.aggregate_results}")
         aggregate_csv_results(args.aggregate_results)
         return
-    
+
     # Include the experiment file in the base_path
     base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
     print("Base path:", base_path)
-    
+
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
@@ -497,7 +530,7 @@ def main():
 
     # Start experiments
     start_experiments_from_json(json_file_path=args.json_file, n_procs=args.n_procs)
-    
+
     if args.aggregate_results:
         aggregate_csv_results(args.aggregate_results)
 

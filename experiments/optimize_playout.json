@@ -6,20 +6,12 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 60000,
-      "c": 0.6,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX,
       "roulette_epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
     },
-    "p1_eval_params": {
-      "a": XX
-    },
+    "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 60000,
-      "c": 0.6,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX
+      "num_simulations": 60000
     },
     "p2_eval_params": {}
   },
@@ -30,23 +22,14 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 60000,
-      "c": XX,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX,
       "roulette_epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
     },
-    "p1_eval_params": {
-      "a": XX
-    },
+    "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 60000,
-      "c": XX,
-      "imm_alpha": XX
+      "num_simulations": 60000
     },
-    "p2_eval_params": {
-      "a": XX
-    }
+    "p2_eval_params": {}
   },
   {
     "n_games": 140,
@@ -55,21 +38,13 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 60000,
-      "c": 0.6,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX,
       "e_g_subset": [5, 10, 20],
       "epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
     },
-    "p1_eval_params": {
-      "a": XX
-    },
+    "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 60000,
-      "c": 0.6,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX
+      "num_simulations": 60000
     },
     "p2_eval_params": {}
   },
@@ -80,24 +55,14 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 60000,
-      "c": XX,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX,
       "e_g_subset": [5, 10, 20],
       "epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
     },
-    "p1_eval_params": {
-      "a": XX
-    },
+    "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 60000,
-      "c": XX,
-      "imm_alpha": XX,
-      "dyn_early_term_cutoff": XX
+      "num_simulations": 60000
     },
-    "p2_eval_params": {
-      "a": XX
-    }
+    "p2_eval_params": {}
   }
 ]

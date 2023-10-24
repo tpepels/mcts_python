@@ -272,12 +272,14 @@ for game_name, game_params in all_games:
                 ai_key="alphabeta",
                 max_player=1,
                 eval_params={},
+                game_name=game_name,
                 ai_params=ab_fixed_params,
             ),
             AIParams(
                 ai_key="mcts",
                 max_player=2,
                 eval_params={},
+                game_name=game_name,
                 ai_params=mcts_params | mcts_fixed_params,
             ),
         )

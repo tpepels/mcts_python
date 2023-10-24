@@ -95,12 +95,14 @@ if not args.battle:
         ai_key=algo,
         eval_params=eval_params,
         max_player=1,
+        game_name=game_name,
         ai_params=ai_params,
     )
     p2_params = AIParams(
         ai_key=algo,
         eval_params=eval_params,
         max_player=2,
+        game_name=game_name,
         ai_params=ai_params,
     )
 else:
@@ -137,12 +139,14 @@ else:
         ai_key="mcts",
         eval_params=eval_params,
         max_player=1,
+        game_name=game_name,
         ai_params=ai_1_params,
     )
     p2_params = AIParams(
         ai_key="alphabeta",
         eval_params=eval_params,
         max_player=2,
+        game_name=game_name,
         ai_params=ai_2_params,
     )
 

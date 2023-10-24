@@ -77,6 +77,7 @@ def main():
         ai_key="mcts",
         eval_params={},
         max_player=2,
+        game_name="ninarow",
         ai_params={"max_time": 5, "debug": True, "imm_alpha": 0.6, "c": 0.8},
         transposition_table_size=game_state.transposition_table_size,
     )
