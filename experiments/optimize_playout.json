@@ -1,0 +1,99 @@
+[
+  {
+    "n_games": 140,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 60000,
+      "c": XX,
+      "imm_alpha": XX,
+      "dyn_early_term_cutoff": XX,
+      "roulette_epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
+    },
+    "p1_eval_params": {
+      "a": XX
+    },
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 60000,
+      "c": XX
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 140,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 60000,
+      "c": XX,
+      "imm_alpha": XX,
+      "dyn_early_term_cutoff": XX,
+      "roulette_epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
+    },
+    "p1_eval_params": {
+      "a": XX
+    },
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 60000,
+      "c": XX,
+      "imm_alpha": XX
+    },
+    "p2_eval_params": {
+      "a": XX
+    }
+  },
+  {
+    "n_games": 140,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 60000,
+      "c": XX,
+      "imm_alpha": XX,
+      "dyn_early_term_cutoff": XX,
+      "e_g_subset": [5, 10, 20],
+      "epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
+    },
+    "p1_eval_params": {
+      "a": XX
+    },
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 60000,
+      "c": XX
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 140,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 60000,
+      "c": XX,
+      "imm_alpha": XX,
+      "dyn_early_term_cutoff": XX,
+      "e_g_subset": [5, 10, 20],
+      "epsilon": [0.01, 0.05, 0.1, 0.15, 0.2]
+    },
+    "p1_eval_params": {
+      "a": XX
+    },
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 60000,
+      "c": XX,
+      "imm_alpha": XX,
+      "dyn_early_term_cutoff": XX
+    },
+    "p2_eval_params": {
+      "a": XX
+    }
+  }
+]

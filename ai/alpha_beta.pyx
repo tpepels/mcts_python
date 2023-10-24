@@ -26,6 +26,7 @@ cdef bint is_interrupted = False
 cdef double start_time = 0.0
 cdef double start_depth_time = 0.0
 cdef bint is_first = True
+cdef double max_eval = -INFINITY
 cdef unsigned reached
 cdef unsigned root_seen = 0
 
@@ -56,7 +57,7 @@ cdef double value(
     # Globals that keep track of relevant statistics for optimizing
     global stat_q_searches, stat_n_eval, stat_visited, stat_cutoffs, stat_moves_gen, stat_tt_orders, stat_killers
     # Globals that carry over from the calling class, mainly meant for interrupting the search.
-    global count, time_limit, start_time, is_first, is_interrupted, best_move, reached, root_seen
+    global count, time_limit, start_time, is_first, is_interrupted, best_move, reached, root_seen, max_eval
     
     cdef bint is_max_player = state.player == max_player
     cdef double v, cur_time, new_v
@@ -89,6 +90,8 @@ cdef double value(
     if depth == 0:
         stat_n_eval += 1
         v = state.evaluate(params=eval_params, player=max_player, norm=False)
+        if abs(v) > max_eval:
+            max_eval = abs(v)
         return v
 
     try:
@@ -526,7 +529,8 @@ cdef class AlphaBetaPlayer:
                     "best_move": best_move,
                     "best_values": best_values[::-1],
                     "killer_moves": stat_killers,
-                    "search_grace_time": self.grace_time
+                    "search_grace_time": self.grace_time,
+                    "max_eval": max_eval
                 }
 
                 if v == win:
@@ -553,6 +557,7 @@ cdef class AlphaBetaPlayer:
                 self.c_stats["total_search_time"] += curr_time() - start_time
                 self.c_stats["count_searches"] += 1
                 self.c_stats["count_tim_out"] += int(is_interrupted)
+                self.c_stats["max_eval"] = max_eval
                 if self.trans_table is not None:
                     stat_dict = {**stat_dict, **self.trans_table.get_metrics()}
                     self.trans_table.reset_metrics()

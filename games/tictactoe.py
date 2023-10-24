@@ -430,7 +430,7 @@ class TicTacToeGameState(GameState):
 
     param_order: dict = {"m_power": 0, "m_centre_bonus": 1, "a": 2}
 
-    default_params = array.array("d", [2, 1, 200])
+    default_params = array.array("d", [3, 3, 200])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -571,6 +571,7 @@ class TicTacToeGameState(GameState):
                                         score_p1 += count**power
                                     else:
                                         score_p2 += count**power
+        
         if norm:
             return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
 

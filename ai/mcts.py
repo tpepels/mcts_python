@@ -489,7 +489,7 @@ class MCTSPlayer:
         ab_prune_version: int = 0,
         ex_imm_D: int = 2,
         pb_weight: float = 0.0,
-        reuse_tree: bool = True,
+        reuse_tree: bool = False,
         debug: bool = False,
     ):
         self.player = player
