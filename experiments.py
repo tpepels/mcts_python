@@ -330,10 +330,14 @@ def update_running_experiment_status(exp_name, print_tables=True):
 
         # Keep track of all experiments, also the finished ones to print
         tables[exp_name]["table"] = print_stats
+        print("\n\n\n\n")
+        print("-" * 20, end="")
+        print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), end="")
+        print("-" * 20)
         print("\n")
         for _, v in tables.items():
             print(v["description"])
-            print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
             print(v["table"])
 
 
