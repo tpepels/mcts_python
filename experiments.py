@@ -344,6 +344,36 @@ def update_running_experiment_status(exp_name, print_tables=True):
 tables = {}
 
 
+def generate_ascii_art(text):
+    # Define the banner style for each character
+    # For simplicity, let's use a basic style. You can expand this dictionary for a more detailed representation.
+    banner = {
+        "A": ["   A   ", "  A A  ", " A   A ", "AAAAAAA", "A     A"],
+        "B": ["BBBB  ", "B    B ", "BBBBB ", "B    B ", "BBBBB  "],
+        "C": [" CCCCC", "C      ", "C      ", "C      ", " CCCCC "],
+        "E": ["EEEEE ", "E      ", "EEEEE ", "E      ", "EEEEE  "],
+        "F": ["FFFFF ", "F      ", "FFFF  ", "F      ", "F      "],
+        "I": ["IIIII ", "  I    ", "  I    ", "  I    ", "IIIII  "],
+        "M": ["M     M", "MM   MM", "M M M M", "M  M  M", "M     M"],
+        "N": ["N     N", "NN    N", "N N   N", "N  N  N", "N     N"],
+        "P": ["PPPP  ", "P    P ", "PPPP  ", "P      ", "P      "],
+        "R": ["RRRR  ", "R    R ", "RRRR  ", "R R    ", "R   R  "],
+        "S": [" SSSSS", "S      ", " SSSS ", "      S", " SSSSS "],
+        "T": ["TTTTTT", "  T   ", "  T   ", "  T   ", "  T   "],
+        "X": ["X   X ", " X X  ", "  X   ", " X X  ", "X   X  "],
+        " ": ["      ", "      ", "      ", "      ", "      "],
+        "!": ["  !   ", "  !   ", "  !   ", "      ", "  !   "],
+    }
+
+    # Generate the ASCII art line by line
+    for i in range(5):
+        line = ""
+        for char in text:
+            if char.upper() in banner:
+                line += banner[char.upper()][i]
+        print(line)
+
+
 def aggregate_csv_results(output_file):
     files = []
     experiments_path = os.path.join(base_path, "results", "experiments")
@@ -537,6 +567,9 @@ def main():
 
     if args.aggregate_results:
         aggregate_csv_results(args.aggregate_results)
+
+    text = "Experiment Finished!"
+    generate_ascii_art(text)
 
 
 if __name__ == "__main__":
