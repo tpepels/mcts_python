@@ -6,7 +6,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 60000,
-      "c": [0.6, 0.7, 0.8]
+      "c": [0.5, 0.6, 0.7]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
@@ -22,7 +22,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 60000,
-      "c": [0.6, 0.7, 0.8]
+      "c": [0.5, 0.6, 0.7]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

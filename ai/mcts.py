@@ -2,6 +2,7 @@
 
 import random
 from colorama import Back, Fore, init
+
 init(autoreset=True)
 import cython
 from cython.cimports.libc.time import time
@@ -21,6 +22,7 @@ ucb_bound: cython.int = 0
 @cython.exceptval(-1, check=False)
 def curr_time() -> cython.long:
     return time(cython.NULL)
+
 
 @cython.freelist(10000)
 @cython.cclass
@@ -94,7 +96,7 @@ class Node:
                 elif child.solved_player == 3 - self.player:  # Losing move
                     children_lost += 1
                     continue  # Skip this child, we need to check if all children are losses to mark this node as solved
-                
+
             # Check whether all moves lead to a draw
             if child.draw:
                 children_draw += 1
@@ -102,16 +104,17 @@ class Node:
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
-                log(cython.cast(cython.double, max(1 ,self.n_visits))) / cython.cast(cython.double, child.n_visits)
+                log(cython.cast(cython.double, max(1, self.n_visits)))
+                / cython.cast(cython.double, child.n_visits)
             )
             # print(f"{confidence_i=}")
             # print(f"{child_value=}")
             # print(f"{child.n_visits=}")
             # print(f"{max(1 ,self.n_visits)}")
-            
+
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 if ab_version == 1:
-                    uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
+                    uct_val = child_value + (c * (beta - alpha) * confidence_i)
                 if ab_version == 2:
                     # Cut off the confidence interval by alpha and beta
                     confidence_i = min(max(c * confidence_i, alpha), beta)
@@ -140,7 +143,7 @@ class Node:
 
             if pb_weight <= 0.0:
                 uct_val += pb_weight * (child.eval_value / (1.0 + child.n_visits))
-            
+
             # Find the highest UCT value
             if uct_val >= best_val:
                 selected_child = child
@@ -153,7 +156,9 @@ class Node:
             self.solved_player = 3 - self.player
             # just return a random child, they all lead to a loss anyway
             return random.choice(self.children)
-        elif children_lost == (n_children - 1) and self.solved_player == 0 or self.solved_player == self.player:
+        elif (
+            children_lost == (n_children - 1) and self.solved_player == 0 or self.solved_player == self.player
+        ):
             # There's only one move that does not lead to a loss. This is an anti-decisive move.
             self.anti_decisive = 1
         # Proven draw
@@ -173,8 +178,10 @@ class Node:
         imm_ex_D: cython.int = 0,
     ) -> Node:
         assert not self.expanded, f"Trying to re-expand an already expanded node, you madman. {str(self)}"
-        assert self.player == init_state.player, f"Player mismatch in expand! {self.player=} != {init_state.player=}"
-        
+        assert (
+            self.player == init_state.player
+        ), f"Player mismatch in expand! {self.player=} != {init_state.player=}"
+
         if self.children == []:
             # * Idee: move ordering!
             self.actions = init_state.get_legal_actions()
@@ -284,7 +291,7 @@ class Node:
                                 alpha=-INFINITY,  # ? Can we set these to some meaningful values?
                                 beta=INFINITY,  # ? Can we set these to some more meaningful values?
                             )
-                    
+
                     child.n_visits += 1
                     # This means that player 2 is minimizing the evaluated value and player 1 is maximizing it
                     if (self.player != self.max_player and child.im_value < self.im_value) or (
@@ -297,10 +304,10 @@ class Node:
                         continue
 
             return child  # Return the chlid, this is the node we will explore next.
-        
+
         # If we've reached this point, then the node is fully expanded so we can switch to UCT selection
         self.expanded = 1
-        
+
         # Check if all my nodes lead to a loss.
         self.check_loss_node()
 
@@ -314,7 +321,7 @@ class Node:
             i: cython.int
             for i in range(len(self.children)):
                 child = self.children[i]
-                
+
                 # * Minimize or Maximize my im value over all children
                 if (self.player == self.max_player and child.im_value > best_im) or (
                     self.player != self.max_player and child.im_value < best_im
@@ -545,9 +552,9 @@ class MCTSPlayer:
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
-        
+
         self.n_moves += 1
-        
+
         if self.reuse_tree:
             # Check if we can reutilize the root
             # If the root is None then this is either the first move, or something else..
@@ -558,7 +565,7 @@ class MCTSPlayer:
                         f"Checking children of root node {str(self.root)} with {len(self.root.children)} children"
                     )
                     print(f"Last action: {str(state.last_action)}")
-                
+
                 children: cython.list = self.root.children
                 self.root = None  # In case we cannot find the action, mark the root as None to assert
 
@@ -710,7 +717,7 @@ class MCTSPlayer:
             sorted_children = sorted(self.root.children[:30], key=comparator, reverse=True)
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
-            
+
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
         return max_node.action, max_value  # return the most visited state
@@ -800,7 +807,7 @@ class MCTSPlayer:
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
-                
+
                 assert node is not None, f"Node is None after UCT {prev_node}"
             elif not node.expanded and not expanded:
                 # * Expand should always returns a node, even after adding the last node
@@ -813,15 +820,15 @@ class MCTSPlayer:
                     imm_ex_D=self.ex_imm_D,
                 )
                 expanded = 1
-                
+
                 assert node is not None, f"Node is None after expansion {prev_node}"
-            
+
             elif expanded:
                 break
-            
+
             next_state = next_state.apply_action(node.action)
             is_terminal = next_state.is_terminal()
-            
+
             selected.append(node)
 
         # * Playout / Terminal node reached
@@ -864,7 +871,7 @@ class MCTSPlayer:
 
             node.v[0] += result[0]
             node.v[1] += result[1]
-            
+
             node.n_visits += 1
 
     @cython.cfunc
@@ -914,7 +921,7 @@ class MCTSPlayer:
                     if value > max_value:
                         max_value = value
                         best_action = actions[i]
-                        
+
             # With probability epsilon choose a move using roulette wheel selection based on the move ordering
             elif self.e_greedy == 0 and self.roulette == 1 and random.uniform(0, 1) <= self.roulette_eps:
                 actions = state.get_legal_actions()
@@ -922,11 +929,11 @@ class MCTSPlayer:
             # With probability 1-epsilon chose a move at random
             if best_action == ():
                 best_action = state.get_random_action()
-                
+
             state.apply_action_playout(best_action)
 
         self.avg_po_moves += turns
-        
+
         # Map the result to the players
         return state.get_result_tuple()
 
@@ -1075,6 +1082,7 @@ def quiescence(
             stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
 
     return stand_pat  # Return the best score found
+
 
 # if self.ab_version == 4:
 #     plot_width = 160
