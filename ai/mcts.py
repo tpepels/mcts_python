@@ -141,7 +141,7 @@ class Node:
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
 
-            if pb_weight <= 0.0:
+            if pb_weight > 0.0:
                 uct_val += pb_weight * (child.eval_value / (1.0 + child.n_visits))
 
             # Find the highest UCT value
