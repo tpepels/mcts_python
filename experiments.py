@@ -561,13 +561,6 @@ def main():
     base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
     print("Base path:", base_path)
 
-    # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
-    if not args.aggregate_results:
-        args.aggregate_results = os.path.join(
-            base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv"
-        )
-        print(f"Aggregating results from {base_path} to {args.aggregate_results}")
-
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
@@ -593,8 +586,10 @@ def main():
         json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only
     )
 
-    if args.aggregate_results:
-        aggregate_csv_results(args.aggregate_results)
+    # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
+    agg_loc = os.path.join(base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv")
+    print(f"Aggregating results from {base_path} to {agg_loc}")
+    aggregate_csv_results(agg_loc)
 
     text = "Experiment Finished!"
     generate_ascii_art(text)
