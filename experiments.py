@@ -138,7 +138,7 @@ def expand_rows(json_file_path):
     return res
 
 
-def start_experiments_from_json(json_file_path, n_procs=4):
+def start_experiments_from_json(json_file_path, n_procs=4, count_only=False):
     """
     Read experiment configurations from a JSON file and start the experiments.
 
@@ -149,7 +149,9 @@ def start_experiments_from_json(json_file_path, n_procs=4):
 
     # Step 1: Expand rows (if needed)
     expanded_experiment_configs = expand_rows(json_file_path)
-
+    print(f"Starting {len(expanded_experiment_configs)} experiments.")
+    if count_only:
+        return
     # Step 2: Start experiments using multiprocessing
     for exp_dict in expanded_experiment_configs:
         with mp.Pool(processes=n_procs) as pool:
@@ -529,6 +531,9 @@ def main():
     parser.add_argument(
         "-c", "--clean", help="Clean the log directory before starting experiments.", action="store_true"
     )
+    parser.add_argument(
+        "--count_only", help="Count the total number of experiments that will be run", action="store_true"
+    )
     args = parser.parse_args()
 
     if not (args.json_file or args.aggregate_results):
@@ -575,7 +580,9 @@ def main():
         return
 
     # Start experiments
-    start_experiments_from_json(json_file_path=args.json_file, n_procs=args.n_procs)
+    start_experiments_from_json(
+        json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only
+    )
 
     if args.aggregate_results:
         aggregate_csv_results(args.aggregate_results)
