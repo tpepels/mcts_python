@@ -5,6 +5,7 @@ DEFAULT_SETTINGS = {
             "c": 0.6,
             "imm_alpha": 0.2,
             "dyn_early_term_cutoff": 0.2,
+            "pb_weight": 0.2,
         },
         "eval_params": {"m_power": 2, "m_centre": 3, "a": 200},
     },
