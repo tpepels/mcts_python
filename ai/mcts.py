@@ -6,7 +6,7 @@ from colorama import Back, Fore, init
 init(autoreset=True)
 import cython
 from cython.cimports.libc.time import time
-from cython.cimports.libc.math import sqrt, log, INFINITY
+from cython.cimports.libc.math import sqrt, log, INFINITY, isnan
 from cython.cimports.includes import GameState, win, loss
 from util import abbreviate, format_time
 
@@ -147,6 +147,8 @@ class Node:
                     cython.cast(cython.double, child.eval_value)
                     / (1.0 + cython.cast(cython.double, child.n_visits))
                 )
+
+            assert not isnan(uct_val), f"UCT value is NaN! {child_value=} {confidence_i=}"
 
             # Find the highest UCT value
             if uct_val >= best_val:
