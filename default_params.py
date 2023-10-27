@@ -2,7 +2,7 @@ DEFAULT_SETTINGS = {
     ("ninarow", "mcts"): {
         # C-value optimized for 9x9 5-in-a-row without improvements (0.8)
         "ai_params": {
-            "c": 0.8,
+            "c": 0.6,
             "imm_alpha": 0.2,
             "dyn_early_term_cutoff": 0.2,
         },
@@ -11,7 +11,7 @@ DEFAULT_SETTINGS = {
     ("breakthrough", "mcts"): {
         # C-value optimized without improvements (0.8)
         "ai_params": {
-            "c": 0.8,
+            "c": 0.5,
             "imm_alpha": 0.6,
             "early_term_turns": 5,
             "early_term_cutoff": 0.1,
