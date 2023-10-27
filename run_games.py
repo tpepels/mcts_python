@@ -59,30 +59,36 @@ class AIParams:
 
     ai_key: str
     max_player: int
-    eval_params: Dict[str, Any]
     game_name: str
-    ai_params: Optional[Dict[str, Any]] = None
+    eval_params: Dict[str, Any] = {}
+    ai_params: Optional[Dict[str, Any]] = {}
     transposition_table_size: int = 2**16
 
     def __post_init__(self):
         game_algorithm_combo = (self.game_name, self.ai_key)
         if game_algorithm_combo in DEFAULT_SETTINGS:
             defaults = DEFAULT_SETTINGS[game_algorithm_combo]
-            print(defaults)
-            # Apply defaults for ai_params
-            for key, default_value in defaults.get("ai_params", {}).items():
-                if key not in self.ai_params:
-                    print(
-                        f"Using default value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
-                    )
-                    self.ai_params[key] = default_value
-            # Apply defaults for eval_params
-            for key, default_value in defaults.get("eval_params", {}).items():
-                if key not in self.eval_params:
-                    print(
-                        f"Using default value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
-                    )
-                    self.eval_params[key] = default_value
+
+            if self.ai_params.get("no_defaults", False):
+                print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
+            else:
+                # Apply defaults for ai_params
+                for key, default_value in defaults.get("ai_params", {}).items():
+                    if key not in self.ai_params:
+                        print(
+                            f"Using default ai value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
+                        )
+                        self.ai_params[key] = default_value
+            if self.eval_params is not None and self.eval_params.get("no_defaults", False):
+                print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
+            else:
+                # Apply defaults for eval_params
+                for key, default_value in defaults.get("eval_params", {}).items():
+                    if key not in self.eval_params:
+                        print(
+                            f"Using default eval value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
+                        )
+                        self.eval_params[key] = default_value
 
     def __str__(self):
         """Generate string representation of AI parameters."""

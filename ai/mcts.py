@@ -107,6 +107,7 @@ class Node:
                 log(cython.cast(cython.double, max(1, self.n_visits)))
                 / cython.cast(cython.double, child.n_visits)
             )
+
             # print(f"{confidence_i=}")
             # print(f"{child_value=}")
             # print(f"{child.n_visits=}")
@@ -142,7 +143,10 @@ class Node:
                 ucb_bound += 1
 
             if pb_weight > 0.0:
-                uct_val += pb_weight * (child.eval_value / (1.0 + child.n_visits))
+                uct_val += pb_weight * (
+                    cython.cast(cython.double, child.eval_value)
+                    / (1.0 + cython.cast(cython.double, child.n_visits))
+                )
 
             # Find the highest UCT value
             if uct_val >= best_val:
