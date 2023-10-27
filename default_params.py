@@ -5,8 +5,6 @@ DEFAULT_SETTINGS = {
             "c": 0.8,
             "imm_alpha": 0.2,
             "dyn_early_term_cutoff": 0.2,
-            "e_g_subset": 10,
-            "epsilon": 0.1,
         },
         "eval_params": {"m_power": 2, "m_centre": 3, "a": 200},
     },

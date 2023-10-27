@@ -512,17 +512,22 @@ def run_single_experiment(
 
 def main():
     parser = argparse.ArgumentParser(description="Start experiments based on JSON config.")
-    parser.add_argument("--n_procs", type=int, default=4, help="Number of processes for parallel execution.")
-    parser.add_argument("--base_path", type=str, default=".", help="Base directory to create log files.")
-    parser.add_argument("--json_file", type=str, help="JSON file containing experiment configurations.")
     parser.add_argument(
+        "-n", "--n_procs", type=int, default=4, help="Number of processes for parallel execution."
+    )
+    parser.add_argument(
+        "-b", "--base_path", type=str, default=".", help="Base directory to create log files."
+    )
+    parser.add_argument("-j", "--json_file", type=str, help="JSON file containing experiment configurations.")
+    parser.add_argument(
+        "-a",
         "--aggregate_results",
-        help="Aggregate results of a previous experiment to an aggregate file.",
+        help="Aggregate results of a previous experiment to an aggregate file. If not provided, the name of the JSON file will be used with a .csv extension and saved in the home directory.",
         type=str,
         default=None,
     )
     parser.add_argument(
-        "--clean", help="Clean the log directory before starting experiments.", action="store_true"
+        "-c", "--clean", help="Clean the log directory before starting experiments.", action="store_true"
     )
     args = parser.parse_args()
 
@@ -541,6 +546,13 @@ def main():
     # Include the experiment file in the base_path
     base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
     print("Base path:", base_path)
+
+    # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
+    if not args.aggregate_results:
+        args.aggregate_results = os.path.join(
+            base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv"
+        )
+        print(f"Aggregating results from {base_path} to {args.aggregate_results}")
 
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):

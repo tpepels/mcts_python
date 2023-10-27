@@ -107,32 +107,15 @@ if not args.battle:
     )
 else:
     # * Battle
-    algo = args.algo
     eval_params = {}
-    
+
     ai_1_params = {
-        "max_time": 6,
+        "num_simulations": 60_000,
         "debug": args.debug,
-        "c": 0.8,
-        # "early_term": True,
-        # "early_term_turns": 10,
-        # "early_term_cutoff": 0.05,
-        # "roulette": True,
-        # "roulette_epsilon": 0.05,
-        "imm_alpha": 0.6,
-        # "ab_version": 4,
     }
     ai_2_params = {
-        "max_time": 5,
+        "num_simulations": 60_000,
         "debug": args.debug,
-        # "c": 0.6,
-        # "early_term": True,
-        # "early_term_turns": 10,
-        # "early_term_cutoff": 0.2,
-        # "roulette": True,
-        # "roulette_epsilon": 0.05,
-        # "imm_alpha": 0.4,
-        # "ab_version": 0,
     }
 
     p1_params = AIParams(
@@ -143,7 +126,7 @@ else:
         ai_params=ai_1_params,
     )
     p2_params = AIParams(
-        ai_key="alphabeta",
+        ai_key="mcts",
         eval_params=eval_params,
         max_player=2,
         game_name=game_name,
@@ -160,6 +143,7 @@ def run_game_code():
         pause=args.pause,
         debug=args.debug,
     )
+
 
 # Time the game:
 start_time = time.time()
