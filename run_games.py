@@ -59,9 +59,9 @@ class AIParams:
 
     ai_key: str
     max_player: int
+    eval_params: Dict[str, Any]
     game_name: str
-    eval_params: Dict[str, Any] = {}
-    ai_params: Optional[Dict[str, Any]] = {}
+    ai_params: Optional[Dict[str, Any]]
     transposition_table_size: int = 2**16
 
     def __post_init__(self):
