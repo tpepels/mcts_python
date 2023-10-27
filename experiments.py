@@ -346,7 +346,10 @@ def update_running_experiment_status(exp_name, print_tables=True):
             if "end_time" in v:
                 print(f"Finished: {v['end_time'].strftime('%Y-%m-%d %H:%M:%S')}")
                 print(f"Duration: {v['end_time'] - v['start_time']}")
-                print(f"Average time per game: {(v['end_time'] - v['start_time']) / float(completed_games)}")
+                if completed_games > 0:
+                    print(
+                        f"Average time per game: {(v['end_time'] - v['start_time']) / float(completed_games)}"
+                    )
 
 
 tables = {}
