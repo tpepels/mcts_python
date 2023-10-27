@@ -155,16 +155,18 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False):
     # Step 2: Start experiments using multiprocessing
     for exp_dict in expanded_experiment_configs:
         with mp.Pool(processes=n_procs) as pool:
-            async_result, sheet_name = run_new_experiment(exp_dict, pool)
+            async_result, exp_name = run_new_experiment(exp_dict, pool)
 
             while not async_result.ready():
                 # Update running experiment status every 10 seconds
-                update_running_experiment_status(exp_name=sheet_name)
+                update_running_experiment_status(exp_name=exp_name)
                 time.sleep(60)
+
+            tables[exp_name]["end_time"] = datetime.datetime.now()
 
             time.sleep(10)
             # Now the experiment is done, update the status one last time
-            update_running_experiment_status(exp_name=sheet_name)
+            update_running_experiment_status(exp_name=exp_name)
 
 
 def run_new_experiment(exp_dict, pool):
@@ -231,6 +233,7 @@ def run_new_experiment(exp_dict, pool):
     description_str += f"{n_games=}\n"
     description_str += f"Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n     -------- \n"
     tables[exp_name]["description"] = description_str
+    tables[exp_name]["start_time"] = datetime.datetime.now()
     time.sleep(1)
 
     return async_result, exp_name
@@ -339,8 +342,11 @@ def update_running_experiment_status(exp_name, print_tables=True):
         print("\n")
         for _, v in tables.items():
             print(v["description"])
-
             print(v["table"])
+            if "end_time" in v:
+                print(f"Finished: {v['end_time'].strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"Duration: {v['end_time'] - v['start_time']}")
+                print(f"Average time per game: {(v['end_time'] - v['start_time']) / float(completed_games)}")
 
 
 tables = {}
