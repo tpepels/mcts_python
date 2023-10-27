@@ -10,8 +10,8 @@
 #SBATCH --exclusive
 
 # Ensure that both file parameters are provided
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <path_to_json_file> <aggregate_results>"
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <path_to_json_file>"
     exit 1
 fi
 
@@ -23,4 +23,4 @@ module load Python/3.10.4-GCCcore-11.3.0
 cd $HOME/mcts_python
 
 # Use the provided file parameter in the srun command
-srun python experiments.py --n_procs 192 --base_path $HOME --json_file $1 --aggregate_results $2
+srun python experiments.py --n_procs 192 -b $HOME -j $1 -c
