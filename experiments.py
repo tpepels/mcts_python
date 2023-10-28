@@ -568,7 +568,7 @@ def main():
     elif args.clean:
         # Check if agg_loc file exists and rename it by appending a timestamp
         if os.path.exists(agg_loc):
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             new_name = os.path.join(
                 base_path, os.path.splitext(os.path.basename(args.json_file))[0] + f"_{timestamp}.csv"
             )
