@@ -148,7 +148,9 @@ class Node:
                     / (1.0 + cython.cast(cython.double, child.n_visits))
                 )
 
-            assert not isnan(uct_val), f"UCT value is NaN! {child_value=} {confidence_i=}"
+            assert not isnan(
+                uct_val
+            ), f"UCT value is NaN! {child_value=} {confidence_i=}.\nNode: {str(self)}\nChild: {str(child)}"
 
             # Find the highest UCT value
             if uct_val >= best_val:
