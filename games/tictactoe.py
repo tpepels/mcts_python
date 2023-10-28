@@ -528,7 +528,7 @@ class TicTacToeGameState(GameState):
                                     continue
 
                                 # Counting spaces, looking in both directions
-                                space_count = 1
+                                space_count = count
                                 for offset in range(1, self.row_length):
                                     nx = x + (dx * offset)
                                     ny = y + (dy * offset)
@@ -565,18 +565,18 @@ class TicTacToeGameState(GameState):
                                 # If the line can be potentially completed, add the count to the score
                                 if space_count >= self.row_length:
                                     # If the line is broken we don't want that, unless we only need one more mark to win
-                                    if count < (self.row_length - 1):
-                                        power: cython.double = max(1, params[0] - parts)
+
+                                    power: cython.double = max(1, params[0] - parts)
+
                                     if p == 1:
                                         score_p1 += count**power
                                     else:
                                         score_p2 += count**power
-        
+
         if norm:
             return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
 
         return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
-        
 
 
 def evaluate_tictactoe(self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0) -> float:
