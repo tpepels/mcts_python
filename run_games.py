@@ -2,6 +2,7 @@
 
 from array import array
 import gc
+import os
 import random
 import time
 from dataclasses import dataclass
@@ -186,12 +187,14 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     Returns:
         int: The result of the game. gamestate.draw for a draw, gamestate.win if player 1 won, and gamestate.loss if player 2 won.
     """
-    # Create an instance of SystemRandom
-    sys_rng = random.SystemRandom()
-    seed = int(sys_rng.random() * 1e8) + int(time.time() * 1e6)
-    # Get a random number from SystemRandom and combine it with the current time
+    # Use os.urandom() to generate a cryptographically secure random seed
+    seed_bytes = os.urandom(8)  # Generate 8 random bytes
+    seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
+
+    # Set the random seed
     random.seed(seed)
     print(f"Random seed set to: {seed}")
+
     current_player: AIPlayer = player1
     turns = 1
     while not game.is_terminal():
