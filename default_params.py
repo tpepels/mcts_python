@@ -10,9 +10,9 @@ DEFAULT_SETTINGS = {
         "eval_params": {"m_power": 2, "m_centre": 3, "a": 200},
     },
     ("breakthrough", "mcts"): {
-        # C-value optimized without improvements (0.8)
+        # C-value optimized without improvements 0.8 / With some improvements 0.5
         "ai_params": {
-            "c": 0.5,
+            "c": 0.3,
             "imm_alpha": 0.6,
             "early_term_turns": 5,
             "early_term_cutoff": 0.1,
