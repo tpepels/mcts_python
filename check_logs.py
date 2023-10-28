@@ -21,18 +21,23 @@ def find_similar_files(directory, min_similarity):
     """Finds and prints pairs of files in the directory that are more than 70% similar."""
     log_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".log")]
     print(f"Found {len(log_files)} log files.")
-    max_similarity = 0
+    max_similarity, total_similarity, n_combinations = 0, 0, 0
     for file1, file2 in itertools.combinations(log_files, 2):
         similarity = compare_files(file1, file2)
 
         if similarity > max_similarity:
             max_similarity = similarity
 
+        total_similarity += similarity
+        n_combinations += 1
+
         if similarity > min_similarity:
             print(
                 f"Files '{os.path.basename(file1)}' and '{os.path.basename(file2)}' are {similarity:.2f}% similar."
             )
+
     print(f"{max_similarity=:,.2f}")
+    print(f"Average similarity: {total_similarity / n_combinations:,.2f}%")
 
 
 if __name__ == "__main__":
