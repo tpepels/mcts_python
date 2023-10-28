@@ -594,7 +594,8 @@ def main():
     start_experiments_from_json(
         json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only
     )
-
+    if args.count_only:
+        return
     print(f"Aggregating results from {base_path} to {agg_loc}")
     aggregate_csv_results(agg_loc)
 
