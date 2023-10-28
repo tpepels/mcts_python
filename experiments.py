@@ -560,11 +560,20 @@ def main():
     # Include the experiment file in the base_path
     base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
     print("Base path:", base_path)
-
+    # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
+    agg_loc = os.path.join(base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv")
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
     elif args.clean:
+        # Check if agg_loc file exists and rename it by appending a timestamp
+        if os.path.exists(agg_loc):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_name = os.path.join(
+                base_path, os.path.splitext(os.path.basename(args.json_file))[0] + f"_{timestamp}.csv"
+            )
+            os.rename(agg_loc, new_name)
+        print(f"Renamed {agg_loc} to {new_name}")
         # Remove the log directory from the base_path
         log_path = os.path.join(base_path, "log")
         if os.path.exists(log_path):
@@ -586,8 +595,6 @@ def main():
         json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only
     )
 
-    # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
-    agg_loc = os.path.join(base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv")
     print(f"Aggregating results from {base_path} to {agg_loc}")
     aggregate_csv_results(agg_loc)
 
