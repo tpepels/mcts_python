@@ -573,7 +573,7 @@ def main():
                 base_path, os.path.splitext(os.path.basename(args.json_file))[0] + f"_{timestamp}.csv"
             )
             os.rename(agg_loc, new_name)
-        print(f"Renamed {agg_loc} to {new_name}")
+            print(f"Renamed {agg_loc} to {new_name}")
         # Remove the log directory from the base_path
         log_path = os.path.join(base_path, "log")
         if os.path.exists(log_path):
