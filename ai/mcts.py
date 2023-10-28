@@ -106,7 +106,7 @@ class Node:
             confidence_i: cython.double = sqrt(
                 log(cython.cast(cython.double, max(1, self.n_visits)))
                 / cython.cast(cython.double, child.n_visits)
-            )
+            ) + random.uniform(0, 0.000001)
 
             # print(f"{confidence_i=}")
             # print(f"{child_value=}")
