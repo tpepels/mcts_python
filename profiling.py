@@ -109,7 +109,7 @@ else:
     # * Battle
     eval_params = {}
 
-    ai_1_params = {"num_simulations": 60_000, "debug": args.debug, "c": 0.2}
+    ai_1_params = {"num_simulations": 60_000, "no_defaults": True, "debug": args.debug}
     ai_2_params = {
         "num_simulations": 60_000,
         "debug": args.debug,
