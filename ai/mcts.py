@@ -131,9 +131,7 @@ class Node:
                     confidence_i = min(c * confidence_i, beta)
                     uct_val = child_value + confidence_i
                 if ab_version == 5:
-                    # Cut value by alpha and beta and cut confidence interval by beta - alpha
-                    child_value = min(max(child_value, alpha), beta)
-                    confidence_i = min(max(c * confidence_i, alpha), beta)
+                    confidence_i = min(c * confidence_i, beta - alpha)
                     uct_val = child_value + confidence_i
                 if ab_version == 6:
                     uct_val = child_value + confidence_i
@@ -142,6 +140,9 @@ class Node:
                     confidence_i *= beta - alpha
                     uct_val = child_value + confidence_i
                     uct_val = min(max(uct_val, alpha), (beta))
+                if ab_version == 8:
+                    uct_val = child_value + confidence_i
+                    uct_val = min(uct_val, (beta - alpha))
 
                 ab_bound += 1
             else:
