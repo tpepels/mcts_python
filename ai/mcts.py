@@ -115,15 +115,17 @@ class Node:
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 if ab_version == 1:
-                    uct_val = child_value + (c * (beta - alpha) * confidence_i)
+                    child_value = min(max(child_value, alpha), beta)
+                    confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
+                    uct_val = child_value + confidence_i
                 if ab_version == 2:
                     # Cut off the confidence interval by alpha and beta
-                    confidence_i = min(max(c * confidence_i, alpha), beta)
+                    confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
                     uct_val = child_value + confidence_i
                 if ab_version == 3:
-                    # Cut off the value by alpha and beta
-                    child_value = min(max(child_value, alpha), beta)
-                    uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
+                    # Cut off the confidence interval by alpha and beta
+                    confidence_i = min(c * confidence_i, max(abs(beta), abs(alpha)))
+                    uct_val = child_value + confidence_i
                 if ab_version == 4:
                     # Cutoff the confidence interval by beta
                     confidence_i = min(c * confidence_i, beta)
@@ -134,9 +136,13 @@ class Node:
                     confidence_i = min(max(c * confidence_i, alpha), beta)
                     uct_val = child_value + confidence_i
                 if ab_version == 6:
-                    # Cut value by alpha and beta and cut confidence interval by beta - alpha
-                    child_value = min(max(child_value, alpha), beta)
-                    uct_val = child_value + (c * ((beta - alpha) / 2) * confidence_i)
+                    uct_val = child_value + confidence_i
+                    uct_val = min(max(uct_val, alpha), (beta))
+                if ab_version == 7:
+                    confidence_i *= beta - alpha
+                    uct_val = child_value + confidence_i
+                    uct_val = min(max(uct_val, alpha), (beta))
+
                 ab_bound += 1
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
@@ -775,7 +781,7 @@ class MCTSPlayer:
                     ):
                         beta[o_i] = -val + bound
                         alpha[p_i] = val - bound
-                    else:
+                    elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
                         prune = 1
                         prunes += 1
 
