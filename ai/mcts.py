@@ -415,7 +415,7 @@ class Node:
         value: cython.double = self.get_value_imm(player, imm_alpha)
         # Compute the adjustment factor for the prediction interval
         adjustment: cython.double = c * (
-            sqrt(cython.cast(cython.double, N) / cython.cast(cython.double, self.n_visits))
+            sqrt(log(cython.cast(cython.double, max(1, N))) / cython.cast(cython.double, self.n_visits))
         )
         return value, adjustment
 
@@ -789,26 +789,11 @@ class MCTSPlayer:
                     if not prune:
                         non_prunes += 1
 
-                    if self.ab_prune_version == 1 and prune:
-                        alpha[0] = 0
-                        alpha[1] = 0
-                        beta[0] = 0
-                        beta[1] = 0
-                    elif self.ab_prune_version == 2 and prune:
+                    if self.ab_prune_version == 2 and prune:
                         alpha[0] = -INFINITY
                         alpha[1] = -INFINITY
                         beta[0] = INFINITY
                         beta[1] = INFINITY
-                    elif self.ab_prune_version == 3 and prune:
-                        alpha[0] = -2
-                        alpha[1] = -2
-                        beta[0] = 2
-                        beta[1] = 2
-                    elif self.ab_prune_version == 4 and prune:
-                        alpha[0] = -0.5
-                        alpha[1] = -0.5
-                        beta[0] = 0.5
-                        beta[1] = 0.5
 
                 prev_node = node
                 if self.ab_version != 0:

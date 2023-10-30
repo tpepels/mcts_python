@@ -78,7 +78,7 @@ def main():
         eval_params={},
         max_player=2,
         game_name="ninarow",
-        ai_params={"max_time": 5, "debug": True, "imm_alpha": 0.6, "c": 0.8},
+        ai_params={"num_simulations": 100000, "debug": True},
         transposition_table_size=game_state.transposition_table_size,
     )
     ai = init_ai_player(ai_params, TicTacToeGameState.param_order, TicTacToeGameState.default_params)

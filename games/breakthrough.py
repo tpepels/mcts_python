@@ -297,12 +297,12 @@ class BreakthroughGameState(GameState):
                 dc: cython.int = dirs[(start_dc + k) % 3]
                 new_row: cython.int = row + dr
                 new_col: cython.int = col + dc
-                
+
                 if not (
                     (0 <= new_row) & (new_row < 8) & (0 <= new_col) & (new_col < 8)
                 ):  # if the new position is not in bounds, skip to the next direction
                     continue
-                
+
                 new_position: cython.int = new_row * 8 + new_col
 
                 # Straight, no capture or diagonal capture / empty cell
@@ -320,7 +320,7 @@ class BreakthroughGameState(GameState):
                         # Prioritize safe captures
                         # To make sure that the piece is not itself counted as defending the position
                         self.board[position] = 0
-                        
+
                         # give captures higher chance of being selected
                         capture_pair: pair[cython.int, cython.int] = pair[cython.int, cython.int](
                             position, new_position
@@ -329,18 +329,18 @@ class BreakthroughGameState(GameState):
                         all_moves.push_back(capture_pair)
                         all_moves.push_back(capture_pair)
                         all_moves.push_back(capture_pair)
-                        
+
                         if is_safe(new_position, self.player, self.board):
                             all_moves.push_back(capture_pair)
                             all_moves.push_back(capture_pair)
                             all_moves.push_back(capture_pair)
                             all_moves.push_back(capture_pair)
-                            
+
                         self.board[position] = self.player  # Put the piece back
 
                     # Safe captures are prioritized anyway so no need to add non-captures
                     all_moves.push_back(pair[cython.int, cython.int](position, new_position))
-                    
+
         # All_moves includes captures, they'll be selected with a higher probability
         return all_moves[random.randint(0, all_moves.size() - 1)]
 
@@ -436,7 +436,7 @@ class BreakthroughGameState(GameState):
     }
 
     default_params = array.array("d", [1.5, 0.6, 0.3, 0.3, 1.2, 1.3, 5.0, 60.0])
-    
+
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
     def evaluate(
@@ -479,27 +479,19 @@ class BreakthroughGameState(GameState):
 
                 board_values += multiplier * piece_value
 
-                if params[1] != 0.0:
+                if params[1] > 0.0:
                     mob_val: cython.double = piece_mobility(position, piece, self.board)
                     mobility_values += multiplier * mob_val * (1 + piece_value)
 
-                if params[2] != 0.0 and not is_safe(position, piece, self.board):
+                if params[2] > 0.0 and not is_safe(position, piece, self.board):
                     safety_values -= multiplier * piece_value
 
         piece_diff = len(self.positions[player - 1]) - len(self.positions[opponent - 1])
 
-        if params[3] != 0.0 and (len(self.positions[player - 1]) + len(self.positions[opponent - 1])) < 12:
+        if params[3] > 0.0 and (len(self.positions[player - 1]) + len(self.positions[opponent - 1])) < 12:
             endgame_values = params[3] * piece_diff
-        # "m_lorenz": 0,
-        # "m_mobility": 1,
-        # "m_safe": 2,
-        # "m_endgame": 3,
-        # "m_cap": 4,
-        # "m_piece_diff": 5,
-        # "m_opp_disc": 6,
-        # "m_decisive": 7,
-        # "a": 8,
-        if params[6] != 0.0:
+
+        if params[6] > 0:
             player_1_decisive, player_2_decisive = is_decisive(self)
 
             if player == 1:
@@ -509,20 +501,10 @@ class BreakthroughGameState(GameState):
                 decisive_values = params[6] if player_2_decisive else 0
                 decisive_values -= params[6] if player_1_decisive else 0
 
-        if params[4] >= 0:
+        if params[4] > 0:
             caps = count_capture_moves(self.board, self.positions[player - 1], player) - count_capture_moves(
                 self.board, self.positions[opponent - 1], opponent
             )
-
-        # 'm_lorenz': 0,
-        # 'm_mobility': 1,
-        # 'm_safe': 2,
-        # 'm_endgame': 3,
-        # 'm_cap': 4,
-        # 'm_piece_diff': 5,
-        # 'm_opp_disc': 6,
-        # 'm_decisive': 7,
-        # 'a': 8
 
         eval_value: cython.double = (
             decisive_values
