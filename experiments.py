@@ -138,7 +138,7 @@ def expand_rows(json_file_path):
     return res
 
 
-def start_experiments_from_json(json_file_path, n_procs=4, count_only=False):
+def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg_loc=None):
     """
     Read experiment configurations from a JSON file and start the experiments.
 
@@ -167,6 +167,9 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False):
             time.sleep(10)
             # Now the experiment is done, update the status one last time
             update_running_experiment_status(exp_name=exp_name)
+            # Aggregate results
+            if agg_loc is not None:
+                aggregate_csv_results(agg_loc)
 
 
 def run_new_experiment(exp_dict, pool):
@@ -359,21 +362,21 @@ def generate_ascii_art(text):
     # Define the banner style for each character
     # For simplicity, let's use a basic style. You can expand this dictionary for a more detailed representation.
     banner = {
-        "A": ["   A   ", "  A A  ", " A   A ", "AAAAAAA", "A     A"],
-        "B": ["BBBB  ", "B    B ", "BBBBB ", "B    B ", "BBBBB  "],
-        "C": [" CCCCC", "C      ", "C      ", "C      ", " CCCCC "],
-        "E": ["EEEEE ", "E      ", "EEEEE ", "E      ", "EEEEE  "],
-        "F": ["FFFFF ", "F      ", "FFFF  ", "F      ", "F      "],
-        "I": ["IIIII ", "  I    ", "  I    ", "  I    ", "IIIII  "],
-        "M": ["M     M", "MM   MM", "M M M M", "M  M  M", "M     M"],
-        "N": ["N     N", "NN    N", "N N   N", "N  N  N", "N     N"],
-        "P": ["PPPP  ", "P    P ", "PPPP  ", "P      ", "P      "],
-        "R": ["RRRR  ", "R    R ", "RRRR  ", "R R    ", "R   R  "],
-        "S": [" SSSSS", "S      ", " SSSS ", "      S", " SSSSS "],
-        "T": ["TTTTTT", "  T   ", "  T   ", "  T   ", "  T   "],
-        "X": ["X   X ", " X X  ", "  X   ", " X X  ", "X   X  "],
-        " ": ["      ", "      ", "      ", "      ", "      "],
-        "!": ["  !   ", "  !   ", "  !   ", "      ", "  !   "],
+        "A": ["   A    ", "  A A    ", " A   A   ", "AAAAAAA  ", "A     A  "],
+        "B": ["BBBB    ", "B    B   ", "BBBBB    ", "B    B   ", "BBBBB    "],
+        "C": [" CCCCC  ", "C        ", "C        ", "C        ", " CCCCC   "],
+        "E": ["EEEEE   ", "E        ", "EEEEE    ", "E        ", "EEEEE    "],
+        "F": ["FFFFF   ", "F        ", "FFFF     ", "F        ", "F        "],
+        "I": ["IIIII   ", "  I      ", "  I      ", "  I      ", "IIIII    "],
+        "M": ["M     M ", "MM   MM  ", "M M M M  ", "M  M  M  ", "M     M  "],
+        "N": ["N     N ", "NN    N  ", "N N   N  ", "N  N  N  ", "N     N  "],
+        "P": ["PPPP    ", "P    P   ", "PPPP     ", "P        ", "P        "],
+        "R": ["RRRR    ", "R    R   ", "RRRR     ", "R R      ", "R   R    "],
+        "S": [" SSSSS  ", "S        ", " SSSS    ", "      S  ", " SSSSS   "],
+        "T": ["TTTTTT  ", "  T      ", "  T      ", "  T      ", "  T      "],
+        "X": ["X   X   ", " X X     ", "  X      ", " X X     ", "X   X    "],
+        " ": ["        ", "         ", "         ", "         ", "         "],
+        "!": ["  !     ", "  !      ", "  !      ", "         ", "  !      "],
     }
 
     # Generate the ASCII art line by line
@@ -592,7 +595,7 @@ def main():
 
     # Start experiments
     start_experiments_from_json(
-        json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only
+        json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only, agg_loc=agg_loc
     )
     if args.count_only:
         return
