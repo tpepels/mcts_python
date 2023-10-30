@@ -109,16 +109,8 @@ else:
     # * Battle
     eval_params = {}
 
-    ai_1_params = {
-        "num_simulations": 80_000,
-        "debug": args.debug,
-        "ab_version": 1,
-        "ab_prune_version": 2,
-    }
-    ai_2_params = {
-        "num_simulations": 80_000,
-        "debug": args.debug,
-    }
+    ai_1_params = {"num_simulations": 80_000, "debug": args.debug, "ab_version": 1, "ab_style": 1}
+    ai_2_params = {"num_simulations": 80_000, "debug": args.debug, "ab_version": 1, "ab_style": 2}
 
     p1_params = AIParams(
         ai_key="mcts",

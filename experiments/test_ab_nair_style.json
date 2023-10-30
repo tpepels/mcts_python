@@ -1,0 +1,78 @@
+[
+  {
+    "n_games": 500,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 50000,
+      "ab_version": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "ab_style": [1, 2]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 50000
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 500,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "ab_style": [1, 2]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 500,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 50000,
+      "c": 0.8,
+      "no_defaults": true,
+      "ab_version": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "ab_style": [1, 2]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 50000,
+      "c": 0.8,
+      "no_defaults": true
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 500,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 9, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.8,
+      "no_defaults": true,
+      "ab_version": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+      "ab_style": [1, 2]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.8,
+      "no_defaults": true
+    },
+    "p2_eval_params": {}
+  }
+]

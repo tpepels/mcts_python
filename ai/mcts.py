@@ -104,14 +104,9 @@ class Node:
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(
-                log(cython.cast(cython.double, max(1, self.n_visits)))
+                log(cython.cast(cython.double, max(1.0, self.n_visits)))
                 / cython.cast(cython.double, child.n_visits)
             ) + random.uniform(0, 0.0001)
-
-            # print(f"{confidence_i=}")
-            # print(f"{child_value=}")
-            # print(f"{child.n_visits=}")
-            # print(f"{max(1 ,self.n_visits)}")
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 if ab_version == 1:
@@ -143,6 +138,28 @@ class Node:
                 if ab_version == 8:
                     uct_val = child_value + confidence_i
                     uct_val = min(uct_val, (beta - alpha))
+                if ab_version == 9:
+                    child_value = min(max(child_value, alpha), beta)
+                    confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
+                    uct_val = child_value + confidence_i
+                if ab_version == 10:
+                    # Cut off the confidence interval by alpha and beta
+                    confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
+                    uct_val = child_value + confidence_i
+                if ab_version == 11:
+                    # Cut off the confidence interval by alpha and beta
+                    confidence_i = max(c * confidence_i, max(abs(beta), abs(alpha)))
+                    uct_val = child_value + confidence_i
+                if ab_version == 12:
+                    # Cutoff the confidence interval by beta
+                    confidence_i = max(c * confidence_i, beta)
+                    uct_val = child_value + confidence_i
+                if ab_version == 13:
+                    confidence_i = max(c * confidence_i, beta - alpha)
+                    uct_val = child_value + confidence_i
+                if ab_version == 14:
+                    uct_val = child_value + confidence_i
+                    uct_val = max(uct_val, (beta - alpha))
 
                 ab_bound += 1
             else:
@@ -490,6 +507,7 @@ class MCTSPlayer:
     ab_version: cython.int
     ab_prune_version: cython.int
     reuse_tree: cython.bint
+    ab_style: cython.int
 
     def __init__(
         self,
@@ -509,6 +527,7 @@ class MCTSPlayer:
         imm_version: int = 0,
         ab_version: int = 0,
         ab_prune_version: int = 0,
+        ab_style: int = 1,
         ex_imm_D: int = 2,
         pb_weight: float = 0.0,
         reuse_tree: bool = True,
@@ -562,6 +581,7 @@ class MCTSPlayer:
         self.ex_imm_D = ex_imm_D
         self.ab_version = ab_version
         self.ab_prune_version = ab_prune_version
+        self.ab_style = ab_style
         self.reuse_tree = reuse_tree
 
     @cython.ccall
@@ -762,38 +782,59 @@ class MCTSPlayer:
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
                 if self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
-                    prune = 0
-                    # The parent's value have the information regarding the child's bound
-                    val, bound = node.get_value_with_uct_interval(
-                        c=self.c,
-                        player=node.player,
-                        imm_alpha=self.imm_alpha,
-                        N=prev_node.n_visits,
-                    )
-
                     p_i: cython.int = node.player - 1
                     o_i: cython.int = 3 - node.player - 1
 
-                    if (
-                        -val + bound <= beta[o_i]
-                        and -val - bound >= alpha[o_i]
-                        and val - bound > alpha[p_i]
-                        and val + bound < beta[p_i]
-                    ):
-                        beta[o_i] = -val + bound
-                        alpha[p_i] = val - bound
-                    elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
-                        prune = 1
-                        prunes += 1
+                    if self.ab_style == 1:
+                        # * Min/Max Style
+                        for i in range(len(node.children)):
+                            child = node.children[i]
+                            if child.n_visits > 0:
+                                val, bound = child.get_value_with_uct_interval(
+                                    c=self.c,
+                                    player=node.player,
+                                    imm_alpha=self.imm_alpha,
+                                    N=node.n_visits,
+                                )
+                                if (
+                                    -val + bound <= beta[o_i]
+                                    and -val - bound >= alpha[o_i]
+                                    and val - bound > alpha[p_i]
+                                    and val + bound < beta[p_i]
+                                ):
+                                    beta[o_i] = -val + bound
+                                    alpha[p_i] = val - bound
+                    else:
+                        # * Alpha/Beta Style
+                        prune = 0
+                        # The parent's value have the information regarding the child's bound
+                        val, bound = node.get_value_with_uct_interval(
+                            c=self.c,
+                            player=node.player,
+                            imm_alpha=self.imm_alpha,
+                            N=prev_node.n_visits,
+                        )
 
-                    if not prune:
-                        non_prunes += 1
+                        if (
+                            -val + bound <= beta[o_i]
+                            and -val - bound >= alpha[o_i]
+                            and val - bound > alpha[p_i]
+                            and val + bound < beta[p_i]
+                        ):
+                            beta[o_i] = -val + bound
+                            alpha[p_i] = val - bound
+                        elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
+                            prune = 1
+                            prunes += 1
 
-                    if self.ab_prune_version == 2 and prune:
-                        alpha[0] = -INFINITY
-                        alpha[1] = -INFINITY
-                        beta[0] = INFINITY
-                        beta[1] = INFINITY
+                        if not prune:
+                            non_prunes += 1
+
+                        if self.ab_prune_version == 2 and prune:
+                            alpha[0] = -INFINITY
+                            alpha[1] = -INFINITY
+                            beta[0] = INFINITY
+                            beta[1] = INFINITY
 
                 prev_node = node
                 if self.ab_version != 0:
