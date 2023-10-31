@@ -109,10 +109,10 @@ class Node:
             ) + random.uniform(0, 0.0001)
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                if ab_version == 1:
-                    child_value = min(max(child_value, alpha), beta)
-                    confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
-                    uct_val = child_value + confidence_i
+                # if ab_version == 1:
+                #     child_value = min(max(child_value, alpha), beta)
+                #     confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
+                #     uct_val = child_value + confidence_i
                 if ab_version == 2:
                     # Cut off the confidence interval by alpha and beta
                     confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
@@ -121,37 +121,32 @@ class Node:
                     # Cut off the confidence interval by alpha and beta
                     confidence_i = min(c * confidence_i, max(abs(beta), abs(alpha)))
                     uct_val = child_value + confidence_i
-                if ab_version == 4:
-                    # Cutoff the confidence interval by beta
-                    confidence_i = min(c * confidence_i, beta)
-                    uct_val = child_value + confidence_i
-                if ab_version == 5:
-                    confidence_i = min(c * confidence_i, beta - alpha)
-                    uct_val = child_value + confidence_i
-                if ab_version == 6:
-                    uct_val = child_value + confidence_i
-                    uct_val = min(max(uct_val, alpha), (beta))
-                if ab_version == 7:
-                    confidence_i *= beta - alpha
-                    uct_val = child_value + confidence_i
-                    uct_val = min(max(uct_val, alpha), (beta))
-                if ab_version == 8:
-                    uct_val = child_value + confidence_i
-                    uct_val = min(uct_val, (beta - alpha))
-                if ab_version == 9:
-                    child_value = min(max(child_value, alpha), beta)
-                    confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
-                    uct_val = child_value + confidence_i
-                if ab_version == 10:
-                    # Cut off the confidence interval by alpha and beta
-                    confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
-                    uct_val = child_value + confidence_i
-                if ab_version == 11:
-                    # Cut off the confidence interval by alpha and beta
-                    confidence_i = max(c * confidence_i, max(abs(beta), abs(alpha)))
-                    uct_val = child_value + confidence_i
+                # if ab_version == 4:
+                #     # Cutoff the confidence interval by beta
+                #     confidence_i = min(c * confidence_i, beta)
+                #     uct_val = child_value + confidence_i
+                # if ab_version == 5:
+                #     confidence_i = min(c * confidence_i, beta - alpha)
+                #     uct_val = child_value + confidence_i
+                # if ab_version == 6:
+                #     uct_val = child_value + confidence_i
+                #     uct_val = min(max(uct_val, alpha), (beta))
+                # if ab_version == 7:
+                #     confidence_i *= beta - alpha
+                #     uct_val = child_value + confidence_i
+                #     uct_val = min(max(uct_val, alpha), (beta))
+                # if ab_version == 8:
+                #     uct_val = child_value + confidence_i
+                #     uct_val = min(uct_val, (beta - alpha))
+                # if ab_version == 9:
+                #     child_value = min(max(child_value, alpha), beta)
+                #     confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
+                #     uct_val = child_value + confidence_i
+                # if ab_version == 10:
+                #     # Cut off the confidence interval by alpha and beta
+                #     confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
+                #     uct_val = child_value + confidence_i
                 if ab_version == 12:
-                    # Cutoff the confidence interval by beta
                     confidence_i = max(c * confidence_i, beta)
                     uct_val = child_value + confidence_i
                 if ab_version == 13:
@@ -160,6 +155,28 @@ class Node:
                 if ab_version == 14:
                     uct_val = child_value + confidence_i
                     uct_val = max(uct_val, (beta - alpha))
+                if ab_version == 15:
+                    delta_alpha: cython.double = child_value - alpha
+                    delta_beta: cython.double = beta - child_value
+                    uct_val = child_value + (c * confidence_i) + (delta_alpha + delta_beta)
+                if ab_version == 16:
+                    delta_alpha: cython.double = child_value - alpha
+                    delta_beta: cython.double = beta - child_value
+                    uct_val = child_value + max(c * confidence_i, (delta_alpha + delta_beta))
+                if ab_version == 17:
+                    delta_alpha: cython.double = child_value - alpha
+                    delta_beta: cython.double = beta - child_value
+                    uct_val = child_value + min(c * confidence_i, (delta_alpha + delta_beta))
+                if ab_version == 18:
+                    delta_beta: cython.double = beta - child_value
+                    uct_val = child_value + (c * confidence_i) + delta_beta
+                if ab_version == 19:
+                    delta_alpha: cython.double = child_value - alpha
+                    uct_val = child_value + (c * confidence_i) + delta_alpha
+                if ab_version == 20:
+                    delta_alpha: cython.double = child_value - alpha
+                    delta_beta: cython.double = beta - child_value
+                    uct_val = child_value + ((c * confidence_i) * (delta_alpha + delta_beta))
 
                 ab_bound += 1
             else:
@@ -784,57 +801,37 @@ class MCTSPlayer:
                 if self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
                     p_i: cython.int = node.player - 1
                     o_i: cython.int = 3 - node.player - 1
+                    # * Alpha/Beta Style
+                    prune = 0
+                    # The parent's value have the information regarding the child's bound
+                    val, bound = node.get_value_with_uct_interval(
+                        c=self.c,
+                        player=node.player,
+                        imm_alpha=self.imm_alpha,
+                        N=prev_node.n_visits,
+                    )
 
-                    if self.ab_style == 1:
-                        # * Min/Max Style
-                        for i in range(len(node.children)):
-                            child = node.children[i]
-                            if child.n_visits > 0:
-                                val, bound = child.get_value_with_uct_interval(
-                                    c=self.c,
-                                    player=node.player,
-                                    imm_alpha=self.imm_alpha,
-                                    N=node.n_visits,
-                                )
-                                if (
-                                    -val + bound <= beta[o_i]
-                                    and -val - bound >= alpha[o_i]
-                                    and val - bound > alpha[p_i]
-                                    and val + bound < beta[p_i]
-                                ):
-                                    beta[o_i] = -val + bound
-                                    alpha[p_i] = val - bound
-                    else:
-                        # * Alpha/Beta Style
-                        prune = 0
-                        # The parent's value have the information regarding the child's bound
-                        val, bound = node.get_value_with_uct_interval(
-                            c=self.c,
-                            player=node.player,
-                            imm_alpha=self.imm_alpha,
-                            N=prev_node.n_visits,
-                        )
+                    if (
+                        -val + bound <= beta[o_i]
+                        and -val - bound >= alpha[o_i]
+                        and val - bound > alpha[p_i]
+                        and val + bound < beta[p_i]
+                    ):
+                        alpha[p_i] = val - bound
+                        beta[o_i] = -val + bound
 
-                        if (
-                            -val + bound <= beta[o_i]
-                            and -val - bound >= alpha[o_i]
-                            and val - bound > alpha[p_i]
-                            and val + bound < beta[p_i]
-                        ):
-                            beta[o_i] = -val + bound
-                            alpha[p_i] = val - bound
-                        elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
-                            prune = 1
-                            prunes += 1
+                    elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
+                        prune = 1
+                        prunes += 1
 
-                        if not prune:
-                            non_prunes += 1
+                    if not prune:
+                        non_prunes += 1
 
-                        if self.ab_prune_version == 2 and prune:
-                            alpha[0] = -INFINITY
-                            alpha[1] = -INFINITY
-                            beta[0] = INFINITY
-                            beta[1] = INFINITY
+                    if self.ab_prune_version == 2 and prune:
+                        alpha[0] = -INFINITY
+                        alpha[1] = -INFINITY
+                        beta[0] = INFINITY
+                        beta[1] = INFINITY
 
                 prev_node = node
                 if self.ab_version != 0:
