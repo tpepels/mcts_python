@@ -15,6 +15,7 @@ DEFAULT_SETTINGS = {
             "c": 0.3,
             "imm_alpha": 0.6,
             "early_term_turns": 5,
+            # ! pb = 0.3 won 75% of games against 0.2
             "pb_weight": 0.2,
             "early_term_cutoff": 0.1,
             "e_g_subset": 10,
