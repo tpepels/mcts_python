@@ -7,7 +7,7 @@ DEFAULT_SETTINGS = {
             "dyn_early_term_cutoff": 0.2,
             # "pb_weight": 0.2,
         },
-        "eval_params": {"m_power": 2, "m_centre": 3, "a": 200},
+        "eval_params": {"m_power": 3, "m_centre": 3, "a": 300},
     },
     ("breakthrough", "mcts"): {
         # C-value optimized without improvements 0.8 / With some improvements 0.5

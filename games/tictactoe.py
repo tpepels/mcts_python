@@ -565,8 +565,10 @@ class TicTacToeGameState(GameState):
                                 # If the line can be potentially completed, add the count to the score
                                 if space_count >= self.row_length:
                                     # If the line is broken we don't want that, unless we only need one more mark to win
-
-                                    power: cython.double = max(1, params[0] - parts)
+                                    if count != self.row_length - 1:
+                                        power: cython.double = max(1, params[0] - parts)
+                                    else:
+                                        power: cython.double = params[0]
 
                                     if p == 1:
                                         score_p1 += count**power
