@@ -1,28 +1,12 @@
 [
   {
     "n_games": 500,
-    "game_key": "ninarow",
-    "game_params": { "board_size": 9, "row_length": 5 },
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "num_simulations": 100000,
-      "c": [0.5, 0.55, 0.65, 0.7, 0.75, 0.8]
-    },
-    "p1_eval_params": {},
-    "p2_ai_key": "mcts",
-    "p2_ai_params": {
-      "num_simulations": 100000
-    },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 500,
     "game_key": "breakthrough",
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "c": [0.2, 0.25, 0.35, 0.4, 0.45, 0.5]
+      "c": [0.05, 0.1, 0.15]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

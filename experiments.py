@@ -615,6 +615,7 @@ def main():
             )
             os.rename(agg_loc, new_name)
             print(f"Renamed {agg_loc} to {new_name}")
+            
         # Remove the log directory from the base_path
         log_path = os.path.join(base_path, "log")
         if os.path.exists(log_path):
@@ -622,6 +623,13 @@ def main():
             shutil.rmtree(log_path)
         else:
             print(f"{log_path} does not exist.")
+            
+        result_path = os.path.join(base_path, "results")
+        if os.path.exists(result_path):
+            print(f"Removing {result_path}")
+            shutil.rmtree(result_path)
+        else:
+            print(f"{result_path} does not exist.")
 
     # Read the JSON file to see if it exists and is a valid JSON
     try:
