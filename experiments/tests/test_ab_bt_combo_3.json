@@ -1,0 +1,21 @@
+[
+  {
+    "n_games": 1,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": [
+        61, 62, 63, 64, 65, 66, 67, 68, 70, 71, 72, 73, 74, 75, 76, 77, 78, 80,
+        81, 82, 83, 84, 85, 86, 87, 88
+      ]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000
+    },
+    "p2_eval_params": {}
+  }
+]
