@@ -443,10 +443,9 @@ def aggregate_csv_results(output_file):
                     print(lines[:4])  # Print the lines causing the issue
                     continue
 
-                # Continue with game results
                 for line in lines[7:]:
                     _, ai_config = line.strip().split(",", 1)
-                    ai_config_cleaned = ai_config.strip().strip('"')
+                    ai_config_cleaned = sort_parameters(ai_config.strip().strip('"'))
                     if ai_config_cleaned == "Draw":
                         continue
                     total_games += 1
@@ -463,7 +462,7 @@ def aggregate_csv_results(output_file):
                 ai_results.append((ai_config, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"))
 
             # Sort ai_results based on ai_config to ensure consistent order
-            ai_results.sort(key=lambda x: len(x[0]))
+            ai_results.sort(key=lambda x: (len(x[0]), x[0]))
 
             # Construct the row for this file
             row = [
@@ -481,10 +480,10 @@ def aggregate_csv_results(output_file):
                 row.extend(
                     [
                         ai_results[0][0],
-                        str(ai1_diffs),
+                        dict_to_str(ai1_diffs),
                         ai_results[0][1],
                         ai_results[1][0],
-                        str(ai2_diffs),
+                        dict_to_str(ai2_diffs),
                         ai_results[1][1],
                         ai_results[0][2],
                     ]
@@ -497,6 +496,12 @@ def aggregate_csv_results(output_file):
             writer.writerow(row)
 
             writer.writerow(row)
+
+
+def sort_parameters(ai_config):
+    params = ai_config.split(", ")
+    params.sort()
+    return ", ".join(params)
 
 
 def extract_ai_param_diffs(ai1, ai2):
@@ -513,6 +518,10 @@ def extract_ai_param_diffs(ai1, ai2):
             diffs2[k] = v2
 
     return diffs1, diffs2
+
+
+def dict_to_str(d):
+    return ", ".join(f"{k}:{v}" for k, v in d.items())
 
 
 def run_single_experiment(
