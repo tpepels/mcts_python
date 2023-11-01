@@ -407,8 +407,10 @@ def aggregate_csv_results(output_file):
                 "p1_params",
                 "p2_params",
                 "AI1",
+                "Param1",
                 "Win_rate",
                 "AI2",
+                "Param2",
                 "Win_rate",
                 "± 95% C.I.",
             ]
@@ -473,17 +475,44 @@ def aggregate_csv_results(output_file):
                 metadata["p2_params"],
             ]
 
-            # Ensure proper column alignment for AI results
+            ai1_diffs, ai2_diffs = {}, {}
             if len(ai_results) == 2:
+                ai1_diffs, ai2_diffs = extract_ai_param_diffs(ai_results[0][0], ai_results[1][0])
                 row.extend(
-                    [ai_results[0][0], ai_results[0][1], ai_results[1][0], ai_results[1][1], ai_results[0][2]]
+                    [
+                        ai_results[0][0],
+                        str(ai1_diffs),
+                        ai_results[0][1],
+                        ai_results[1][0],
+                        str(ai2_diffs),
+                        ai_results[1][1],
+                        ai_results[0][2],
+                    ]
                 )
             elif len(ai_results) == 1:
-                row.extend([ai_results[0][0], ai_results[0][1], "N/A", "N/A", ai_results[0][2]])
+                row.extend([ai_results[0][0], ai_results[0][1], "N/A", "N/A", ai_results[0][2], "N/A", "N/A"])
             else:
-                row.extend(["N/A", "N/A", "N/A", "N/A", "N/A"])
+                row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
 
             writer.writerow(row)
+
+            writer.writerow(row)
+
+
+def extract_ai_param_diffs(ai1, ai2):
+    dict1 = dict(kv.split(":") for kv in ai1.split(", "))
+    dict2 = dict(kv.split(":") for kv in ai2.split(", "))
+
+    diffs1 = {}
+    diffs2 = {}
+
+    for k, v1 in dict1.items():
+        v2 = dict2.get(k)
+        if v1 != v2:
+            diffs1[k] = v1
+            diffs2[k] = v2
+
+    return diffs1, diffs2
 
 
 def run_single_experiment(
