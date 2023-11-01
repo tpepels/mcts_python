@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 380,
+    "n_games": 500,
     "game_key": "ninarow",
     "game_params": { "board_size": 9, "row_length": 5 },
     "p1_ai_key": "mcts",
@@ -16,7 +16,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 380,
+    "n_games": 500,
     "game_key": "breakthrough",
     "game_params": {},
     "p1_ai_key": "mcts",
