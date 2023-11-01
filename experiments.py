@@ -500,8 +500,8 @@ def aggregate_csv_results(output_file):
 
 
 def extract_ai_param_diffs(ai1, ai2):
-    dict1 = dict(kv.split(":") for kv in ai1.split(", "))
-    dict2 = dict(kv.split(":") for kv in ai2.split(", "))
+    dict1 = {m.group(1): m.group(2) for m in re.finditer(r"(\w+):([\d.]+)", ai1)}
+    dict2 = {m.group(1): m.group(2) for m in re.finditer(r"(\w+):([\d.]+)", ai2)}
 
     diffs1 = {}
     diffs2 = {}
