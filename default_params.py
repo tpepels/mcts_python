@@ -5,7 +5,7 @@ DEFAULT_SETTINGS = {
             "c": 0.6,
             "imm_alpha": 0.2,
             "dyn_early_term_cutoff": 0.2,
-            "pb_weight": 0.2,
+            # "pb_weight": 0.2,
         },
         "eval_params": {"m_power": 2, "m_centre": 3, "a": 200},
     },
@@ -16,7 +16,7 @@ DEFAULT_SETTINGS = {
             "imm_alpha": 0.6,
             "early_term_turns": 5,
             # ! pb = 0.3 won 75% of games against 0.2
-            "pb_weight": 0.2,
+            # "pb_weight": 0.3,
             "early_term_cutoff": 0.1,
             "e_g_subset": 10,
             "epsilon": 0.1,

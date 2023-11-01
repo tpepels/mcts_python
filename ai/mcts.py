@@ -821,7 +821,7 @@ class MCTSPlayer:
                         beta[o_i] = -val + bound
 
                     elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
-                        prune = 1
+                        prune = 1  # ! Als eenmaal gekruist dan altijd gekruist, pas in volgende simulatie weer open zetten
                         prunes += 1
 
                     if not prune:
