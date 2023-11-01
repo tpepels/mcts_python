@@ -80,6 +80,10 @@ class Node:
         children_draw: cython.int = 0
         ci: cython.int
 
+        val_adj: cython.int = ab_version // 10
+        ci_adjust: cython.int = ab_version % 10
+
+        N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
         for ci in range(n_children):
             child: Node = self.children[ci]
@@ -87,6 +91,9 @@ class Node:
             # Make sure that every child is seen at least once.
             if child.n_visits == 0:
                 return child
+
+            n_c: cython.double = cython.cast(cython.double, child.n_visits)
+
             # Check for solved children
             if child.solved_player != 0:
                 if child.solved_player == self.player:  # Winning move, let's go champ
@@ -100,84 +107,51 @@ class Node:
             # Check whether all moves lead to a draw
             if child.draw:
                 children_draw += 1
-
+            rand_fact: cython.double = random.uniform(0, 0.00001)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
-            confidence_i: cython.double = sqrt(
-                log(cython.cast(cython.double, max(1.0, self.n_visits)))
-                / cython.cast(cython.double, child.n_visits)
-            ) + random.uniform(0, 0.0001)
+            confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                # if ab_version == 1:
-                #     child_value = min(max(child_value, alpha), beta)
-                #     confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
-                #     uct_val = child_value + confidence_i
-                if ab_version == 2:
-                    # Cut off the confidence interval by alpha and beta
-                    confidence_i = min(c * confidence_i, min(abs(beta), abs(alpha)))
-                    uct_val = child_value + confidence_i
-                if ab_version == 3:
-                    # Cut off the confidence interval by alpha and beta
-                    confidence_i = min(c * confidence_i, max(abs(beta), abs(alpha)))
-                    uct_val = child_value + confidence_i
-                # if ab_version == 4:
-                #     # Cutoff the confidence interval by beta
-                #     confidence_i = min(c * confidence_i, beta)
-                #     uct_val = child_value + confidence_i
-                # if ab_version == 5:
-                #     confidence_i = min(c * confidence_i, beta - alpha)
-                #     uct_val = child_value + confidence_i
-                # if ab_version == 6:
-                #     uct_val = child_value + confidence_i
-                #     uct_val = min(max(uct_val, alpha), (beta))
-                # if ab_version == 7:
-                #     confidence_i *= beta - alpha
-                #     uct_val = child_value + confidence_i
-                #     uct_val = min(max(uct_val, alpha), (beta))
-                # if ab_version == 8:
-                #     uct_val = child_value + confidence_i
-                #     uct_val = min(uct_val, (beta - alpha))
-                # if ab_version == 9:
-                #     child_value = min(max(child_value, alpha), beta)
-                #     confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
-                #     uct_val = child_value + confidence_i
-                # if ab_version == 10:
-                #     # Cut off the confidence interval by alpha and beta
-                #     confidence_i = max(c * confidence_i, min(abs(beta), abs(alpha)))
-                #     uct_val = child_value + confidence_i
-                if ab_version == 12:
-                    confidence_i = max(c * confidence_i, beta)
-                    uct_val = child_value + confidence_i
-                if ab_version == 13:
-                    confidence_i = max(c * confidence_i, beta - alpha)
-                    uct_val = child_value + confidence_i
-                if ab_version == 14:
-                    uct_val = child_value + confidence_i
-                    uct_val = max(uct_val, (beta - alpha))
-                if ab_version == 15:
-                    delta_alpha: cython.double = child_value - alpha
-                    delta_beta: cython.double = beta - child_value
-                    uct_val = child_value + (c * confidence_i) + (delta_alpha + delta_beta)
-                if ab_version == 16:
-                    delta_alpha: cython.double = child_value - alpha
-                    delta_beta: cython.double = beta - child_value
-                    uct_val = child_value + max(c * confidence_i, (delta_alpha + delta_beta))
-                if ab_version == 17:
-                    delta_alpha: cython.double = child_value - alpha
-                    delta_beta: cython.double = beta - child_value
-                    uct_val = child_value + min(c * confidence_i, (delta_alpha + delta_beta))
-                if ab_version == 18:
-                    delta_beta: cython.double = beta - child_value
-                    uct_val = child_value + (c * confidence_i) + delta_beta
-                if ab_version == 19:
-                    delta_alpha: cython.double = child_value - alpha
-                    uct_val = child_value + (c * confidence_i) + delta_alpha
-                if ab_version == 20:
-                    delta_alpha: cython.double = child_value - alpha
-                    delta_beta: cython.double = beta - child_value
-                    uct_val = child_value + ((c * confidence_i) * (delta_alpha + delta_beta))
+                delta_alpha: cython.double = child_value - alpha
+                delta_beta: cython.double = beta - child_value
+                k: cython.double = beta - alpha
 
+                if val_adj == 1:
+                    child_value = delta_alpha
+                if val_adj == 2:
+                    child_value = delta_beta
+                if val_adj == 3:
+                    child_value = 1 - (2 * (delta_alpha / k))
+                if val_adj == 4:
+                    child_value = 1 - abs(2 * (delta_alpha / k))
+                if val_adj == 4:
+                    child_value = 2 * (delta_alpha / k)
+                if val_adj == 6:
+                    child_value = max(delta_alpha, delta_beta)
+                if val_adj == 7:
+                    child_value = min(delta_alpha, delta_beta)
+                if val_adj == 8:
+                    child_value *= k
+
+                if ci_adjust == 1:
+                    confidence_i = max(c * confidence_i, k)
+                if ci_adjust == 2:
+                    confidence_i = min(c * confidence_i, k)
+                if ci_adjust == 3:
+                    confidence_i = max(c * confidence_i, max(abs(beta), abs(alpha)))
+                if ci_adjust == 4:
+                    confidence_i = min(c * confidence_i, max(abs(beta), abs(alpha)))
+                if ci_adjust == 5:
+                    confidence_i = k * c * confidence_i
+                if ci_adjust == 6:
+                    confidence_i = k * confidence_i
+                if ci_adjust == 7:
+                    confidence_i = c * sqrt((log(N) * k) / n_c) + rand_fact
+                if ci_adjust == 8:
+                    confidence_i = c * sqrt(log(N) / (n_c * k)) + rand_fact
+
+                uct_val = child_value + confidence_i
                 ab_bound += 1
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
@@ -798,11 +772,11 @@ class MCTSPlayer:
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
-                if self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
+                # A branch can only be pruned once.
+                if not prune and self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
                     p_i: cython.int = node.player - 1
                     o_i: cython.int = 3 - node.player - 1
                     # * Alpha/Beta Style
-                    prune = 0
                     # The parent's value have the information regarding the child's bound
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
@@ -822,16 +796,13 @@ class MCTSPlayer:
 
                     elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
                         prune = 1  # ! Als eenmaal gekruist dan altijd gekruist, pas in volgende simulatie weer open zetten
-                        prunes += 1
-
-                    if not prune:
-                        non_prunes += 1
-
-                    if self.ab_prune_version == 2 and prune:
                         alpha[0] = -INFINITY
                         alpha[1] = -INFINITY
                         beta[0] = INFINITY
                         beta[1] = INFINITY
+
+                    if not prune:
+                        non_prunes += 1
 
                 prev_node = node
                 if self.ab_version != 0:

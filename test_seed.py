@@ -8,3 +8,20 @@ seed = int.from_bytes(seed_bytes, "little")  # Convert bytes to an integer
 # Set the random seed
 random.seed(seed)
 print(f"Random seed set to: {seed}")
+
+combinations = []
+
+# Loop through the first digit (0-8)
+for i in range(9):
+    # Loop through the second digit (0-7)
+    for j in range(9):
+        # Join the two digits to make a two-digit number
+        number = int(str(i) + str(j))
+
+        # Exclude 0 from the list
+        if number != 0:
+            combinations.append(str(number))
+
+# Print the list of combinations
+print(",".join(combinations))
+print(len(combinations))
