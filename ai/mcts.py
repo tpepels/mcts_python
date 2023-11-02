@@ -136,7 +136,8 @@ class Node:
                 # * Ideen:
                 # child_value += delta_alpha (Dit werkte eerst redeijk goed)
                 # child_value += delta_alpha * k
-                # child_value = delta_alpha * k
+                # child_value += k
+                # child_value = delta_alpha + k
                 # child_value = delta_alpha * delta_beta
                 # child_value = (delta_alpha * delta_beta) / k
                 # child_value = (child_value * k) + delta_alpha
