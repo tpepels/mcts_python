@@ -125,7 +125,7 @@ class Node:
                     child_value = 1 - (2 * (delta_alpha / k))
                 if val_adj == 4:
                     child_value = 1 - abs(2 * (delta_alpha / k))
-                if val_adj == 4:
+                if val_adj == 5:
                     child_value = 2 * (delta_alpha / k)
                 if val_adj == 6:
                     child_value = max(delta_alpha, delta_beta)

@@ -489,11 +489,9 @@ def aggregate_csv_results(output_file):
                     ]
                 )
             elif len(ai_results) == 1:
-                row.extend([ai_results[0][0], ai_results[0][1], "N/A", "N/A", ai_results[0][2], "N/A", "N/A"])
+                row.extend([ai_results[0][0], "N/A", ai_results[0][1], "N/A", "N/A", "N/A", ai_results[0][2]])
             else:
                 row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
-
-            writer.writerow(row)
 
             writer.writerow(row)
 
@@ -511,11 +509,13 @@ def extract_ai_param_diffs(ai1, ai2):
     diffs1 = {}
     diffs2 = {}
 
-    for k, v1 in dict1.items():
+    for k in set(dict1.keys()).union(dict2.keys()):  # Union of keys from both dicts
+        v1 = dict1.get(k)
         v2 = dict2.get(k)
+        
         if v1 != v2:
-            diffs1[k] = v1
-            diffs2[k] = v2
+            diffs1[k] = v1 or 'N/A'  # Assign 'N/A' if the value is None
+            diffs2[k] = v2 or 'N/A'
 
     return diffs1, diffs2
 
