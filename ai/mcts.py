@@ -133,7 +133,17 @@ class Node:
                     child_value = min(delta_alpha, delta_beta)
                 if val_adj == 8:
                     child_value *= k
+                # * Ideen:
+                # child_value += delta_alpha (Dit werkte eerst redeijk goed)
+                # child_value += delta_alpha * k
+                # child_value = delta_alpha * k
+                # child_value = delta_alpha * delta_beta
+                # child_value = (delta_alpha * delta_beta) / k
+                # child_value = (child_value * k) + delta_alpha
+                
 
+                # * Ideen:
+                # c tuning voor sommige varianten met vermenigvuldiging
                 if ci_adjust == 1:
                     confidence_i = max(c * confidence_i, k)
                 if ci_adjust == 2:
@@ -152,6 +162,7 @@ class Node:
                     confidence_i = c * sqrt(log(N) / (n_c * k)) + rand_fact
 
                 uct_val = child_value + confidence_i
+                
                 ab_bound += 1
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
