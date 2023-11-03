@@ -11,9 +11,7 @@ print(f"Random seed set to: {seed}")
 
 combinations = []
 
-# Loop through the first digit (0-8)
-for i in range(9):
-    # Loop through the second digit (0-7)
+for i in range(10):
     for j in range(9):
         # Join the two digits to make a two-digit number
         number = int(str(i) + str(j))

@@ -120,27 +120,21 @@ class Node:
                 if val_adj == 1:
                     child_value = delta_alpha
                 if val_adj == 2:
-                    child_value = delta_beta
-                if val_adj == 3:
-                    child_value = 1 - (2 * (delta_alpha / k))
-                if val_adj == 4:
-                    child_value = 1 - abs(2 * (delta_alpha / k))
-                if val_adj == 5:
-                    child_value = 2 * (delta_alpha / k)
-                if val_adj == 6:
-                    child_value = max(delta_alpha, delta_beta)
-                if val_adj == 7:
-                    child_value = min(delta_alpha, delta_beta)
-                if val_adj == 8:
                     child_value *= k
-                # * Ideen:
-                # child_value += delta_alpha (Dit werkte eerst redeijk goed)
-                # child_value += delta_alpha * k
-                # child_value += k
-                # child_value = delta_alpha + k
-                # child_value = delta_alpha * delta_beta
-                # child_value = (delta_alpha * delta_beta) / k
-                # child_value = (child_value * k) + delta_alpha
+                if val_adj == 3:
+                    child_value += delta_alpha # (Dit werkte eerst redeijk goed)
+                if val_adj == 4:
+                    child_value += delta_alpha * k
+                if val_adj == 5:
+                    child_value += k
+                if val_adj == 6:
+                    child_value = delta_alpha + k
+                if val_adj == 7:
+                    child_value = delta_alpha * delta_beta
+                if val_adj == 8:
+                    child_value = (delta_alpha * delta_beta) / k
+                if val_adj == 9:
+                    child_value = (child_value * k) + delta_alpha
                 
 
                 # * Ideen:
