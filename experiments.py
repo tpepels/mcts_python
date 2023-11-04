@@ -415,7 +415,8 @@ def aggregate_csv_results(output_file):
                 "± 95% C.I.",
             ]
         )
-
+        aggregated_rows = []
+        
         for file in files:
             ai_stats = {}
             total_games = 0
@@ -492,7 +493,13 @@ def aggregate_csv_results(output_file):
                 row.extend([ai_results[0][0], "N/A", ai_results[0][1], "N/A", "N/A", "N/A", ai_results[0][2]])
             else:
                 row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
-
+            
+            aggregated_rows.append(row)
+        
+        # Sort the aggregated rows by the AI1 win rate
+        aggregated_rows.sort(key=lambda row: float(row[8]), reverse=True)
+        # Write the sorted rows to the output file
+        for row in aggregated_rows:
             writer.writerow(row)
 
 
