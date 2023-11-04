@@ -158,9 +158,9 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg
             async_result, exp_name = run_new_experiment(exp_dict, pool)
 
             while not async_result.ready():
+                time.sleep(300)
                 # Update running experiment status every 10 seconds
                 update_running_experiment_status(exp_name=exp_name)
-                time.sleep(60)
 
             tables[exp_name]["end_time"] = datetime.datetime.now()
 
