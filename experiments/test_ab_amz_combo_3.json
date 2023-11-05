@@ -1,12 +1,16 @@
 [
   {
-    "n_games": 500,
+    "n_games": 300,
     "game_key": "amazons",
     "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "c": [0.3, 0.4, 0.5, 0.6, 0.8]
+      "ab_version": [
+        67, 68, 70, 71, 72, 73, 74, 75, 76, 77, 78, 80, 81, 82, 83, 84, 85, 86,
+        87, 88, 90, 91, 92, 93, 94, 95, 96, 97, 98
+      ],
+      "c": [0.5, 0.6, 0.7]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

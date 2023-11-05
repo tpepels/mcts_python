@@ -431,7 +431,7 @@ class AmazonsGameState(GameState):
         "a": 5,
     }
 
-    default_params = array.array("d", [10, 0.0, 0.0, 1.0, 0.0, 20.0])
+    default_params = array.array("d", [30, 1.0, 1.0, 1.0, 0.0, 20.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)

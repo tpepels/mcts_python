@@ -23,7 +23,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--game",
-    choices=["amazons", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus"],
+    choices=["amazons", "amazons8", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus"],
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
 )
@@ -72,6 +72,10 @@ elif args.game.startswith("kalah"):
     game_name = "kalah"
     n_houses, init_seeds = int(args.game[-2]), int(args.game[-1])
     game_params = {"n_houses": n_houses, "init_seeds": init_seeds}
+elif args.game.startswith("amazons") and args.game.endswith("8"):
+    game_name = "amazons"
+    board_size = int(args.game[-1])
+    game_params = {"board_size": 8,}
 else:
     game_name = args.game
     game_params = {}
