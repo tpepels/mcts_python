@@ -362,21 +362,21 @@ def generate_ascii_art(text):
     # Define the banner style for each character
     # For simplicity, let's use a basic style. You can expand this dictionary for a more detailed representation.
     banner = {
-        "A": ["   A    ", "  A A    ", " A   A   ", "AAAAAAA  ", "A     A  "],
-        "B": ["BBBB    ", "B    B   ", "BBBBB    ", "B    B   ", "BBBBB    "],
-        "C": [" CCCCC  ", "C        ", "C        ", "C        ", " CCCCC   "],
-        "E": ["EEEEE   ", "E        ", "EEEEE    ", "E        ", "EEEEE    "],
-        "F": ["FFFFF   ", "F        ", "FFFF     ", "F        ", "F        "],
-        "I": ["IIIII   ", "  I      ", "  I      ", "  I      ", "IIIII    "],
-        "M": ["M     M ", "MM   MM  ", "M M M M  ", "M  M  M  ", "M     M  "],
-        "N": ["N     N ", "NN    N  ", "N N   N  ", "N  N  N  ", "N     N  "],
-        "P": ["PPPP    ", "P    P   ", "PPPP     ", "P        ", "P        "],
-        "R": ["RRRR    ", "R    R   ", "RRRR     ", "R R      ", "R   R    "],
-        "S": [" SSSSS  ", "S        ", " SSSS    ", "      S  ", " SSSSS   "],
-        "T": ["TTTTTT  ", "  T      ", "  T      ", "  T      ", "  T      "],
-        "X": ["X   X   ", " X X     ", "  X      ", " X X     ", "X   X    "],
-        " ": ["        ", "         ", "         ", "         ", "         "],
-        "!": ["  !     ", "  !      ", "  !      ", "         ", "  !      "],
+        "A": ["   A     ", "  A A    ", " A   A   ", "AAAAAAA  ", "A     A  "],
+        "B": ["BBBB     ", "B    B   ", "BBBBB    ", "B    B   ", "BBBBB    "],
+        "C": [" CCCCC   ", "C        ", "C        ", "C        ", " CCCCC   "],
+        "E": ["EEEEE    ", "E        ", "EEEEE    ", "E        ", "EEEEE    "],
+        "F": ["FFFFF    ", "F        ", "FFFF     ", "F        ", "F        "],
+        "I": ["IIIII    ", "  I      ", "  I      ", "  I      ", "IIIII    "],
+        "M": ["M     M  ", "MM   MM  ", "M M M M  ", "M  M  M  ", "M     M  "],
+        "N": ["N     N  ", "NN    N  ", "N N   N  ", "N  N  N  ", "N     N  "],
+        "P": ["PPPP     ", "P    P   ", "PPPP     ", "P        ", "P        "],
+        "R": ["RRRR     ", "R    R   ", "RRRR     ", "R R      ", "R   R    "],
+        "S": [" SSSSS   ", "S        ", " SSSS    ", "      S  ", " SSSSS   "],
+        "T": ["TTTTTT   ", "  T      ", "  T      ", "  T      ", "  T      "],
+        "X": ["X   X    ", " X X     ", "  X      ", " X X     ", "X   X    "],
+        " ": ["         ", "         ", "         ", "         ", "         "],
+        "!": ["  !      ", "  !      ", "  !      ", "         ", "  !      "],
     }
 
     # Generate the ASCII art line by line
