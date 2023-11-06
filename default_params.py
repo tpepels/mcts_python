@@ -12,8 +12,8 @@ DEFAULT_SETTINGS = {
     ("breakthrough", "mcts"): {
         # C-value optimized without improvements 0.8 / With some improvements 0.5
         "ai_params": {
-            "c": 0.2,
-            "imm_alpha": 0.55,
+            "c": 0.15,
+            "imm_alpha": 0.6,
             "early_term_turns": 5,
             # "pb_weight": 0.3,
             "early_term_cutoff": 0.1,
