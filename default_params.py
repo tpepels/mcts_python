@@ -24,13 +24,13 @@ DEFAULT_SETTINGS = {
     },
     ("amazons", "mcts"): {
         "ai_params": {
-            "c": 0.8,
-            "imm_alpha": 0.4,
-            "early_term_turns": 7,
-            "early_term_cutoff": 0.1,
+            "c": 0.3,
+            "imm_alpha": 0.7,
+            "early_term_turns": 10,
+            "early_term_cutoff": 0.05,
             # "e_g_subset": 10,
             # "epsilon": 0.1,
         },
-        "eval_params": {"a": 20},
+        "eval_params": {"a": 10},
     },
 }
