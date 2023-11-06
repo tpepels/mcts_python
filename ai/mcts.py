@@ -107,53 +107,44 @@ class Node:
             # Check whether all moves lead to a draw
             if child.draw:
                 children_draw += 1
-            rand_fact: cython.double = random.uniform(0, 0.00001)
+                
+            rand_fact: cython.double = random.uniform(-0.01, 0.01)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 delta_alpha: cython.double = child_value - alpha
-                delta_beta: cython.double = beta - child_value
+                # delta_beta: cython.double = beta - child_value
                 k: cython.double = beta - alpha
-
+                
                 if val_adj == 1:
-                    child_value = delta_alpha
-                if val_adj == 2:
-                    child_value *= k
-                if val_adj == 3:
-                    child_value += delta_alpha # (Dit werkte eerst redeijk goed)
-                if val_adj == 4:
                     child_value += delta_alpha * k
-                if val_adj == 5:
-                    child_value += k
-                if val_adj == 6:
+                if val_adj == 2:
                     child_value = delta_alpha + k
-                if val_adj == 7:
-                    child_value = delta_alpha * delta_beta
-                if val_adj == 8:
-                    child_value = (delta_alpha * delta_beta) / k
-                if val_adj == 9:
+                if val_adj == 3:
                     child_value = (child_value * k) + delta_alpha
                 
-
-                # * Ideen:
-                # c tuning voor sommige varianten met vermenigvuldiging
+                if val_adj == 4:
+                    child_value += delta_alpha / k
+                if val_adj == 5:
+                    child_value = delta_alpha + (1.0/k)
+                if val_adj == 6:
+                    child_value = (child_value / k) + delta_alpha
+                
                 if ci_adjust == 1:
                     confidence_i = max(c * confidence_i, k)
                 if ci_adjust == 2:
                     confidence_i = min(c * confidence_i, k)
                 if ci_adjust == 3:
-                    confidence_i = max(c * confidence_i, max(abs(beta), abs(alpha)))
-                if ci_adjust == 4:
-                    confidence_i = min(c * confidence_i, max(abs(beta), abs(alpha)))
-                if ci_adjust == 5:
                     confidence_i = k * c * confidence_i
+                if ci_adjust == 4:
+                    confidence_i = (c/k) * confidence_i
+                if ci_adjust == 5:
+                    confidence_i = c * sqrt((log(N * k)) / n_c) + rand_fact
                 if ci_adjust == 6:
-                    confidence_i = k * confidence_i
-                if ci_adjust == 7:
                     confidence_i = c * sqrt((log(N) * k) / n_c) + rand_fact
-                if ci_adjust == 8:
+                if ci_adjust == 7:
                     confidence_i = c * sqrt(log(N) / (n_c * k)) + rand_fact
 
                 uct_val = child_value + confidence_i
@@ -252,7 +243,7 @@ class Node:
                         player=self.max_player,
                         norm=True,
                         params=eval_params,
-                    )
+                    )  + random.uniform(-0.01, 0.01)
                     child.eval_value = eval_value
 
                 if imm:
@@ -265,7 +256,7 @@ class Node:
                             player=self.max_player,
                             norm=True,
                             params=eval_params,
-                        )
+                        )  + random.uniform(-0.01, 0.01)
                     elif imm_version == 1 or imm_version == 13:  # n-ply-imm, set the evaluation score
                         child.im_value = alpha_beta(
                             state=new_state,
@@ -284,7 +275,7 @@ class Node:
                             player=self.max_player,
                             norm=True,
                             params=eval_params,
-                        )
+                        )  + random.uniform(-0.01, 0.01)
                         # Play out capture sequences
                         if init_state.is_capture(action):
                             child.im_value = quiescence(
@@ -304,7 +295,7 @@ class Node:
                                 player=self.max_player,
                                 norm=True,
                                 params=eval_params,
-                            )
+                            )  + random.uniform(-0.01, 0.01)
                             child.im_value = quiescence(
                                 state=new_state,
                                 stand_pat=eval_value,
@@ -901,7 +892,7 @@ class MCTSPlayer:
             if self.early_term and turns >= self.early_term_turns:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation: cython.double = state.evaluate(params=self.eval_params, player=1, norm=True)
+                evaluation: cython.double = state.evaluate(params=self.eval_params, player=1, norm=True) + random.uniform(-0.01, 0.01)
                 if evaluation >= self.early_term_cutoff:
                     return (1.0, 0.0)
                 elif evaluation <= -self.early_term_cutoff:
@@ -913,7 +904,7 @@ class MCTSPlayer:
             elif self.early_term == 0 and self.dyn_early_term == 1 and turns % 6 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # TODO Figure out the a (max range) for each evaluation function
-                evaluation = state.evaluate(params=self.eval_params, player=1, norm=True)
+                evaluation = state.evaluate(params=self.eval_params, player=1, norm=True) + random.uniform(-0.01, 0.01)
 
                 if evaluation >= self.dyn_early_term_cutoff:
                     return (1.0, 0.0)
@@ -933,7 +924,7 @@ class MCTSPlayer:
                         params=self.eval_params,
                         player=state.player,
                         norm=False,
-                    ) + random.uniform(0.000001, 0.00001)
+                    )  + random.uniform(-0.01, 0.01)
                     # Keep track of the best action
                     if value > max_value:
                         max_value = value
@@ -1038,7 +1029,7 @@ def alpha_beta(
         return state.get_reward(max_player)
 
     if depth == 0:
-        return state.evaluate(params=eval_params, player=max_player, norm=True)
+        return state.evaluate(params=eval_params, player=max_player, norm=True)  + random.uniform(-0.01, 0.01)
 
     is_max_player = state.player == max_player
     # Move ordering
@@ -1094,7 +1085,7 @@ def quiescence(
         move = actions[m]
         if state.is_capture(move):
             new_state = state.apply_action(move)
-            new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=True)
+            new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=True)  + random.uniform(-0.01, 0.01)
             score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
             stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
 
