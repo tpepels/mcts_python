@@ -1,15 +1,16 @@
 [
   {
-    "n_games": 200,
+    "n_games": 300,
     "game_key": "kalah",
     "game_params": { "init_seeds": 6, "n_houses": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": [0.2, 0.4, 0.6, 0.8]
+      "imm_alpha": [0.2, 0.4, 0.6],
+      "c": [0.4, 0.6, 0.8]
     },
     "p1_eval_params": {
-      "a": [10, 20, 30, 50]
+      "a": [200, 250, 300]
     },
     "p2_ai_key": "mcts",
     "p2_ai_params": {

@@ -31,6 +31,13 @@ DEFAULT_SETTINGS = {
             # "e_g_subset": 10,
             # "epsilon": 0.1,
         },
+        "eval_params": {"a": 50},
+    },
+    ("kalah", "mcts"): {
+        "ai_params": {
+            "c": 0.8,
+            "imm_alpha": 0.4
+        },
         "eval_params": {"a": 10},
     },
 }

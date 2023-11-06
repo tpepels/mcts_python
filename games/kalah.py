@@ -522,7 +522,7 @@ class KalahGameState(GameState):
         "a": 5,
     }
 
-    default_params = array.array("d", [1.0, 0.0, 2.0, 0.0, 0.0, 20])
+    default_params = array.array("d", [5.0, 0.0, 1.0, 2.0, 4.0, 100])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
