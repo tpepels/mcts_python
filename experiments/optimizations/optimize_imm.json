@@ -1,14 +1,16 @@
 [
   {
-    "n_games": 400,
-    "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "n_games": 200,
+    "game_key": "kalah",
+    "game_params": { "init_seeds": 6, "n_houses": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": [0.65, 0.75, 0.8, 0.85, 0.9]
+      "imm_alpha": [0.2, 0.4, 0.6, 0.8]
     },
-    "p1_eval_params": {},
+    "p1_eval_params": {
+      "a": [10, 20, 30, 50]
+    },
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 100000

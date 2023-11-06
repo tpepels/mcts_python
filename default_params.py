@@ -24,7 +24,7 @@ DEFAULT_SETTINGS = {
     },
     ("amazons", "mcts"): {
         "ai_params": {
-            "c": 0.3,
+            "c": 0.25,
             "imm_alpha": 0.75,
             "early_term_turns": 10,
             "early_term_cutoff": 0.05,
