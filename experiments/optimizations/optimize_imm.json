@@ -2,19 +2,20 @@
   {
     "n_games": 400,
     "game_key": "kalah",
-    "game_params": { "init_seeds": 8, "n_houses": 10 },
+    "game_params": { "init_seeds": 8, "n_houses": 6 },
+    "random_moves": 2,
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 20000,
-      "imm_alpha": [0.55, 0.6, 0.65],
-      "c": [0.35, 0.4, 0.35]
+      "num_simulations": 5000,
+      "imm_alpha": [0.5, 0.55, 0.6, 0.65, 0.7],
+      "c": [0.3, 0.35, 0.4, 0.45, 0.5]
     },
     "p1_eval_params": {
-      "a": [250, 300, 350, 400]
+      "a": 350
     },
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 20000
+      "num_simulations": 5000
     },
     "p2_eval_params": {}
   }
