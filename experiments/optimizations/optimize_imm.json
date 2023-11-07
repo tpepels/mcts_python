@@ -6,11 +6,11 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 20000,
-      "imm_alpha": [0, 0.2, 0.4, 0.6],
-      "c": [0.4, 0.6, 0.8]
+      "imm_alpha": [0.55, 0.6, 0.65],
+      "c": [0.35, 0.4, 0.35]
     },
     "p1_eval_params": {
-      "a": 300
+      "a": [250, 300, 350, 400]
     },
     "p2_ai_key": "mcts",
     "p2_ai_params": {

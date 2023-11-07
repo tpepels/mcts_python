@@ -34,10 +34,7 @@ DEFAULT_SETTINGS = {
         "eval_params": {"a": 50},
     },
     ("kalah", "mcts"): {
-        "ai_params": {
-            "c": 0.8,
-            "imm_alpha": 0.4
-        },
-        "eval_params": {"a": 10},
+        "ai_params": {"c": 0.4, "imm_alpha": 0.6},
+        "eval_params": {"a": 300},
     },
 }
