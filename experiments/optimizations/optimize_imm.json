@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 400,
+    "n_games": 300,
     "game_key": "kalah",
     "game_params": { "init_seeds": 8, "n_houses": 6 },
     "random_moves": 2,
@@ -11,7 +11,12 @@
       "c": [0.3, 0.35, 0.4, 0.45, 0.5]
     },
     "p1_eval_params": {
-      "a": 350
+      "m_score": [1, 3, 6],
+      "m_seed_diff": [0, 1, 3],
+      "m_empty": [0, 1, 3],
+      "m_double": [0, 1, 3],
+      "m_capture": [0, 1, 3],
+      "a": 400
     },
     "p2_ai_key": "mcts",
     "p2_ai_params": {
