@@ -110,7 +110,7 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            rand_fact: cython.double = random.uniform(-0.01, 0.01)
+            rand_fact: cython.double = random.uniform(-0.001, 0.001)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
@@ -251,7 +251,7 @@ class Node:
                         player=self.max_player,
                         norm=True,
                         params=eval_params,
-                    ) + random.uniform(-0.01, 0.01)
+                    ) + random.uniform(-0.001, 0.001)
                     child.eval_value = eval_value
 
                 if imm:
@@ -264,7 +264,7 @@ class Node:
                             player=self.max_player,
                             norm=True,
                             params=eval_params,
-                        ) + random.uniform(-0.01, 0.01)
+                        ) + random.uniform(-0.001, 0.001)
                     elif (
                         imm_version == 1 or imm_version == 13
                     ):  # n-ply-imm, set the evaluation score
@@ -285,7 +285,7 @@ class Node:
                             player=self.max_player,
                             norm=True,
                             params=eval_params,
-                        ) + random.uniform(-0.01, 0.01)
+                        ) + random.uniform(-0.001, 0.001)
                         # Play out capture sequences
                         if init_state.is_capture(action):
                             child.im_value = quiescence(
@@ -305,7 +305,7 @@ class Node:
                                 player=self.max_player,
                                 norm=True,
                                 params=eval_params,
-                            ) + random.uniform(-0.01, 0.01)
+                            ) + random.uniform(-0.001, 0.001)
                             child.im_value = quiescence(
                                 state=new_state,
                                 stand_pat=eval_value,
@@ -943,7 +943,7 @@ class MCTSPlayer:
                 # TODO Figure out the a (max range) for each evaluation function
                 evaluation: cython.double = state.evaluate(
                     params=self.eval_params, player=1, norm=True
-                ) + random.uniform(-0.01, 0.01)
+                ) + random.uniform(-0.001, 0.001)
                 if evaluation >= self.early_term_cutoff:
                     return (1.0, 0.0)
                 elif evaluation <= -self.early_term_cutoff:
@@ -957,7 +957,7 @@ class MCTSPlayer:
                 # TODO Figure out the a (max range) for each evaluation function
                 evaluation = state.evaluate(
                     params=self.eval_params, player=1, norm=True
-                ) + random.uniform(-0.01, 0.01)
+                ) + random.uniform(-0.001, 0.001)
 
                 if evaluation >= self.dyn_early_term_cutoff:
                     return (1.0, 0.0)
@@ -977,7 +977,7 @@ class MCTSPlayer:
                         params=self.eval_params,
                         player=state.player,
                         norm=False,
-                    ) + random.uniform(-0.01, 0.01)
+                    ) + random.uniform(-0.001, 0.001)
                     # Keep track of the best action
                     if value > max_value:
                         max_value = value
@@ -1090,7 +1090,7 @@ def alpha_beta(
     if depth == 0:
         return state.evaluate(
             params=eval_params, player=max_player, norm=True
-        ) + random.uniform(-0.01, 0.01)
+        ) + random.uniform(-0.001, 0.001)
 
     is_max_player = state.player == max_player
     # Move ordering
@@ -1152,7 +1152,7 @@ def quiescence(
             new_state = state.apply_action(move)
             new_stand_pat = new_state.evaluate(
                 params=eval_params, player=max_player, norm=True
-            ) + random.uniform(-0.01, 0.01)
+            ) + random.uniform(-0.001, 0.001)
             score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
             stand_pat = max(
                 stand_pat, score

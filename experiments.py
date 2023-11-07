@@ -100,17 +100,29 @@ def expand_rows(json_file_path):
     df = pd.DataFrame(data_dict)
 
     # Find columns that need to be expanded
-    params_cols = [col for col in df.columns if col.endswith("_params") and df[col].dtype == "object"]
+    params_cols = [
+        col
+        for col in df.columns
+        if col.endswith("_params") and df[col].dtype == "object"
+    ]
 
     res = []
     for _, row in df.iterrows():
         params_values = [
-            (json.loads(row[col]) if isinstance(row[col], str) else row[col]) for col in params_cols
+            (json.loads(row[col]) if isinstance(row[col], str) else row[col])
+            for col in params_cols
         ]
-        params_values = [param if isinstance(param, dict) else {} for param in params_values]
+        params_values = [
+            param if isinstance(param, dict) else {} for param in params_values
+        ]
 
         keys_values_list = [
-            [(col, *item) for item in list(itertools.product([k], v if isinstance(v, list) else [v]))]
+            [
+                (col, *item)
+                for item in list(
+                    itertools.product([k], v if isinstance(v, list) else [v])
+                )
+            ]
             for col, dict_ in zip(params_cols, params_values)
             for k, v in dict_.items()
         ]
@@ -138,7 +150,9 @@ def expand_rows(json_file_path):
     return res
 
 
-def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg_loc=None):
+def start_experiments_from_json(
+    json_file_path, n_procs=4, count_only=False, agg_loc=None
+):
     """
     Read experiment configurations from a JSON file and start the experiments.
 
@@ -205,14 +219,30 @@ def run_new_experiment(exp_dict, pool):
     for i in range(n_games):
         if i < n_games / 2:
             games_params.append(
-                (game_name, game_params, deepcopy(p1_params), deepcopy(p2_params), exp_name, base_path)
+                (
+                    game_name,
+                    game_params,
+                    deepcopy(p1_params),
+                    deepcopy(p2_params),
+                    exp_name,
+                    base_path,
+                )
             )
         else:
             new_p1_params = deepcopy(p2_params)
             new_p2_params = deepcopy(p1_params)
             new_p1_params.max_player = 1
             new_p2_params.max_player = 2
-            games_params.append((game_name, game_params, new_p1_params, new_p2_params, exp_name, base_path))
+            games_params.append(
+                (
+                    game_name,
+                    game_params,
+                    new_p1_params,
+                    new_p2_params,
+                    exp_name,
+                    base_path,
+                )
+            )
 
     random.shuffle(games_params)
     games_params = [(i, *params) for i, params in enumerate(games_params)]
@@ -269,7 +299,9 @@ def update_running_experiment_status(exp_name, print_tables=True):
                 if len(log_contents) < 3:
                     continue
 
-                game_number = log_file.split("/")[-1].split(".")[0]  # Get game number from log file name
+                game_number = log_file.split("/")[-1].split(".")[
+                    0
+                ]  # Get game number from log file name
                 if (
                     "Experiment completed" in log_contents[-1]
                 ):  # Assuming "Experiment completed" is second to last line
@@ -278,7 +310,10 @@ def update_running_experiment_status(exp_name, print_tables=True):
                     winner_info = log_contents[-2]
                     winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
 
-                    if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
+                    if (
+                        "Game Over. Winner: P1" in winner_info
+                        or "Game Over. Winner: P2" in winner_info
+                    ):
                         loser_info = log_contents[-3]
                         loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
 
@@ -293,7 +328,9 @@ def update_running_experiment_status(exp_name, print_tables=True):
                     else:
                         draws += 1
                         writer.writerow([game_number, "Draw"])
-                elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
+                elif (
+                    "Experiment error" in log_contents[-1]
+                ):  # Assuming "Experiment error" is the last line
                     writer.writerow([game_number, "Error"])
                     error_games += 1
 
@@ -312,7 +349,12 @@ def update_running_experiment_status(exp_name, print_tables=True):
                 lower_bound = (win_rate - ci_width) * 100
                 upper_bound = (win_rate + ci_width) * 100
                 writer.writerow(
-                    [ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}", completed_games]
+                    [
+                        ai,
+                        f"{win_rate * 100:.2f}",
+                        f"±{upper_bound - lower_bound:.2f}",
+                        completed_games,
+                    ]
                 )
             else:
                 writer.writerow([ai, "N/A", "N/A", 0])
@@ -334,7 +376,9 @@ def update_running_experiment_status(exp_name, print_tables=True):
             ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
             lower_bound = (win_rate - ci_width) * 100
             upper_bound = (win_rate + ci_width) * 100
-            print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"])
+            print_stats.add_row(
+                [ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"]
+            )
 
         # Keep track of all experiments, also the finished ones to print
         tables[exp_name]["table"] = print_stats
@@ -416,7 +460,7 @@ def aggregate_csv_results(output_file):
             ]
         )
         aggregated_rows = []
-        
+
         for file in files:
             ai_stats = {}
             total_games = 0
@@ -432,10 +476,18 @@ def aggregate_csv_results(output_file):
 
                 # Parse metadata using regular expressions
                 try:
-                    metadata["exp_name"] = re.search(r"exp_name='(.*?)'", lines[0]).group(1)
-                    metadata["date_time"] = re.search(r"(\d{8}_\d{6})", metadata["exp_name"]).group(1)
-                    metadata["game_name"] = re.search(r"game_name='(.*?)'", lines[0]).group(1)
-                    metadata["game_params"] = re.search(r"game_params\s*=\s*(\{.*?\})", lines[1]).group(1)
+                    metadata["exp_name"] = re.search(
+                        r"exp_name='(.*?)'", lines[0]
+                    ).group(1)
+                    metadata["date_time"] = re.search(
+                        r"(\d{8}_\d{6})", metadata["exp_name"]
+                    ).group(1)
+                    metadata["game_name"] = re.search(
+                        r"game_name='(.*?)'", lines[0]
+                    ).group(1)
+                    metadata["game_params"] = re.search(
+                        r"game_params\s*=\s*(\{.*?\})", lines[1]
+                    ).group(1)
                     metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
                     metadata["p2_params"] = lines[3].split("=", 1)[1].strip()
                 except (AttributeError, IndexError) as e:
@@ -460,7 +512,13 @@ def aggregate_csv_results(output_file):
                 ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / total_games)
                 lower_bound = (win_rate - ci_width) * 100
                 upper_bound = (win_rate + ci_width) * 100
-                ai_results.append((ai_config, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"))
+                ai_results.append(
+                    (
+                        ai_config,
+                        f"{win_rate * 100:.2f}",
+                        f"±{upper_bound - lower_bound:.2f}",
+                    )
+                )
 
             # Sort ai_results based on ai_config to ensure consistent order
             ai_results.sort(key=lambda x: (len(x[0]), x[0]))
@@ -477,7 +535,9 @@ def aggregate_csv_results(output_file):
 
             ai1_diffs, ai2_diffs = {}, {}
             if len(ai_results) == 2:
-                ai1_diffs, ai2_diffs = extract_ai_param_diffs(ai_results[0][0], ai_results[1][0])
+                ai1_diffs, ai2_diffs = extract_ai_param_diffs(
+                    ai_results[0][0], ai_results[1][0]
+                )
                 row.extend(
                     [
                         ai_results[0][0],
@@ -490,12 +550,22 @@ def aggregate_csv_results(output_file):
                     ]
                 )
             elif len(ai_results) == 1:
-                row.extend([ai_results[0][0], "N/A", ai_results[0][1], "N/A", "N/A", "N/A", ai_results[0][2]])
+                row.extend(
+                    [
+                        ai_results[0][0],
+                        "N/A",
+                        ai_results[0][1],
+                        "N/A",
+                        "N/A",
+                        "N/A",
+                        ai_results[0][2],
+                    ]
+                )
             else:
                 row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
-            
+
             aggregated_rows.append(row)
-        
+
         # Sort the aggregated rows by the AI1 win rate
         aggregated_rows.sort(key=lambda row: float(row[8]), reverse=True)
         # Write the sorted rows to the output file
@@ -519,10 +589,10 @@ def extract_ai_param_diffs(ai1, ai2):
     for k in set(dict1.keys()).union(dict2.keys()):  # Union of keys from both dicts
         v1 = dict1.get(k)
         v2 = dict2.get(k)
-        
+
         if v1 != v2:
-            diffs1[k] = v1 or 'N/A'  # Assign 'N/A' if the value is None
-            diffs2[k] = v2 or 'N/A'
+            diffs1[k] = v1 or "N/A"  # Assign 'N/A' if the value is None
+            diffs2[k] = v2 or "N/A"
 
     return diffs1, diffs2
 
@@ -570,14 +640,29 @@ def run_single_experiment(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Start experiments based on JSON config.")
-    parser.add_argument(
-        "-n", "--n_procs", type=int, default=4, help="Number of processes for parallel execution."
+    parser = argparse.ArgumentParser(
+        description="Start experiments based on JSON config."
     )
     parser.add_argument(
-        "-b", "--base_path", type=str, default=".", help="Base directory to create log files."
+        "-n",
+        "--n_procs",
+        type=int,
+        default=4,
+        help="Number of processes for parallel execution.",
     )
-    parser.add_argument("-j", "--json_file", type=str, help="JSON file containing experiment configurations.")
+    parser.add_argument(
+        "-b",
+        "--base_path",
+        type=str,
+        default=".",
+        help="Base directory to create log files.",
+    )
+    parser.add_argument(
+        "-j",
+        "--json_file",
+        type=str,
+        help="JSON file containing experiment configurations.",
+    )
     parser.add_argument(
         "-a",
         "--aggregate_results",
@@ -586,15 +671,22 @@ def main():
         default=None,
     )
     parser.add_argument(
-        "-c", "--clean", help="Clean the log directory before starting experiments.", action="store_true"
+        "-c",
+        "--clean",
+        help="Clean the log directory before starting experiments.",
+        action="store_true",
     )
     parser.add_argument(
-        "--count_only", help="Count the total number of experiments that will be run", action="store_true"
+        "--count_only",
+        help="Count the total number of experiments that will be run",
+        action="store_true",
     )
     args = parser.parse_args()
 
     if not (args.json_file or args.aggregate_results):
-        parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")
+        parser.error(
+            "Either --json_file should be set OR --aggregate_resultsshould be enabled."
+        )
 
     global base_path
 
@@ -606,10 +698,14 @@ def main():
         return
 
     # Include the experiment file in the base_path
-    base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
+    base_path = os.path.join(
+        args.base_path, os.path.splitext(os.path.basename(args.json_file))[0]
+    )
     print("Base path:", base_path)
     # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
-    agg_loc = os.path.join(base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv")
+    agg_loc = os.path.join(
+        base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv"
+    )
     # Validate and create the base directory for logs if it doesn't exist
     if not os.path.exists(base_path):
         os.makedirs(base_path)
@@ -618,11 +714,13 @@ def main():
         if os.path.exists(agg_loc):
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             new_name = os.path.join(
-                base_path, os.path.splitext(os.path.basename(args.json_file))[0] + f"_{timestamp}.csv"
+                base_path,
+                os.path.splitext(os.path.basename(args.json_file))[0]
+                + f"_{timestamp}.csv",
             )
             os.rename(agg_loc, new_name)
             print(f"Renamed {agg_loc} to {new_name}")
-            
+
         # Remove the log directory from the base_path
         log_path = os.path.join(base_path, "log")
         if os.path.exists(log_path):
@@ -630,7 +728,7 @@ def main():
             shutil.rmtree(log_path)
         else:
             print(f"{log_path} does not exist.")
-            
+
         result_path = os.path.join(base_path, "results")
         if os.path.exists(result_path):
             print(f"Removing {result_path}")
@@ -648,7 +746,10 @@ def main():
 
     # Start experiments
     start_experiments_from_json(
-        json_file_path=args.json_file, n_procs=args.n_procs, count_only=args.count_only, agg_loc=agg_loc
+        json_file_path=args.json_file,
+        n_procs=args.n_procs,
+        count_only=args.count_only,
+        agg_loc=agg_loc,
     )
     if args.count_only:
         return
