@@ -2,6 +2,7 @@
   {
     "n_games": 4,
     "game_key": "ninarow",
+    "random_openings": 2,
     "game_params": { "board_size": 9, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {

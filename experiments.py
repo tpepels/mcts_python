@@ -34,6 +34,7 @@ class ColName:
     P2_AI_KEY = "p2_ai_key"
     P2_AI_PARAMS = "p2_ai_params"
     P2_EVAL_PARAMS = "p2_eval_params"
+    RANDOM_OPENINGS = "random_openings"
 
 
 def read_json_file(file_path):
@@ -189,6 +190,7 @@ def start_experiments_from_json(
 def run_new_experiment(exp_dict, pool):
     game_params = exp_dict[ColName.GAME_PARAMS]
     game_name = exp_dict[ColName.GAME_KEY]
+    random_openings = int(exp_dict.get(ColName.RANDOM_OPENINGS, 0))
     game = init_game(game_name, game_params=game_params)
 
     p1_params = AIParams(
@@ -226,6 +228,7 @@ def run_new_experiment(exp_dict, pool):
                     deepcopy(p2_params),
                     exp_name,
                     base_path,
+                    random_openings,
                 )
             )
         else:
@@ -241,6 +244,7 @@ def run_new_experiment(exp_dict, pool):
                     new_p2_params,
                     exp_name,
                     base_path,
+                    random_openings,
                 )
             )
 
@@ -609,6 +613,7 @@ def run_single_experiment(
     p2_params: AIParams,
     exp_name: str,
     base_path: str = ".",
+    random_openings: int = 0,
 ) -> None:
     """Run a single game experiment and log the results in the worksheet.
 
@@ -625,7 +630,9 @@ def run_single_experiment(
     log_path = os.path.join(base_path, "log", "games", exp_name, f"{i}.log")
     try:
         with redirect_print_to_log(log_path):
-            run_game_experiment(game_key, game_params, p1_params, p2_params)
+            run_game_experiment(
+                game_key, game_params, p1_params, p2_params, random_openings
+            )
 
         with open(log_path, "a") as log_file:
             # Write a status message to the log file

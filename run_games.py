@@ -81,7 +81,9 @@ class AIParams:
                             f"Using default ai value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
                         )
                         self.ai_params[key] = default_value
-            if self.eval_params is not None and self.eval_params.get("no_defaults", False):
+            if self.eval_params is not None and self.eval_params.get(
+                "no_defaults", False
+            ):
                 print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
                 self.eval_params.pop("no_defaults")
             else:
@@ -108,7 +110,10 @@ def d_to_s(d):
 
 
 def init_game_and_players(
-    game_key: str, game_params: Optional[Dict[str, Any]], p1_params: AIParams, p2_params: AIParams
+    game_key: str,
+    game_params: Optional[Dict[str, Any]],
+    p1_params: AIParams,
+    p2_params: AIParams,
 ) -> Tuple[GameState, AIPlayer, AIPlayer]:
     """Initialize game and players based on given parameters.
 
@@ -177,7 +182,9 @@ def init_ai_player(
     return player
 
 
-def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlayer, callback=None):
+def play_game_until_terminal(
+    game: GameState, player1: AIPlayer, player2: AIPlayer, callback=None
+):
     """
     Play the game with the provided players and return the result.
 
@@ -192,7 +199,6 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
     # Use os.urandom() to generate a cryptographically secure random seed
     seed_bytes = os.urandom(8)  # Generate 8 random bytes
     seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
-
     # Set the random seed
     random.seed(seed)
     print(f"Random seed set to: {seed}")
@@ -203,8 +209,12 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
 
-        assert action is not None, f"Player {current_player} returned None as best action{turns=}"
-        assert action != (), f"Player {current_player} returned () as best action {turns=}"
+        assert (
+            action is not None
+        ), f"Player {current_player} returned None as best action{turns=}"
+        assert (
+            action != ()
+        ), f"Player {current_player} returned () as best action {turns=}"
 
         # Apply the action to get the new game state
         game = game.apply_action(action)
@@ -241,7 +251,9 @@ def run_game(
 
     def callback(player, action, game: GameState, time):
         print("--" * 20)
-        print(f"\n\n{player}\n\n -> mv.: {action}.\n\n{game.visualize(full_debug=debug)}\n")
+        print(
+            f"\n\n{player}\n\n -> mv.: {action}.\n\n{game.visualize(full_debug=debug)}\n"
+        )
         if debug:
             nonlocal max_eval, n_moves
             n_moves += 1
@@ -275,7 +287,13 @@ def run_game(
 
 
 @log_exception_handler
-def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: AIParams, p2_params: AIParams):
+def run_game_experiment(
+    game_key: str,
+    game_params: Dict[str, Any],
+    p1_params: AIParams,
+    p2_params: AIParams,
+    random_openings: int = 0,
+):
     """
     Run a game experiment with two AI players, and return detailed game information.
 
@@ -299,6 +317,27 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     """
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
+
+    seed_bytes = os.urandom(8)  # Generate 8 random bytes
+    seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
+
+    # Set the random seed for making the random opening moves.
+    # The seed will be re-set in run_game_until_terminal() to ensure that the game is
+    # not affected by the random openings.
+    random.seed(seed)
+
+    #
+    if random_openings > 0:
+        if random_openings % 2 != 0:
+            random_openings = random_openings + 1
+            print(
+                f" :: Number of random openings must be even. Setting to {random_openings}"
+            )
+        print(f" :: Making {random_openings} random moves to start the game")
+        # To get the game started make some random moves
+        for _ in range(random_openings):
+            game = game.apply_action(random.choice(game.get_legal_actions()))
+
     # Initialize stats
     setup = f"Game: {game_key} with parameters {game_params}. Player 1: {p1_params}. Player 2: {p2_params}"
 
@@ -325,7 +364,10 @@ def run_game_experiment(game_key: str, game_params: Dict[str, Any], p1_params: A
     odd_moves = time_intervals[::2]
     even_moves = time_intervals[1::2]
 
-    avg_time_per_move = (sum(odd_moves) / len(odd_moves), sum(even_moves) / len(even_moves))
+    avg_time_per_move = (
+        sum(odd_moves) / len(odd_moves),
+        sum(even_moves) / len(even_moves),
+    )
 
     if result == win:
         result = 1
