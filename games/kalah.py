@@ -24,7 +24,7 @@ class KalahGameState(GameState):
         for size in range(14, 19)  # Assuming anything between a 6 and 8 pit board
     }
 
-    zobrist_table = [[random.randint(1, 2**60 - 1) for _ in range(MAX_SEEDS)] for _ in range(14)]
+    zobrist_table = [[random.randint(1, 2**60 - 1) for _ in range(MAX_SEEDS)] for _ in range(32)]
     REUSE = False
 
     # player = cython.declare(cython.int, visibility="public")
