@@ -123,30 +123,15 @@ class Node:
                 if val_adj == 1:
                     child_value += delta_alpha * k
                 if val_adj == 2:
-                    child_value = delta_alpha + k
-                if val_adj == 3:
                     child_value = (child_value * k) + delta_alpha
-
-                if val_adj == 4:
-                    child_value += delta_alpha / k
-                if val_adj == 5:
+                if val_adj == 3:
                     child_value = delta_alpha + (1.0 / k)
-                if val_adj == 6:
-                    child_value = (child_value / k) + delta_alpha
+                if val_adj == 4:
+                    child_value = delta_alpha
 
                 if ci_adjust == 1:
-                    confidence_i = max(c * confidence_i, k)
-                if ci_adjust == 2:
-                    confidence_i = min(c * confidence_i, k)
-                if ci_adjust == 3:
-                    confidence_i = k * c * confidence_i
-                if ci_adjust == 4:
-                    confidence_i = (c / k) * confidence_i
-                if ci_adjust == 5:
                     confidence_i = c * sqrt((log(N * k)) / n_c) + rand_fact
-                if ci_adjust == 6:
-                    confidence_i = c * sqrt((log(N) * k) / n_c) + rand_fact
-                if ci_adjust == 7:
+                if ci_adjust == 2:
                     confidence_i = c * sqrt(log(N) / (n_c * k)) + rand_fact
 
                 uct_val = child_value + confidence_i
@@ -838,14 +823,26 @@ class MCTSPlayer:
                         alpha[p_i] = val - bound
                         beta[o_i] = -val + bound
 
+                    # If we have a bound already, and the current selection is not within the bounds, then we can "prune"
                     elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
                         prune = 1  # ! Als eenmaal gekruist dan altijd gekruist, pas in volgende simulatie weer open zetten
                         prunes += 1
-
-                        alpha[0] = -INFINITY
-                        alpha[1] = -INFINITY
-                        beta[0] = INFINITY
-                        beta[1] = INFINITY
+                        # Reset the bounds or leave them open
+                        if self.ab_prune_version == 1:
+                            alpha[0] = -INFINITY
+                            alpha[1] = -INFINITY
+                            beta[0] = INFINITY
+                            beta[1] = INFINITY
+                        # Reset the bounds or leave them open
+                        if self.ab_prune_version == 2:
+                            prune = 0
+                            alpha[0] = -INFINITY
+                            alpha[1] = -INFINITY
+                            beta[0] = INFINITY
+                            beta[1] = INFINITY
+                        # Reset the bounds or leave them open
+                        if self.ab_prune_version == 3:
+                            prune = 0
 
                     if not prune:
                         non_prunes += 1
@@ -857,9 +854,7 @@ class MCTSPlayer:
                         self.pb_weight,
                         self.imm_alpha,
                         ab_version=self.ab_version,
-                        alpha=alpha[
-                            node.player - 1
-                        ],  # Alpha and beta including the bounds
+                        alpha=alpha[node.player - 1],
                         beta=beta[node.player - 1],
                     )
                 else:

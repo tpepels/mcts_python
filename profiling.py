@@ -11,10 +11,14 @@ from util import format_time
 ai_choices = ["mcts", "alphabeta"]
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
-parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
+parser.add_argument(
+    "--no_profile", action="store_true", help="Run without the profiler."
+)
 parser.add_argument("--debug", action="store_true", help="Show debug messages.")
 parser.add_argument("--pause", action="store_true", help="Pause after each turn.")
-parser.add_argument("--battle", action="store_true", help="Run a battle between two AIs.")
+parser.add_argument(
+    "--battle", action="store_true", help="Run a battle between two AIs."
+)
 parser.add_argument(
     "--algo",
     choices=ai_choices,
@@ -23,7 +27,15 @@ parser.add_argument(
 )
 parser.add_argument(
     "--game",
-    choices=["amazons", "amazons8", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus"],
+    choices=[
+        "amazons",
+        "amazons8",
+        "breakthrough",
+        "ninarow59",
+        "kalah66",
+        "kalah86",
+        "blokus",
+    ],
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
 )
@@ -75,7 +87,9 @@ elif args.game.startswith("kalah"):
 elif args.game.startswith("amazons") and args.game.endswith("8"):
     game_name = "amazons"
     board_size = int(args.game[-1])
-    game_params = {"board_size": 8,}
+    game_params = {
+        "board_size": 8,
+    }
 else:
     game_name = args.game
     game_params = {}
@@ -113,8 +127,18 @@ else:
     # * Battle
     eval_params = {}
 
-    ai_1_params = {"num_simulations": 100_000, "debug": args.debug, "ab_version": 1}
-    ai_2_params = {"num_simulations": 100_000, "debug": args.debug, "ab_version": 11}
+    ai_1_params = {
+        "num_simulations": 100_000,
+        "debug": args.debug,
+        "ab_version": 22,
+        "ab_prune_version": 0,
+    }
+    ai_2_params = {
+        "num_simulations": 100_000,
+        "debug": args.debug,
+        "ab_version": 22,
+        "ab_prune_version": 1,
+    }
 
     p1_params = AIParams(
         ai_key="mcts",
