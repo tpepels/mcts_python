@@ -130,7 +130,7 @@ class Node:
                 if val_adj == 5:
                     child_value = child_value + delta_alpha + (2.0 / k)
                 if val_adj == 6:
-                    child_value = delta_alpha
+                    child_value = child_value + delta_alpha
                 if val_adj == 7:
                     child_value = child_value + (delta_alpha / k)
                 if val_adj == 8:
