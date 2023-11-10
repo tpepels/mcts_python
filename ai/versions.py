@@ -91,7 +91,7 @@ if ci_adjust == 8:
 
 # Versie 3: combo
 if val_adj == 1:
-    child_value = child_value + delta_alpha * k
+    child_value += delta_alpha * k
 if val_adj == 2:
     child_value = delta_alpha + k
 if val_adj == 3:
