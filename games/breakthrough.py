@@ -283,7 +283,7 @@ class BreakthroughGameState(GameState):
         dr: cython.int = -1
         if self.player == 2:
             dr = 1
-
+        opp: cython.int = 3 - self.player
         n: cython.int = len(self.positions[self.player - 1])
         start: cython.int = random.randint(
             1, n
@@ -329,7 +329,7 @@ class BreakthroughGameState(GameState):
                         return (position, new_position)
 
                     # Captures
-                    if dc != 0 and self.board[new_position] == (3 - self.player):
+                    if dc != 0 and self.board[new_position] == opp:
                         # Anti-decisive moves (captures from the last row)
                         if (self.player == 1 and position >= 56) or (
                             self.player == 2 and position < 8
@@ -344,20 +344,24 @@ class BreakthroughGameState(GameState):
                         capture_pair: pair[cython.int, cython.int] = pair[
                             cython.int, cython.int
                         ](position, new_position)
-                        all_moves.push_back(capture_pair)
-                        all_moves.push_back(capture_pair)
-                        all_moves.push_back(capture_pair)
-                        all_moves.push_back(capture_pair)
+
+                        for _ in range(4):
+                            all_moves.push_back(capture_pair)
+                            all_moves.push_back(capture_pair)
+                            all_moves.push_back(capture_pair)
+                            all_moves.push_back(capture_pair)
 
                         if is_safe(new_position, self.player, self.board):
-                            all_moves.push_back(capture_pair)
-                            all_moves.push_back(capture_pair)
-                            all_moves.push_back(capture_pair)
-                            all_moves.push_back(capture_pair)
+                            for _ in range(8):
+                                all_moves.push_back(capture_pair)
+                                all_moves.push_back(capture_pair)
+                                all_moves.push_back(capture_pair)
+                                all_moves.push_back(capture_pair)
+                                all_moves.push_back(capture_pair)
+                                all_moves.push_back(capture_pair)
 
                         self.board[position] = self.player  # Put the piece back
 
-                    # Safe captures are prioritized anyway so no need to add non-captures
                     all_moves.push_back(
                         pair[cython.int, cython.int](position, new_position)
                     )
