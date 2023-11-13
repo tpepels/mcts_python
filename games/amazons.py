@@ -16,14 +16,18 @@ from cython.cimports.includes import normalize, GameState, win, loss, draw, f_in
 from cython.cimports.games.amazons import DIRECTIONS, N_DIRECTIONS
 
 
-DIRECTIONS = [[dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx == 0 and dy == 0)]
+DIRECTIONS = [
+    [dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx == 0 and dy == 0)
+]
 N_DIRECTIONS = 8
 
 
 @cython.cclass
 class AmazonsGameState(GameState):
     zobrist_tables = {
-        size: [[random.randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size**2)]
+        size: [
+            [random.randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size**2)
+        ]
         for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
     }
     REUSE = True
@@ -31,7 +35,9 @@ class AmazonsGameState(GameState):
     # player = cython.declare(cython.int, visibility="public") # Declared in the base class
     board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
-    last_action = cython.declare(cython.tuple[cython.int, cython.int, cython.int], visibility="public")
+    last_action = cython.declare(
+        cython.tuple[cython.int, cython.int, cython.int], visibility="public"
+    )
     queens = cython.declare(cython.int[:, :], visibility="public")
     # white_queens = cython.declare(cython.list, visibility="public")
     # black_queens = cython.declare(cython.list, visibility="public")
@@ -219,7 +225,9 @@ class AmazonsGameState(GameState):
         """
         Get a single random legal action for the current player.
         """
-        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
+        assert (
+            self.player_has_legal_moves
+        ), "Getting or making a move should not be possible"
 
         s_q: cython.int = random.randint(0, 3)  # A random queen to start with
         s: cython.int = self.board_size
@@ -232,21 +240,37 @@ class AmazonsGameState(GameState):
             # Find a direction to move in
             m_pos: cython.int = self.find_direction(x=q_pos // s, y=q_pos % s, s=s)
             if m_pos != -1:
-                self.board[m_pos] = self.board[q_pos]  # Move the piece to the new position temporarily
-                self.board[q_pos] = 0  # Remove the piece from its old position temporarily
+                self.board[m_pos] = self.board[
+                    q_pos
+                ]  # Move the piece to the new position temporarily
+                self.board[
+                    q_pos
+                ] = 0  # Remove the piece from its old position temporarily
                 # When a direction is found, shoot an arrow in a random direction
-                arr_pos: cython.int = self.find_direction(x=m_pos // s, y=m_pos % s, s=s)
+                arr_pos: cython.int = self.find_direction(
+                    x=m_pos // s, y=m_pos % s, s=s
+                )
                 self.board[q_pos] = self.board[m_pos]  # Move the piece back...
                 self.board[m_pos] = 0
                 if arr_pos != -1:
                     return (q_pos, m_pos, arr_pos)
+
         assert False, "No legal move found"
 
     @cython.cfunc
     @cython.exceptval(-2, check=False)
-    @cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int, i=cython.int, idx=cython.int)
+    @cython.locals(
+        dx=cython.int,
+        dy=cython.int,
+        nx=cython.int,
+        ny=cython.int,
+        i=cython.int,
+        idx=cython.int,
+    )
     def find_direction(self, x: cython.int, y: cython.int, s: cython.int) -> cython.int:
-        start_idx: cython.int = random.randint(0, N_DIRECTIONS - 1)  # Get a random starting index
+        start_idx: cython.int = random.randint(
+            0, N_DIRECTIONS - 1
+        )  # Get a random starting index
 
         for i in range(N_DIRECTIONS):
             idx: cython.int = (start_idx + i) % N_DIRECTIONS  # Loop around using modulo
@@ -282,7 +306,9 @@ class AmazonsGameState(GameState):
         """
         Get a list of legal actions for the current player and also updates the moves per queen.
         """
-        assert self.player_has_legal_moves, "Getting or making a move should not be possible"
+        assert (
+            self.player_has_legal_moves
+        ), "Getting or making a move should not be possible"
 
         legal_actions: cython.list = []
         i: cython.int
@@ -290,12 +316,21 @@ class AmazonsGameState(GameState):
             q_p: cython.int = self.queens[self.player - 1][i]
             queen_moves: cython.list = self.get_legal_moves_for_amazon(q_p)
             legal_actions.extend(queen_moves)
-            self.n_moves_per_queen[q_p] = len(queen_moves)  # Update with the actual value
+            self.n_moves_per_queen[q_p] = len(
+                queen_moves
+            )  # Update with the actual value
 
         return legal_actions
 
     @cython.cfunc
-    @cython.locals(dx=cython.int, dy=cython.int, nx=cython.int, ny=cython.int, i=cython.int, idx=cython.int)
+    @cython.locals(
+        dx=cython.int,
+        dy=cython.int,
+        nx=cython.int,
+        ny=cython.int,
+        i=cython.int,
+        idx=cython.int,
+    )
     def get_legal_moves_for_amazon(self, f_p: cython.int) -> cython.list:
         """
         Get a list of legal moves for the given Amazon piece at position (x, y) and the corresponding arrow shots.
@@ -314,7 +349,9 @@ class AmazonsGameState(GameState):
                 idx = nx * s + ny
                 if self.board[idx] == 0:  # free cell
                     # Find all legal arrow shots in the current direction.
-                    arrow_shots: vector[cython.int] = self.generate_arrow_shots(nx, ny, x, y, s)
+                    arrow_shots: vector[cython.int] = self.generate_arrow_shots(
+                        nx, ny, x, y, s
+                    )
                     for shot in arrow_shots:
                         moves.append((f_p, idx, shot))
                     nx += dx
@@ -348,7 +385,9 @@ class AmazonsGameState(GameState):
 
             while 0 <= a_nx < s and 0 <= a_ny < s:
                 idx: cython.int = a_nx * s + a_ny
-                if self.board[idx] == 0 or (a_nx == x and a_ny == y):  # free cell or starting cell
+                if self.board[idx] == 0 or (
+                    a_nx == x and a_ny == y
+                ):  # free cell or starting cell
                     arrow_shots.push_back(idx)
 
                 elif self.board[idx] != 0:  # blocked cell
@@ -402,7 +441,9 @@ class AmazonsGameState(GameState):
 
     @cython.ccall
     def get_result_tuple(self) -> cython.tuple:
-        if not self.player_has_legal_moves:  # The player who has no more legal moves loses
+        if (
+            not self.player_has_legal_moves
+        ):  # The player who has no more legal moves loses
             if self.player == 1:
                 return (0.0, 1.0)
             elif self.player == 2:
@@ -470,7 +511,9 @@ class AmazonsGameState(GameState):
         for i in range(4):
             if params[1] > 0 or params[2] > 0:  # * Kill/Save/Immobilize heuristic
                 # Player
-                count: cython.int = count_reachable_squares(self.board, self.queens[my_i][i])
+                count: cython.int = count_reachable_squares(
+                    self.board, self.queens[my_i][i]
+                )
                 imm_mob += count
                 if count > 0:
                     kill_save += 1
@@ -481,8 +524,12 @@ class AmazonsGameState(GameState):
                     kill_save -= 1
 
             if params[3] > 0 and self.n_moves > params[0]:  # * Mobility heuristic
-                mob_my_queen: cython.int = flood_fill(self.board, self.queens[my_i][i], self.board_size)
-                mob_opp_queen: cython.int = flood_fill(self.board, self.queens[opp_i][i], self.board_size)
+                mob_my_queen: cython.int = flood_fill(
+                    self.board, self.queens[my_i][i], self.board_size
+                )
+                mob_opp_queen: cython.int = flood_fill(
+                    self.board, self.queens[opp_i][i], self.board_size
+                )
                 mob_heur += mob_my_queen
                 mob_heur -= mob_opp_queen
 
@@ -590,7 +637,9 @@ class AmazonsGameState(GameState):
         if score < 40:
             # Calculate score based on the distance of the Amazon's move from the center
             end_x, end_y = end // s, end % s
-            score += (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
+            score += (self.mid - abs(self.mid - end_x)) + (
+                self.mid - abs(self.mid - end_y)
+            )
 
             # Add value to the score based on the distance of the arrow shot from the Amazon
             arrow_x, arrow_y = arrow // s, arrow % s
@@ -613,7 +662,9 @@ class AmazonsGameState(GameState):
 
         output += "  "
         for j in range(self.board_size):
-            output += chr(65 + j) + " "  # Convert integer to corresponding uppercase letter
+            output += (
+                chr(65 + j) + " "
+            )  # Convert integer to corresponding uppercase letter
         output += "\n"  # column indices
 
         s = self.board_size
@@ -624,12 +675,18 @@ class AmazonsGameState(GameState):
                 idx = i * s + j
                 piece = self.board[idx]
                 row.append(cell_representation[piece])
-            output += str(i) + " " * (2 - len(str(i))) + " ".join(row) + "\n"  # row index and the row content
+            output += (
+                str(i) + " " * (2 - len(str(i))) + " ".join(row) + "\n"
+            )  # row index and the row content
 
         s: cython.int = self.board_size
         output += "hash: " + str(self.board_hash) + "\n"
-        output += "w:" + ", ".join([readable(self.queens[0][i], s) for i in range(4)]) + "\n"
-        output += "b:" + ", ".join([readable(self.queens[1][i], s) for i in range(4)]) + "\n"
+        output += (
+            "w:" + ", ".join([readable(self.queens[0][i], s) for i in range(4)]) + "\n"
+        )
+        output += (
+            "b:" + ", ".join([readable(self.queens[1][i], s) for i in range(4)]) + "\n"
+        )
 
         if full_debug:
             n_moves = 0
@@ -650,8 +707,12 @@ class AmazonsGameState(GameState):
                 for queen in self.queens[p]:
                     output += f"{p_str} {readable(queen, s)} reachable: {count_reachable_squares(self.board, queen)} | "
                     output += f"n_moves_per_queen: {self.n_moves_per_queen[queen]} | "
-                    output += f"n_moves: {len(self.get_legal_moves_for_amazon(queen))} | "
-                    output += f"flooding: {flood_fill(self.board, queen, self.board_size)}\n"
+                    output += (
+                        f"n_moves: {len(self.get_legal_moves_for_amazon(queen))} | "
+                    )
+                    output += (
+                        f"flooding: {flood_fill(self.board, queen, self.board_size)}\n"
+                    )
 
             output += "..." * 20 + "\n"
 
@@ -793,7 +854,12 @@ def flood_fill(board: cython.int[:], pos: cython.int, s: cython.int) -> cython.i
 
             new_x, new_y = x + dr, y + dc
             new_idx = new_x * s + new_y
-            if 0 <= new_x < s and 0 <= new_y < s and board[new_idx] == 0 and visited.count(new_idx) == 0:
+            if (
+                0 <= new_x < s
+                and 0 <= new_y < s
+                and board[new_idx] == 0
+                and visited.count(new_idx) == 0
+            ):
                 fstack.push(new_idx)
                 visited.insert(new_idx)
 
