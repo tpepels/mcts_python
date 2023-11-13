@@ -120,28 +120,14 @@ class Node:
                 k: cython.double = beta - alpha
 
                 if val_adj == 1:
-                    child_value = child_value + (delta_alpha * k)
-                if val_adj == 2:
-                    child_value = (child_value * k) + delta_alpha
-                if val_adj == 3:
-                    child_value = (child_value + delta_alpha) * k
-                if val_adj == 4:
-                    child_value = delta_alpha + (2.0 / k)
-                if val_adj == 5:
-                    child_value = child_value + delta_alpha + (2.0 / k)
-                if val_adj == 6:
                     child_value = child_value + delta_alpha
-                if val_adj == 7:
+                if val_adj == 2:
                     child_value = child_value + (delta_alpha / k)
-                if val_adj == 8:
-                    child_value = (child_value + delta_alpha) / k
-                if val_adj == 9:
-                    child_value = (child_value / k) + delta_alpha
 
                 if ci_adjust == 1:
-                    confidence_i = c * sqrt((log(N * k)) / n_c) + rand_fact
+                    confidence_i = c * sqrt((log(max(1, N * k))) / n_c) + rand_fact
                 if ci_adjust == 2:
-                    confidence_i = c * sqrt(log(N) / (n_c * k)) + rand_fact
+                    confidence_i = c * sqrt(log(N) / max(1, (n_c * k))) + rand_fact
 
                 uct_val = child_value + confidence_i
 

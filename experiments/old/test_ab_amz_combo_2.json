@@ -1,18 +1,18 @@
 [
   {
-    "n_games": 1000,
-    "game_key": "breakthrough",
-    "game_params": {},
+    "n_games": 400,
+    "game_key": "amazons",
+    "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 300000,
-      "ab_version": [1, 2, 10, 11, 12, 20, 21, 22],
+      "num_simulations": 100000,
+      "ab_version": [1, 10],
       "ab_prune_version": [0, 1, 2]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 300000
+      "num_simulations": 100000
     },
     "p2_eval_params": {}
   }
