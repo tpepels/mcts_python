@@ -823,22 +823,6 @@ class MCTSPlayer:
                         # ab_prune_version = 0, keep the bounds as is and don't allow new bounds to be found
                         prune = 1
                         prunes += 1
-                        # Reset the bounds and don't allow new bounds to be found
-                        if self.ab_prune_version == 1:
-                            alpha[0] = -INFINITY
-                            alpha[1] = -INFINITY
-                            beta[0] = INFINITY
-                            beta[1] = INFINITY
-                        # Reset the bounds and allow new bounds to be found
-                        if self.ab_prune_version == 2:
-                            prune = 0
-                            alpha[0] = -INFINITY
-                            alpha[1] = -INFINITY
-                            beta[0] = INFINITY
-                            beta[1] = INFINITY
-                        # Keep the bounds as is and allow new bounds to be found
-                        if self.ab_prune_version == 3:
-                            prune = 0
 
                     if not prune:
                         non_prunes += 1

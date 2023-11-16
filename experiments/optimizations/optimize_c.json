@@ -12,24 +12,6 @@
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 100000,
-      "c": 0.6
-    },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 500,
-    "game_key": "breakthrough",
-    "game_params": {},
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "imm_alpha": 0,
-      "num_simulations": 100000,
-      "c": [0.4, 0.5, 0.7, 0.8]
-    },
-    "p1_eval_params": {},
-    "p2_ai_key": "mcts",
-    "p2_ai_params": {
       "imm_alpha": 0,
       "num_simulations": 100000,
       "c": 0.6
