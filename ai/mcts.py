@@ -801,13 +801,13 @@ class MCTSPlayer:
                 ):
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
-                        player=1,
+                        player=self.player,
                         imm_alpha=self.imm_alpha,
                         N=prev_node.n_visits,
                     )
 
                     if val - bound >= alpha and val + bound <= beta:
-                        if node.player == 1:
+                        if node.player == self.player:
                             alpha = max(alpha, val - bound)
                         else:
                             beta = min(beta, val + bound)
@@ -826,8 +826,8 @@ class MCTSPlayer:
                         self.pb_weight,
                         self.imm_alpha,
                         ab_version=self.ab_version,
-                        alpha=alpha if node.player == 1 else -beta,
-                        beta=beta if node.player == 1 else -alpha,
+                        alpha=alpha if node.player == self.player else -beta,
+                        beta=beta if node.player == self.player else -alpha,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
