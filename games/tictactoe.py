@@ -24,7 +24,7 @@ from cython.cimports.includes import (
 from cython.cimports.games.tictactoe import MIN_SIZE, MAX_SIZE, SPIRALS
 from termcolor import colored
 
-MAX_SIZE = 12
+MAX_SIZE = 13
 MIN_SIZE = 3
 
 
@@ -37,7 +37,10 @@ for size in range(MIN_SIZE, MAX_SIZE + 1):
 @cython.cclass
 class TicTacToeGameState(GameState):
     zobrist_tables = {
-        size: [[[randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
+        size: [
+            [[randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)]
+            for _ in range(size)
+        ]
         for size in range(MIN_SIZE, MAX_SIZE + 1)
     }
     REUSE = True
@@ -46,7 +49,9 @@ class TicTacToeGameState(GameState):
     # player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.int[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
-    last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
+    last_action = cython.declare(
+        cython.tuple[cython.int, cython.int], visibility="public"
+    )
 
     # Private variables
     n_moves: cython.int
@@ -126,7 +131,9 @@ class TicTacToeGameState(GameState):
         opp: cython.int = 3 - self.player
 
         if self.board[x, y] != 0:
-            assert self.n_moves == 1, "Pie Rule decision must be made after the first move!"
+            assert (
+                self.n_moves == 1
+            ), "Pie Rule decision must be made after the first move!"
             assert not self.pie_move_done, "Pie Rule decision already made!"
             assert (
                 self.last_action == action
@@ -135,7 +142,9 @@ class TicTacToeGameState(GameState):
             move_increment = 0
             # Update the hash
             board_hash: cython.longlong = (
-                self.board_hash ^ self.zobrist_table[x][y][opp] ^ self.zobrist_table[x][y][self.player]
+                self.board_hash
+                ^ self.zobrist_table[x][y][opp]
+                ^ self.zobrist_table[x][y][self.player]
             )
         else:
             assert self.board[x, y] == 0, "Illegal move"
@@ -144,7 +153,9 @@ class TicTacToeGameState(GameState):
 
             # Update the hash
             board_hash: cython.longlong = (
-                self.board_hash ^ self.zobrist_table[x][y][0] ^ self.zobrist_table[x][y][self.player]
+                self.board_hash
+                ^ self.zobrist_table[x][y][0]
+                ^ self.zobrist_table[x][y][self.player]
             )
         # For the pie-rule we still switch the player, because we switched the marks
         return TicTacToeGameState(
@@ -185,10 +196,14 @@ class TicTacToeGameState(GameState):
         """
 
         if self.n_moves > 2 and random.uniform(0, 1) < 0.01:
-            act_idx = find_2d_index(SPIRALS[self.size - MIN_SIZE], self.last_action[0], self.last_action[1])
+            act_idx = find_2d_index(
+                SPIRALS[self.size - MIN_SIZE], self.last_action[0], self.last_action[1]
+            )
             start_i = abs(cython.cast(cython.int, gauss(act_idx, (self.size / 2) ** 2)))
             start_i = start_i % (self.size**2)
-        elif random.uniform(0, 1) < 0.001:  # Little bit greedy to the center to prevent endless games
+        elif (
+            random.uniform(0, 1) < 0.001
+        ):  # Little bit greedy to the center to prevent endless games
             # Select a start index close to the start (which is the center of the board)
             start_i = abs(cython.cast(cython.int, gauss(0, (self.size / 2) ** 2)))
             start_i = start_i % (self.size**2)  # Wrap to valid range
@@ -370,9 +385,18 @@ class TicTacToeGameState(GameState):
                     n_x = x + i
                     n_y = y + j
                     # If the new position is within the board and is occupied by the current player, increment the connectivity_score
-                    if 0 <= n_x < self.size and 0 <= n_y < self.size and self.board[n_x, n_y] == self.player:
+                    if (
+                        0 <= n_x < self.size
+                        and 0 <= n_y < self.size
+                        and self.board[n_x, n_y] == self.player
+                    ):
                         conn_sc += 2
-        return 10 + conn_sc + (self.center - abs(x - self.center)) + (self.center - abs(y - self.center))
+        return (
+            10
+            + conn_sc
+            + (self.center - abs(x - self.center))
+            + (self.center - abs(y - self.center))
+        )
 
     @cython.ccall
     @cython.locals(i=cython.int, j=cython.int)
@@ -396,9 +420,7 @@ class TicTacToeGameState(GameState):
                 visual[: len(visual) - 2] + "\n"
             )  # Remove extra spaces at the end of the line and reset color
 
-        visual += (
-            f"\nPlayer {self.player} | {self.n_moves} moves made | pie_move_done: {self.pie_move_done} | "
-        )
+        visual += f"\nPlayer {self.player} | {self.n_moves} moves made | pie_move_done: {self.pie_move_done} | "
 
         if full_debug:
             actions = self.get_legal_actions()
@@ -540,7 +562,10 @@ class TicTacToeGameState(GameState):
                                         or self.board[nx, ny] == o
                                     ):
                                         break
-                                    if self.board[nx, ny] == 0 or self.board[nx, ny] == p:
+                                    if (
+                                        self.board[nx, ny] == 0
+                                        or self.board[nx, ny] == p
+                                    ):
                                         space_count += 1
                                         if space_count >= self.row_length:
                                             break
@@ -557,7 +582,10 @@ class TicTacToeGameState(GameState):
                                             or self.board[nx, ny] == o
                                         ):
                                             break
-                                        if self.board[nx, ny] == 0 or self.board[nx, ny] == p:
+                                        if (
+                                            self.board[nx, ny] == 0
+                                            or self.board[nx, ny] == p
+                                        ):
                                             space_count += 1
                                             if space_count >= self.row_length:
                                                 break
@@ -576,12 +604,16 @@ class TicTacToeGameState(GameState):
                                         score_p2 += count**power
 
         if norm:
-            return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
+            return normalize(
+                score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2]
+            )
 
         return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
 
 
-def evaluate_tictactoe(self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0) -> float:
+def evaluate_tictactoe(
+    self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0
+) -> float:
     """
     Evaluate the current self of a TicTacToe game.
 
@@ -603,11 +635,16 @@ def evaluate_tictactoe(self: GameState, player: int, m_opp_disc: float = 1.0, m_
         if opponent not in marks and player in marks:
             return score_factor * ((size - marks.count(0)) * marks.count(player)) ** 2
         elif player not in marks and opponent in marks:
-            return -score_factor * ((size - marks.count(0)) * marks.count(opponent)) ** 2
+            return (
+                -score_factor * ((size - marks.count(0)) * marks.count(opponent)) ** 2
+            )
         return 0
 
     def potential_win(marks):
-        return marks.count(player if self.player == player else opponent) == size - 1 and marks.count(0) == 1
+        return (
+            marks.count(player if self.player == player else opponent) == size - 1
+            and marks.count(0) == 1
+        )
 
     score = 0
     board = self.board
@@ -657,7 +694,11 @@ def generate_masks(length: int, player: int, e=3) -> list:
 
             # Find connected segments by splitting the mask at zeros
             mask_str = "".join(map(str, new_mask.astype(int)))
-            connected_segments = [len(segment) for segment in mask_str.split("0") if str(player) in segment]
+            connected_segments = [
+                len(segment)
+                for segment in mask_str.split("0")
+                if str(player) in segment
+            ]
             penalty = len(connected_segments) if num_marks < length - 1 else 0
             score = num_marks**e - (penalty - 1) * 2 * e
 
@@ -693,7 +734,9 @@ def masks_to_dict(masks):
 
 @cython.ccall
 @cython.infer_types(True)
-def calculate_weights(m_top_k: cython.int, factor: cython.float, scale: cython.int = 10):
+def calculate_weights(
+    m_top_k: cython.int, factor: cython.float, scale: cython.int = 10
+):
     """Calculates weights based on m_top_k and a configurable factor, using integers for intermediate calculations."""
     # Calculate weights proportional to their rank
     weights = [factor]
@@ -825,11 +868,16 @@ def evaluate_ninarow(
             # Go over the elements of the board
             element = board[x, y]
             # Add a bonus for player's marks close to the center
-            score_bonus[element] += (center - abs(x - center)) + (center - abs(y - center)) / center
+            score_bonus[element] += (center - abs(x - center)) + (
+                center - abs(y - center)
+            ) / center
             # Add a bonus for player's marks close to other same player's marks
 
             adjacent_moves: cython.list = [
-                (x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0
+                (x + i, y + j)
+                for i in [-1, 0, 1]
+                for j in [-1, 0, 1]
+                if i != 0 or j != 0
             ]
 
             for j in range(len(adjacent_moves)):
@@ -839,7 +887,9 @@ def evaluate_ninarow(
 
                 if 0 <= x_ < state.size and 0 <= y_ < state.size:
                     if board[x_, y_] == element:
-                        score_bonus[element] += 1  # Note that the connection will be counted twice
+                        score_bonus[
+                            element
+                        ] += 1  # Note that the connection will be counted twice
 
     # Sort and take the top k scores, weigh them
     for p in player_scores:
@@ -854,7 +904,9 @@ def evaluate_ninarow(
     p1_score: cython.float = player_scores[1] + (decay * m_bonus * score_bonus[1])
     p2_score: cython.float = player_scores[2] + (decay * m_bonus * score_bonus[2])
     # The score is player 1's score minus player 2's score from the perspective of the provided player
-    score: cython.float = (p1_score - p2_score) if player == 1 else (p2_score - p1_score)
+    score: cython.float = (
+        (p1_score - p2_score) if player == 1 else (p2_score - p1_score)
+    )
 
     if m_disc > 0 and player != state.player:
         score *= m_disc
