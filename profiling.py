@@ -127,8 +127,8 @@ else:
     # * Battle
     eval_params = {}
 
-    ai_1_params = {"max_time": 5, "debug": args.debug, "ab_version": 12}
-    ai_2_params = {"max_time": 2, "debug": args.debug}
+    ai_1_params = {"max_time": 15, "debug": args.debug}
+    ai_2_params = {"max_time": 5, "debug": args.debug}
 
     p1_params = AIParams(
         ai_key="mcts",
@@ -138,7 +138,7 @@ else:
         ai_params=ai_1_params,
     )
     p2_params = AIParams(
-        ai_key="alphabeta",
+        ai_key="mcts",
         eval_params=eval_params,
         max_player=2,
         game_name=game_name,
