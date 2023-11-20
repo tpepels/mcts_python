@@ -6,7 +6,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": [4, 5, 7, 9],
-      "imm_alpa": [0, 0.6]
+      "imm_alpha": [0, 0.6]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
@@ -22,7 +22,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": [4, 5, 7, 9],
-      "imm_alpa": [0, 0.6]
+      "imm_alpha": [0, 0.6]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
@@ -38,7 +38,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": [4, 5, 7, 9],
-      "imm_alpa": [0, 0.3]
+      "imm_alpha": [0, 0.3]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
