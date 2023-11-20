@@ -786,8 +786,9 @@ class MCTSPlayer:
         i: cython.int
 
         global prunes, non_prunes
-        alpha: cython.double[2] = [-INFINITY, -INFINITY]
-        beta: cython.double[2] = [INFINITY, INFINITY]
+
+        alpha: cython.double = -INFINITY
+        beta: cython.double = INFINITY
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
@@ -798,29 +799,20 @@ class MCTSPlayer:
                     and node.n_visits > 0
                     and prev_node is not None
                 ):
-                    p_i: cython.int = node.player - 1
-                    o_i: cython.int = 3 - node.player - 1
-                    # * Alpha/Beta Style
-                    # The parent's value have the information regarding the child's bound
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
-                        player=node.player,
+                        player=1,
                         imm_alpha=self.imm_alpha,
                         N=prev_node.n_visits,
                     )
 
-                    if (
-                        -val + bound <= beta[o_i]
-                        and -val - bound >= alpha[o_i]
-                        and val - bound > alpha[p_i]
-                        and val + bound < beta[p_i]
-                    ):
-                        alpha[p_i] = val - bound
-                        beta[o_i] = -val + bound
+                    if val - bound >= alpha and val + bound <= beta:
+                        if node.player == 1:
+                            alpha = max(alpha, val - bound)
+                        else:
+                            beta = min(beta, val + bound)
 
-                    # If we have a bound already, and the current selection is not within the bounds, then we can "prune"
-                    elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
-                        # ab_prune_version = 0, keep the bounds as is and don't allow new bounds to be found
+                    elif alpha != -INFINITY and beta != INFINITY:
                         prune = 1
                         prunes += 1
 
@@ -834,8 +826,8 @@ class MCTSPlayer:
                         self.pb_weight,
                         self.imm_alpha,
                         ab_version=self.ab_version,
-                        alpha=alpha[node.player - 1],
-                        beta=beta[node.player - 1],
+                        alpha=alpha if node.player == 1 else -beta,
+                        beta=beta if node.player == 1 else -alpha,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)

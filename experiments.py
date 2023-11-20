@@ -461,6 +461,7 @@ def aggregate_csv_results(output_file):
                 "Param2",
                 "Win_rate",
                 "± 95% C.I.",
+                "No. Games",
             ]
         )
         aggregated_rows = []
@@ -551,6 +552,7 @@ def aggregate_csv_results(output_file):
                         dict_to_str(ai2_diffs),
                         ai_results[1][1],
                         ai_results[0][2],
+                        total_games,
                     ]
                 )
             elif len(ai_results) == 1:

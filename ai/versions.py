@@ -143,3 +143,25 @@ if ci_adjust == 1:
     confidence_i = c * sqrt((log(max(1, N * k))) / n_c) + rand_fact
 if ci_adjust == 2:
     confidence_i = c * sqrt(log(N) / max(1, (n_c * k))) + rand_fact
+
+
+# The parent's value have the information regarding the child's bound
+val, bound = node.get_value_with_uct_interval(
+    c=self.c,
+    player=node.player,
+    imm_alpha=self.imm_alpha,
+    N=prev_node.n_visits,
+)
+
+if (
+    -val + bound <= beta[o_i]
+    and -val - bound >= alpha[o_i]
+    and val - bound > alpha[p_i]
+    and val + bound < beta[p_i]
+):
+    alpha[p_i] = val - bound
+    beta[o_i] = -val + bound
+
+elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
+    prune = 1
+    prunes += 1
