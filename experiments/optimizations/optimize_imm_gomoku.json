@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 500,
+    "n_games": 200,
     "game_key": "ninarow",
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
