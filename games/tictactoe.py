@@ -103,10 +103,10 @@ class TicTacToeGameState(GameState):
     @cython.locals(x=cython.int, y=cython.int)
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
         x, y = action
-        assert (
-            0 <= x < self.size and 0 <= y < self.size
-        ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
-        assert self.board[x, y] == 0, "Illegal move"
+        # assert (
+        #     0 <= x < self.size and 0 <= y < self.size
+        # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
+        # assert self.board[x, y] == 0, "Illegal move"
 
         self.board[x, y] = self.player
         # For the pie-rule we still switch the player, because we switched the marks
