@@ -24,7 +24,7 @@ from cython.cimports.includes import (
 from cython.cimports.games.tictactoe import MIN_SIZE, MAX_SIZE, SPIRALS
 from termcolor import colored
 
-MAX_SIZE = 13
+MAX_SIZE = 19
 MIN_SIZE = 3
 
 
