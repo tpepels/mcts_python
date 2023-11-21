@@ -793,12 +793,7 @@ class MCTSPlayer:
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
                 # A branch can only be pruned once.
-                if (
-                    not prune
-                    and self.ab_version != 0
-                    and node.n_visits > 0
-                    and prev_node is not None
-                ):
+                if self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
                         player=self.player,
@@ -813,7 +808,6 @@ class MCTSPlayer:
                             beta = min(beta, val + bound)
 
                     elif alpha != -INFINITY and beta != INFINITY:
-                        prune = 1
                         prunes += 1
 
                     if not prune:
