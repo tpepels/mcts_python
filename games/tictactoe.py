@@ -194,28 +194,17 @@ class TicTacToeGameState(GameState):
         """
         Move in a spiral pattern starting from a position close to the center of the board.
         """
+        if self.n_moves == 0:
+            # If this is the first move, play in the center
+            return (self.center, self.center)
 
-        if self.n_moves > 2 and random.uniform(0, 1) < 0.01:
-            act_idx = find_2d_index(
-                SPIRALS[self.size - MIN_SIZE], self.last_action[0], self.last_action[1]
-            )
-            start_i = abs(cython.cast(cython.int, gauss(act_idx, (self.size / 2) ** 2)))
-            start_i = start_i % (self.size**2)
-        elif (
-            random.uniform(0, 1) < 0.001
-        ):  # Little bit greedy to the center to prevent endless games
-            # Select a start index close to the start (which is the center of the board)
-            start_i = abs(cython.cast(cython.int, gauss(0, (self.size / 2) ** 2)))
-            start_i = start_i % (self.size**2)  # Wrap to valid range
-        else:
-            start_i = random.randint(0, self.size**2 - 1)
+        x: cython.int = random.randint(0, self.size - 1)
+        y: cython.int = random.randint(0, self.size - 1)
+        while self.board[x, y] != 0:
+            x = random.randint(0, self.size - 1)
+            y = random.randint(0, self.size - 1)
 
-        for i in range(self.size**2):
-            x, y = SPIRALS[self.size - MIN_SIZE][(start_i + i) % (self.size**2)]
-            if self.board[x, y] == 0:
-                return (x, y)
-
-        assert False, f"No legal moves\n{self.visualize()}"
+        return (x, y)
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list:

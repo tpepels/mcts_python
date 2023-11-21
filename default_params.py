@@ -1,6 +1,7 @@
 DEFAULT_SETTINGS = {
     ("ninarow", "mcts"): {
-        # C-value optimized for 9x9 5-in-a-row without improvements (0.8)
+        # imm value with alpha/beta: 0.15
+        # imm value without alpha/beta: 0.15
         "ai_params": {
             "c": 0.6,
             "imm_alpha": 0.15,
@@ -10,11 +11,11 @@ DEFAULT_SETTINGS = {
         "eval_params": {"m_power": 3, "m_centre": 3, "a": 500},
     },
     ("breakthrough", "mcts"): {
-        # C-value optimized without improvements 0.8 / With some improvements 0.5
-        # C-value without imm: 0.6
+        # imm value with alpha/beta: 0.6
+        # imm value without alpha/beta: 0.8
         "ai_params": {
             "c": 0.25,
-            "imm_alpha": 0.6,
+            "imm_alpha": 0.8,
             "early_term_turns": 5,
             # "pb_weight": 0.3,
             "early_term_cutoff": 0.05,
@@ -24,6 +25,8 @@ DEFAULT_SETTINGS = {
         "eval_params": {"a": 60},
     },
     ("amazons", "mcts"): {
+        # imm value with alpha/beta: 0.85
+        # imm value without alpha/beta: 0.9
         "ai_params": {
             "c": 0.25,
             "imm_alpha": 0.85,
