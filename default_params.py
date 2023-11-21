@@ -21,7 +21,7 @@ DEFAULT_SETTINGS = {
             "e_g_subset": 10,
             "epsilon": 0.05,
         },
-        "eval_params": {"a": 400},
+        "eval_params": {"a": 60},
     },
     ("amazons", "mcts"): {
         "ai_params": {

@@ -125,7 +125,7 @@ if not args.battle:
     )
 else:
     # * Battle
-    eval_params = {}
+    eval_params = {"a": 60, "m_lorenz": 1}
 
     ai_1_params = {"max_time": 15, "debug": args.debug}
     ai_2_params = {"max_time": 5, "debug": args.debug}
