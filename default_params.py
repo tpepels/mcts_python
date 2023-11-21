@@ -3,7 +3,7 @@ DEFAULT_SETTINGS = {
         # C-value optimized for 9x9 5-in-a-row without improvements (0.8)
         "ai_params": {
             "c": 0.6,
-            "imm_alpha": 0.2,
+            "imm_alpha": 0.15,
             "dyn_early_term_cutoff": 0.2,
             # "pb_weight": 0.2,
         },

@@ -5,27 +5,13 @@
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "max_time": 20,
-      "imm_alpha": [0.1, 0.15, 0.2, 0.25, 0.3, 0.4]
+      "max_time": 20
     },
-    "p1_eval_params": {},
-    "p2_ai_key": "alphabeta",
-    "p2_ai_params": {
-      "max_time": 5
+    "p1_eval_params": {
+      "m_power": [2, 3, 4],
+      "m_centre": [1, 2, 3, 4],
+      "a": [200, 300, 400, 600]
     },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 500,
-    "game_key": "ninarow",
-    "game_params": { "board_size": 15, "row_length": 5 },
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "max_time": 20,
-      "ab_version": 12,
-      "imm_alpha": [0.1, 0.15, 0.2, 0.25, 0.3, 0.4]
-    },
-    "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
     "p2_ai_params": {
       "max_time": 5
