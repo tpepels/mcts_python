@@ -32,7 +32,7 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.25,
             "imm_alpha": 0.85,
-            "early_term_turns": 20,
+            "early_term_turns": 10,
             "early_term_cutoff": 0.1,
             # "e_g_subset": 10,
             # "epsilon": 0.1,
