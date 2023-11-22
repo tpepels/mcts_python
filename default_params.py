@@ -6,7 +6,7 @@ DEFAULT_SETTINGS = {
         # C value without imm & with alpha/beta: 0.4
         "ai_params": {
             "c": 0.4,
-            "imm_alpha": 0.2,
+            "imm_alpha": 0.35,
             "dyn_early_term_cutoff": 0.2,
             # "pb_weight": 0.2,
         },
@@ -32,12 +32,12 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.25,
             "imm_alpha": 0.85,
-            "early_term_turns": 10,
-            "early_term_cutoff": 0.05,
+            "early_term_turns": 20,
+            "early_term_cutoff": 0.1,
             # "e_g_subset": 10,
             # "epsilon": 0.1,
         },
-        "eval_params": {"a": 50},
+        "eval_params": {"a": 60},
     },
     ("kalah", "mcts"): {
         "ai_params": {"c": 0.4, "imm_alpha": 0.6},

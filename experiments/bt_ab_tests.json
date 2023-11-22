@@ -1,0 +1,104 @@
+[
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 25000,
+      "ab_version": 12,
+      "imm_alpha": [0.6, 0]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 25000,
+      "imm_alpha": [0.8, 0]
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 25000,
+      "imm_alpha": 0
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 25000
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 50000,
+      "ab_version": 12,
+      "imm_alpha": [0.6, 0]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 50000,
+      "imm_alpha": [0.8, 0]
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 50000,
+      "imm_alpha": 0
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 50000
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": [0.6, 0]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": [0.8, 0]
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000
+    },
+    "p2_eval_params": {}
+  }
+]
