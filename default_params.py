@@ -1,14 +1,12 @@
 DEFAULT_SETTINGS = {
     ("ninarow", "mcts"): {
-        # imm value with alpha/beta: 0.15
-        # imm value without alpha/beta: 0.15
         "ai_params": {
             "c": 0.6,
-            "imm_alpha": 0.15,
+            "imm_alpha": 0.2,
             "dyn_early_term_cutoff": 0.2,
             # "pb_weight": 0.2,
         },
-        "eval_params": {"m_power": 3, "m_centre": 3, "a": 500},
+        "eval_params": {"m_power": 2, "m_centre": 3, "a": 400},
     },
     ("breakthrough", "mcts"): {
         # imm value with alpha/beta: 0.6
@@ -22,7 +20,7 @@ DEFAULT_SETTINGS = {
             "e_g_subset": 10,
             "epsilon": 0.05,
         },
-        "eval_params": {"a": 60},
+        "eval_params": {"a": 120},
     },
     ("amazons", "mcts"): {
         # imm value with alpha/beta: 0.85
