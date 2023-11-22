@@ -1,7 +1,11 @@
 DEFAULT_SETTINGS = {
     ("ninarow", "mcts"): {
+        # C value with alpha/beta: 0.4
+        # C value without alpha/beta: 0.4
+        # C value without imm & without alpha/beta: 0.5
+        # C value without imm & with alpha/beta: 0.4
         "ai_params": {
-            "c": 0.6,
+            "c": 0.4,
             "imm_alpha": 0.2,
             "dyn_early_term_cutoff": 0.2,
             # "pb_weight": 0.2,
