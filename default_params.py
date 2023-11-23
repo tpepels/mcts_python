@@ -1,14 +1,13 @@
 DEFAULT_SETTINGS = {
     ("ninarow", "mcts"): {
-        # C value with alpha/beta: 0.4
-        # C value without alpha/beta: 0.4
-        # C value without imm & without alpha/beta: 0.5
-        # C value without imm & with alpha/beta: 0.4
+        # C_ab_imm: 0.4
+        # C_imm: 0.4
+        # C_vanilla: 0.5
+        # C_ab: 0.4
         "ai_params": {
             "c": 0.4,
             "imm_alpha": 0.35,
             "dyn_early_term_cutoff": 0.2,
-            # "pb_weight": 0.2,
         },
         "eval_params": {"m_power": 2, "m_centre": 3, "a": 400},
     },
@@ -18,7 +17,7 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.25,
             "imm_alpha": 0.8,
-            "early_term_turns": 5,
+            "early_term_turns": 10,
             # "pb_weight": 0.3,
             "early_term_cutoff": 0.05,
             "e_g_subset": 10,
@@ -27,8 +26,10 @@ DEFAULT_SETTINGS = {
         "eval_params": {"a": 120},
     },
     ("amazons", "mcts"): {
-        # imm value with alpha/beta: 0.85
-        # imm value without alpha/beta: 0.9
+        # C_ab_imm - 0.5
+        # C_imm - 0.25
+        # C_vanilla - 0.6
+        # C_ab - 0.5
         "ai_params": {
             "c": 0.25,
             "imm_alpha": 0.85,
