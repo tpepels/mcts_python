@@ -23,7 +23,16 @@ DEFAULT_SETTINGS = {
             "e_g_subset": 10,
             "epsilon": 0.05,
         },
-        "eval_params": {"a": 120},
+        "eval_params": {
+            "m_piece_diff": 0,
+            "m_endgame": 0,
+            "m_lorenz": 2,
+            "m_safe": 2,
+            "m_cap": 1,
+            "m_mobility": 1,
+            "m_decisive": 10,
+            "a": 200,
+        },
     },
     ("amazons", "mcts"): {
         # C_ab_imm - 0.5
