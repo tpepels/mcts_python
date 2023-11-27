@@ -16,7 +16,7 @@ DEFAULT_SETTINGS = {
         # imm value without alpha/beta: 0.8
         "ai_params": {
             "c": 0.25,
-            "imm_alpha": 0.8,
+            "imm_alpha": 0.3,
             "early_term_turns": 10,
             # "pb_weight": 0.3,
             "early_term_cutoff": 0.05,
