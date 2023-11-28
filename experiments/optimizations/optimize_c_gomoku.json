@@ -1,12 +1,13 @@
 [
   {
-    "n_games": 200,
+    "n_games": 300,
     "game_key": "ninarow",
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 10,
-      "c": [0.4, 0.5, 0.6, 0.7, 0.8]
+      "imm_alpha": [0.2, 0.4, 0.5, 0.6, 0.8],
+      "c": [0.2, 0.4, 0.5, 0.6, 0.8]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
@@ -16,14 +17,14 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 200,
+    "n_games": 300,
     "game_key": "ninarow",
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 10,
       "imm_alpha": 0,
-      "c": [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+      "c": [0.2, 0.4, 0.5, 0.6, 0.8]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
@@ -33,14 +34,15 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 200,
+    "n_games": 300,
     "game_key": "ninarow",
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 10,
       "ab_version": 12,
-      "c": [0.4, 0.5, 0.6, 0.7, 0.8]
+      "imm_alpha": [0.2, 0.4, 0.5, 0.6, 0.8],
+      "c": [0.2, 0.4, 0.5, 0.6, 0.8]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
@@ -50,7 +52,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 200,
+    "n_games": 300,
     "game_key": "ninarow",
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
@@ -58,7 +60,7 @@
       "max_time": 10,
       "imm_alpha": 0,
       "ab_version": 12,
-      "c": [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+      "c": [0.2, 0.4, 0.5, 0.6, 0.8]
     },
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
