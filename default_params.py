@@ -5,8 +5,8 @@ DEFAULT_SETTINGS = {
         # C_vanilla: 0.5
         # C_ab: 0.4
         "ai_params": {
-            "c": 0.4,
-            "imm_alpha": 0.35,
+            "c": 0.2,
+            "imm_alpha": 0.8,
             "dyn_early_term_cutoff": 0.2,
         },
         "eval_params": {"m_power": 2, "m_centre": 3, "a": 400},

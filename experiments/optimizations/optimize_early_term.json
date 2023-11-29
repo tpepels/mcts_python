@@ -1,18 +1,34 @@
 [
   {
-    "n_games": 300,
-    "game_key": "breakthrough",
-    "game_params": {},
+    "n_games": 200,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 100000,
+      "max_time": 15,
       "early_term_turns": [5, 10, 15, 30],
-      "early_term_cutoff": [0.01, 0.05, 0.1]
+      "early_term_cutoff": [0.01, 0.05, 0.1, 0.15, 0.2]
     },
     "p1_eval_params": {},
-    "p2_ai_key": "mcts",
+    "p2_ai_key": "alphabeta",
     "p2_ai_params": {
-      "num_simulations": 100000
+      "max_time": 4
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 200,
+    "game_key": "ninarow",
+    "game_params": { "board_size": 15, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 15,
+      "dyn_early_term_cutoff": [0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "alphabeta",
+    "p2_ai_params": {
+      "max_time": 4
     },
     "p2_eval_params": {}
   }
