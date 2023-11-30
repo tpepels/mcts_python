@@ -1,0 +1,122 @@
+[
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": 0.3,
+      "c": 0.45
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0.3,
+      "c": 0.4
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": 0.3,
+      "c": 0.45
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0.0,
+      "c": 0.8
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": 0,
+      "c": 0.55
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.4,
+      "imm_alpha": 0.3
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": 0,
+      "c": 0.55
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.8,
+      "imm_alpha": 0
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0.3,
+      "c": 0.4
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "c": 0.8,
+      "imm_alpha": 0
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": 0,
+      "c": 0.55
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "ab_version": 12,
+      "imm_alpha": 0.3,
+      "c": 0.45
+    },
+    "p2_eval_params": {}
+  }
+]
