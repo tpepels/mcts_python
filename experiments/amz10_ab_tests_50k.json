@@ -2,7 +2,7 @@
   {
     "n_games": 3000,
     "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "game_params": { "board_size": 10 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
@@ -22,7 +22,7 @@
   {
     "n_games": 3000,
     "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "game_params": { "board_size": 10 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
@@ -42,7 +42,7 @@
   {
     "n_games": 3000,
     "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "game_params": { "board_size": 10 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
@@ -62,7 +62,7 @@
   {
     "n_games": 3000,
     "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "game_params": { "board_size": 10 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
@@ -82,7 +82,7 @@
   {
     "n_games": 3000,
     "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "game_params": { "board_size": 10 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
@@ -101,7 +101,7 @@
   {
     "n_games": 3000,
     "game_key": "amazons",
-    "game_params": { "board_size": 8 },
+    "game_params": { "board_size": 10 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
