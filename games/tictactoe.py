@@ -441,7 +441,7 @@ class TicTacToeGameState(GameState):
 
     param_order: dict = {"m_power": 0, "m_centre_bonus": 1, "a": 2}
 
-    default_params = array.array("d", [3, 3, 200])
+    default_params = array.array("d", [3, 3, 500])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
