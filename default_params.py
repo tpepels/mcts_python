@@ -7,9 +7,9 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.1,
             "imm_alpha": 0.75,
-            "dyn_early_term_cutoff": 0.2,
+            "dyn_early_term_cutoff": 0.15,
         },
-        "eval_params": {"m_power": 2, "m_centre": 3, "a": 400},
+        "eval_params": {"m_power": 3, "m_centre": 4, "a": 500},
     },
     ("breakthrough", "mcts"): {
         # c_ab_imm: 0.45 (imm 0.3)
@@ -44,12 +44,19 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.1,
             "imm_alpha": 0.9,
-            "early_term_turns": 10,
+            "early_term_turns": 15,
             "early_term_cutoff": 0.1,
             # "e_g_subset": 10,
             # "epsilon": 0.1,
         },
-        "eval_params": {"a": 60},
+        "eval_params": {
+            "n_moves_cutoff": 0,
+            "m_imm": 1,
+            "m_kill_s": 1,
+            "m_min_mob": 2,
+            "m_mob": 2,
+            "a": 80,
+        },
     },
     ("kalah", "mcts"): {
         "ai_params": {"c": 0.4, "imm_alpha": 0.6},

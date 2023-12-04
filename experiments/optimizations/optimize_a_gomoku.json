@@ -6,13 +6,10 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 15,
-      "imm_alpha": [0.6, 0.65, 0.7, 0.75, 0.8],
-      "dyn_early_term_cutoff": [0.15, 0.2, 0.25]
+      "ab_version": 12
     },
     "p1_eval_params": {
-      "m_power": [2, 3, 4],
-      "m_centre": [2, 3, 4],
-      "a": [300, 400, 500]
+      "a": [450, 500, 550, 600, 700, 800]
     },
     "p2_ai_key": "alphabeta",
     "p2_ai_params": {
