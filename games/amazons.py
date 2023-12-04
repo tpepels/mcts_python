@@ -64,7 +64,7 @@ class AmazonsGameState(GameState):
         Initialize the game state with the given board, player, and action.
         If no board is provided, a new one is initialized.
         """
-        assert 6 <= board_size <= 10
+        # assert 6 <= board_size <= 10
 
         self.player_has_legal_moves = 1
         self.board_size = board_size
@@ -208,7 +208,7 @@ class AmazonsGameState(GameState):
         Returns:
             AmazonsGameState: A new gamestate in which the players are switched but no move performed
         """
-        assert self.player_has_legal_moves, "Null move should not be possible"
+        # assert self.player_has_legal_moves, "Null move should not be possible"
         # Pass the same board hash since this is only used for null moves
         return AmazonsGameState(
             board=self.board.copy(),
@@ -225,9 +225,9 @@ class AmazonsGameState(GameState):
         """
         Get a single random legal action for the current player.
         """
-        assert (
-            self.player_has_legal_moves
-        ), "Getting or making a move should not be possible"
+        # assert (
+        #     self.player_has_legal_moves
+        # ), "Getting or making a move should not be possible"
 
         s_q: cython.int = random.randint(0, 3)  # A random queen to start with
         s: cython.int = self.board_size
@@ -306,9 +306,9 @@ class AmazonsGameState(GameState):
         """
         Get a list of legal actions for the current player and also updates the moves per queen.
         """
-        assert (
-            self.player_has_legal_moves
-        ), "Getting or making a move should not be possible"
+        # assert (
+        #     self.player_has_legal_moves
+        # ), "Getting or making a move should not be possible"
 
         legal_actions: cython.list = []
         i: cython.int

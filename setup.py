@@ -39,7 +39,7 @@ setup(
         ext_modules,
         annotate=True,
         compiler_directives={
-            "profile": True,
+            # "profile": True,
             "language_level": "3",
             "embedsignature": True,
             "wraparound": False,
