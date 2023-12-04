@@ -201,7 +201,7 @@ class TicTacToeGameState(GameState):
         """
         Move in a spiral pattern starting from a position close to the center of the board.
         """
-        if self.n_moves > 1:
+        if self.n_moves > 1 and randint(0, 100) < 30:
             last_x = self.pre_last_action[0]
             last_y = self.pre_last_action[1]
             # for _ in range(2):
@@ -216,28 +216,29 @@ class TicTacToeGameState(GameState):
                 # print(f":: Random close to my move: {x, y} ::")
                 return (x, y)
 
-        last_x = self.last_action[0]
-        last_y = self.last_action[1]
-        # for _ in range(2):
-        # Generate a position using normal distribution
-        x = randint(-1, 1) + last_x
-        y = randint(-1, 1) + last_y
+        if randint(0, 100) < 30:
+            last_x = self.last_action[0]
+            last_y = self.last_action[1]
+            # for _ in range(2):
+            # Generate a position using normal distribution
+            x = randint(-1, 1) + last_x
+            y = randint(-1, 1) + last_y
 
-        x = max(0, min(self.size - 1, x))
-        y = max(0, min(self.size - 1, y))
+            x = max(0, min(self.size - 1, x))
+            y = max(0, min(self.size - 1, y))
 
-        if self.board[x, y] == 0:
-            # print(f":: Random close opp move: {x, y} ::")
-            return (x, y)
+            if self.board[x, y] == 0:
+                # print(f":: Random close opp move: {x, y} ::")
+                return (x, y)
 
-        # for _ in range(3):
-        x = self.center + randint(-1, 1)
-        y = self.center + randint(-1, 1)
-        x = max(0, min(self.size - 1, x))
-        y = max(0, min(self.size - 1, y))
-        if self.board[x, y] == 0:
-            # print(f":: Random center move: {x, y} ::")
-            return (x, y)
+        for _ in range(randint(0, 3)):
+            x = self.center + randint(-2, 2)
+            y = self.center + randint(-2, 2)
+            x = max(0, min(self.size - 1, x))
+            y = max(0, min(self.size - 1, y))
+            if self.board[x, y] == 0:
+                # print(f":: Random center move: {x, y} ::")
+                return (x, y)
 
         # If no close move could be found, return a random move
         x = randint(0, self.size - 1)
