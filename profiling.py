@@ -35,9 +35,10 @@ parser.add_argument(
         "kalah66",
         "kalah86",
         "blokus",
+        "gomoku",
     ],
     default="ninarow",
-    help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
+    help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus, gomoku).",
 )
 
 
@@ -84,6 +85,9 @@ elif args.game.startswith("kalah"):
     game_name = "kalah"
     n_houses, init_seeds = int(args.game[-2]), int(args.game[-1])
     game_params = {"n_houses": n_houses, "init_seeds": init_seeds}
+elif args.game.startswith("gomoku"):
+    game_name = "ninarow"
+    game_params = {"row_length": 5, "board_size": 15}
 elif args.game.startswith("amazons") and args.game.endswith("8"):
     game_name = "amazons"
     board_size = int(args.game[-1])
@@ -128,7 +132,7 @@ else:
     eval_params_1 = {}
     eval_params_2 = {}
 
-    ai_1_params = {"max_time": 10, "debug": args.debug, "imm_alpha": 0}
+    ai_1_params = {"max_time": 10, "debug": args.debug, "imm_alpha": 0.9}
     ai_2_params = {"max_time": 10, "debug": args.debug, "imm_alpha": 0.8}
 
     p1_params = AIParams(

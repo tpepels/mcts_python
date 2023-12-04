@@ -9,7 +9,7 @@ DEFAULT_SETTINGS = {
             "imm_alpha": 0.75,
             "dyn_early_term_cutoff": 0.15,
         },
-        "eval_params": {"m_power": 3, "m_centre": 4, "a": 500},
+        "eval_params": {"m_power": 3, "m_centre": 4, "a": 700},
     },
     ("breakthrough", "mcts"): {
         # c_ab_imm: 0.45 (imm 0.3)

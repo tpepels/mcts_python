@@ -2,12 +2,12 @@
 
 import array
 import itertools
-import random
-from random import gauss, randint
+from random import randint, choice, gauss
 import cython
 import numpy as np
 
 from cython.cimports import numpy as cnp
+from cython.cimports.libc.math import sqrt
 
 cnp.import_array()
 import numpy as np
@@ -56,7 +56,7 @@ class TicTacToeGameState(GameState):
     # Private variables
     n_moves: cython.int
     pie_move_done: cython.bint
-
+    empty_positions: cython.list
     size: cython.int
     row_length: cython.int
     zobrist_table: cython.list
@@ -73,8 +73,12 @@ class TicTacToeGameState(GameState):
         n_moves=0,
         board_hash=0,
         pie_move_done=0,
+        empty_positions=None,
     ):
-        assert MIN_SIZE <= size <= MAX_SIZE
+        assert MIN_SIZE <= board_size <= MAX_SIZE
+
+        if empty_positions is None:
+            empty_positions = [i for i in range(board_size**2)]
 
         self.size = board_size
         self.row_length = row_length if row_length else board_size
@@ -85,7 +89,7 @@ class TicTacToeGameState(GameState):
         self.last_action = last_action
         self.center = self.size // 2
         self.pie_move_done = pie_move_done
-
+        self.empty_positions = empty_positions
         self.zobrist_table = self.zobrist_tables[self.size]
 
         if self.board is None:
@@ -105,7 +109,7 @@ class TicTacToeGameState(GameState):
         x, y = action
         # assert (
         #     0 <= x < self.size and 0 <= y < self.size
-        # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
+        # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}\n{self.empty_positions}"
         # assert self.board[x, y] == 0, "Illegal move"
 
         self.board[x, y] = self.player
@@ -113,6 +117,7 @@ class TicTacToeGameState(GameState):
         self.player = 3 - self.player
         self.last_action = action
         self.n_moves += 1
+        self.empty_positions.remove(x * self.size + y)
 
         self._check_win()
 
@@ -129,7 +134,8 @@ class TicTacToeGameState(GameState):
         new_board: cython.int[:, :] = self.board.copy()
         move_increment: cython.int = 1
         opp: cython.int = 3 - self.player
-
+        # If the pie move is made, then the empty positions are the same
+        new_empty: cython.list = self.empty_positions.copy()
         if self.board[x, y] != 0:
             assert (
                 self.n_moves == 1
@@ -151,6 +157,7 @@ class TicTacToeGameState(GameState):
 
             new_board[x, y] = self.player
 
+            new_empty.remove(x * self.size + y)
             # Update the hash
             board_hash: cython.longlong = (
                 self.board_hash
@@ -167,6 +174,7 @@ class TicTacToeGameState(GameState):
             n_moves=self.n_moves + move_increment,
             last_action=action,
             pie_move_done=move_increment == 0 or self.pie_move_done,
+            empty_positions=new_empty,
         )
 
     @cython.cfunc
@@ -182,38 +190,60 @@ class TicTacToeGameState(GameState):
             n_moves=self.n_moves,
             last_action=self.last_action,
             pie_move_done=self.pie_move_done,
+            empty_positions=self.empty_positions.copy(),
         )
 
     @cython.cfunc
     @cython.locals(
+        pos=cython.int,
         x=cython.int,
         y=cython.int,
-        start_i=cython.int,
+        last_x=cython.int,
+        last_y=cython.int,
+        last_move_int=cython.int,
     )
     def get_random_action(self) -> cython.tuple:
         """
         Move in a spiral pattern starting from a position close to the center of the board.
         """
-        if self.n_moves == 0:
-            # If this is the first move, play in the center
-            return (self.center, self.center)
+        if self.n_moves > 0:
+            last_x = self.last_action[0]
+            last_y = self.last_action[1]
+            for _ in range(3):
+                # Generate a position using normal distribution
+                x = randint(-1, 1) + last_x
+                y = randint(-1, 1) + last_y
 
-        x: cython.int = random.randint(0, self.size - 1)
-        y: cython.int = random.randint(0, self.size - 1)
-        while self.board[x, y] != 0:
-            x = random.randint(0, self.size - 1)
-            y = random.randint(0, self.size - 1)
+                x = max(0, min(self.size - 1, x))
+                y = max(0, min(self.size - 1, y))
 
-        return (x, y)
+                if self.board[x, y] == 0:
+                    # print(f":: Random close move: {x, y} ::")
+                    return (x, y)
+
+        x = self.center + randint(-1, 1)
+        y = self.center + randint(-1, 1)
+        x = max(0, min(self.size - 1, x))
+        y = max(0, min(self.size - 1, y))
+        if self.board[x, y] == 0:
+            # print(f":: Random center move: {x, y} ::")
+            return (x, y)
+
+        # If no close move could be found, return a random move
+        pos = choice(self.empty_positions)
+        return (pos // self.size, pos % self.size)
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list:
+        pos: cython.int
         if self.player == 2 and self.n_moves == 1 and not self.pie_move_done:
-            moves: cython.list = where_is_k2d(self.board, 0)
-            moves.append(self.last_action)
-            return moves
+            # In the case of a pie move, return all possible moves
+            return [
+                (pos // self.size, pos % self.size) for pos in range(self.size**2)
+            ]
         else:
-            return where_is_k2d(self.board, 0)
+            # For other cases, just return the list of empty positions as (x, y) coordinates
+            return [(pos // self.size, pos % self.size) for pos in self.empty_positions]
 
     @cython.ccall
     def is_terminal(self) -> cython.bint:

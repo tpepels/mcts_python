@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 300,
+    "n_games": 600,
     "game_key": "amazons",
     "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
