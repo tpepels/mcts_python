@@ -7,7 +7,7 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.1,
             "imm_alpha": 0.75,
-            "dyn_early_term_cutoff": 0.15,
+            "dyn_early_term_cutoff": 0.3,
         },
         "eval_params": {"m_power": 3, "m_centre": 4, "a": 700},
     },
