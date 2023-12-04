@@ -55,7 +55,7 @@ DEFAULT_SETTINGS = {
             "m_kill_s": 1,
             "m_min_mob": 2,
             "m_mob": 2,
-            "a": 80,
+            "a": 100,
         },
     },
     ("kalah", "mcts"): {
