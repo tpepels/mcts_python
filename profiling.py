@@ -132,8 +132,8 @@ else:
     eval_params_1 = {}
     eval_params_2 = {}
 
-    ai_1_params = {"max_time": 10, "debug": args.debug, "imm_alpha": 0.9}
-    ai_2_params = {"max_time": 10, "debug": args.debug, "imm_alpha": 0.8}
+    ai_1_params = {"num_simulations": 100000, "debug": args.debug, "imm_alpha": 0.9}
+    ai_2_params = {"num_simulations": 100000, "debug": args.debug, "imm_alpha": 0.8}
 
     p1_params = AIParams(
         ai_key="mcts",

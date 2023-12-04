@@ -52,6 +52,9 @@ class TicTacToeGameState(GameState):
     last_action = cython.declare(
         cython.tuple[cython.int, cython.int], visibility="public"
     )
+    pre_last_action = cython.declare(
+        cython.tuple[cython.int, cython.int], visibility="public"
+    )
 
     # Private variables
     n_moves: cython.int
@@ -67,6 +70,7 @@ class TicTacToeGameState(GameState):
         board_size=3,
         row_length=3,
         last_action=(-1, -1),
+        pre_last_action=(-1, -1),
         board=None,
         player=1,
         n_moves=0,
@@ -82,6 +86,7 @@ class TicTacToeGameState(GameState):
         self.player = player
         self.n_moves = n_moves
         self.last_action = last_action
+        self.pre_last_action = pre_last_action
         self.center = self.size // 2
         self.pie_move_done = pie_move_done
         self.zobrist_table = self.zobrist_tables[self.size]
@@ -108,6 +113,7 @@ class TicTacToeGameState(GameState):
         self.board[x, y] = self.player
         # For the pie-rule we still switch the player, because we switched the marks
         self.player = 3 - self.player
+        self.pre_last_action = self.last_action
         self.last_action = action
         self.n_moves += 1
         self._check_win()
@@ -160,6 +166,7 @@ class TicTacToeGameState(GameState):
             board_hash=board_hash,
             n_moves=self.n_moves + move_increment,
             last_action=action,
+            pre_last_action=self.last_action,
             pie_move_done=move_increment == 0 or self.pie_move_done,
         )
 
@@ -175,6 +182,7 @@ class TicTacToeGameState(GameState):
             board_hash=self.board_hash,
             n_moves=self.n_moves,
             last_action=self.last_action,
+            pre_last_action=self.last_action,
             pie_move_done=self.pie_move_done,
         )
 
@@ -193,29 +201,43 @@ class TicTacToeGameState(GameState):
         """
         Move in a spiral pattern starting from a position close to the center of the board.
         """
-        if self.n_moves > 0:
-            last_x = self.last_action[0]
-            last_y = self.last_action[1]
-            for _ in range(4):
-                # Generate a position using normal distribution
-                x = randint(-1, 1) + last_x
-                y = randint(-1, 1) + last_y
+        if self.n_moves > 1:
+            last_x = self.pre_last_action[0]
+            last_y = self.pre_last_action[1]
+            # for _ in range(2):
+            # Generate a position using normal distribution
+            x = randint(-1, 1) + last_x
+            y = randint(-1, 1) + last_y
 
-                x = max(0, min(self.size - 1, x))
-                y = max(0, min(self.size - 1, y))
-
-                if self.board[x, y] == 0:
-                    # print(f":: Random close move: {x, y} ::")
-                    return (x, y)
-
-        for i in range(1, 3):
-            x = self.center + randint(-i, i)
-            y = self.center + randint(-i, i)
             x = max(0, min(self.size - 1, x))
             y = max(0, min(self.size - 1, y))
+
             if self.board[x, y] == 0:
-                # print(f":: Random center move: {x, y} ::")
+                # print(f":: Random close to my move: {x, y} ::")
                 return (x, y)
+
+        last_x = self.last_action[0]
+        last_y = self.last_action[1]
+        # for _ in range(2):
+        # Generate a position using normal distribution
+        x = randint(-1, 1) + last_x
+        y = randint(-1, 1) + last_y
+
+        x = max(0, min(self.size - 1, x))
+        y = max(0, min(self.size - 1, y))
+
+        if self.board[x, y] == 0:
+            # print(f":: Random close opp move: {x, y} ::")
+            return (x, y)
+
+        # for _ in range(3):
+        x = self.center + randint(-1, 1)
+        y = self.center + randint(-1, 1)
+        x = max(0, min(self.size - 1, x))
+        y = max(0, min(self.size - 1, y))
+        if self.board[x, y] == 0:
+            # print(f":: Random center move: {x, y} ::")
+            return (x, y)
 
         # If no close move could be found, return a random move
         x = randint(0, self.size - 1)
@@ -224,6 +246,7 @@ class TicTacToeGameState(GameState):
         for i in range(self.size):
             for j in range(self.size):
                 if self.board[(x + i) % self.size, (y + j) % self.size] == 0:
+                    # print(f":: Random move: {x, y} ::")
                     return ((x + i) % self.size, (y + j) % self.size)
 
     @cython.ccall
