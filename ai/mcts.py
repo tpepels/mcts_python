@@ -70,6 +70,7 @@ class Node:
         ab_version: cython.int = 0,
         alpha: cython.double = -INFINITY,
         beta: cython.double = INFINITY,
+        c_adjust: cython.double = 0.0,
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
@@ -86,10 +87,7 @@ class Node:
         ci_adjust: cython.int = ab_version % 10
 
         if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-            if val_adj == 1:
-                c *= 2
-            if val_adj == 3:
-                c /= 2
+            c *= c_adjust
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
@@ -517,6 +515,7 @@ class MCTSPlayer:
     ab_prune_version: cython.int
     reuse_tree: cython.bint
     ab_style: cython.int
+    c_adjust: cython.double
 
     def __init__(
         self,
@@ -536,6 +535,7 @@ class MCTSPlayer:
         imm_alpha: float = 0.0,
         imm_version: int = 0,
         ab_version: int = 0,
+        c_adjust: float = 0.0,
         ab_prune_version: int = 0,
         ab_style: int = 1,
         ex_imm_D: int = 2,
@@ -592,6 +592,7 @@ class MCTSPlayer:
         self.ab_version = ab_version
         self.ab_prune_version = ab_prune_version
         self.ab_style = ab_style
+        self.c_adjust = c_adjust
         self.reuse_tree = reuse_tree
 
     @cython.ccall
@@ -830,6 +831,7 @@ class MCTSPlayer:
                         ab_version=self.ab_version,
                         alpha=alpha if node.player == self.player else -beta,
                         beta=beta if node.player == self.player else -alpha,
+                        c_adjust=self.c_adjust,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
