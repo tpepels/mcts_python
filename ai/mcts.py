@@ -85,8 +85,11 @@ class Node:
         val_adj: cython.int = ab_version // 10
         ci_adjust: cython.int = ab_version % 10
 
-        if val_adj == 3:
-            c = c / 2
+        if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
+            if val_adj == 1:
+                c *= 2
+            if val_adj == 3:
+                c /= 2
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
