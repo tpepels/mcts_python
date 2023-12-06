@@ -125,8 +125,6 @@ class Node:
 
                 if val_adj == 1:
                     child_value = child_value + delta_alpha
-                if val_adj == 2:
-                    child_value = child_value + (delta_alpha / k)
                 if val_adj == 3:
                     child_value = delta_alpha
 
@@ -135,7 +133,7 @@ class Node:
                 if ci_adjust == 2:
                     confidence_i = c * sqrt(log(N) / max(1, (n_c * k))) + rand_fact
                 if ci_adjust == 3:
-                    confidence_i = c * k * sqrt(log(N) / n_c) + rand_fact
+                    confidence_i = c * (1.0 / k) * sqrt(log(N) / n_c) + rand_fact
 
                 uct_val = child_value + confidence_i
 
