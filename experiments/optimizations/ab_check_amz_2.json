@@ -6,7 +6,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "ab_version": [21, 22, 30, 31, 32],
+      "ab_version": 31,
       "imm_alpha": 0.7,
       "c": 0.1
     },
