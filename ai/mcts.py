@@ -134,6 +134,8 @@ class Node:
                     confidence_i = c * sqrt((log(max(1, N * k))) / n_c) + rand_fact
                 if ci_adjust == 2:
                     confidence_i = c * sqrt(log(N) / max(1, (n_c * k))) + rand_fact
+                if ci_adjust == 3:
+                    confidence_i = c * k * sqrt(log(N) / n_c) + rand_fact
 
                 uct_val = child_value + confidence_i
 
