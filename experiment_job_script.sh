@@ -3,7 +3,7 @@
 #SBATCH -J MCTSExperiments
 #SBATCH -o /home/tpepels/out/out_%J.out
 #SBATCH -e /home/tpepels/out/err_%J.err
-#SBATCH -t 2000
+#SBATCH -t 3000
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=192
