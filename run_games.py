@@ -203,13 +203,7 @@ def play_game_until_terminal(
     # Set the random seed
     random.seed(seed)
     fastrand.pcg32_seed(seed)
-
     print(f"Random seed set to: {seed}")
-
-    for _ in range(10):
-        print(random.random())
-    for _ in range(10):
-        print(fastrand.pcg32())
     # For some seconds, generate random numbers
     rand_time = int.from_bytes(os.urandom(1), "big") % 20
     print(f"Generating random numbers for {rand_time} seconds...")
@@ -217,7 +211,6 @@ def play_game_until_terminal(
     while time.time() - start_time < rand_time:
         fastrand.pcg32()
         random.random()
-    print("Done.")
 
     current_player: AIPlayer = player1
     turns = 1
