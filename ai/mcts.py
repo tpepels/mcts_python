@@ -811,7 +811,7 @@ class MCTSPlayer:
                     )
 
                     if val - bound >= alpha and val + bound <= beta:
-                        if node.player == self.player:
+                        if prev_node.player == self.player:
                             alpha = max(alpha, val - bound)
                         else:
                             beta = min(beta, val + bound)
