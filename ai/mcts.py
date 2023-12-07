@@ -71,6 +71,7 @@ class Node:
         alpha: cython.double = -INFINITY,
         beta: cython.double = INFINITY,
         c_adjust: cython.double = 0.0,
+        k_factor: cython.double = 0.0,
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
@@ -114,28 +115,53 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            rand_fact: cython.double = random.uniform(-0.0001, 0.0001)
+            rand_fact: cython.double = random.uniform(-0.0005, 0.0005)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
                 delta_alpha: cython.double = child_value - alpha
+                # delta_beta: cython.double = beta - child_value
                 k: cython.double = beta - alpha
 
                 if val_adj == 1:
-                    child_value = child_value + delta_alpha
+                    if child_value > alpha and child_value < beta:
+                        child_value += delta_alpha
+                if val_adj == 2:
+                    if (
+                        child_value + (c * confidence_i) > alpha
+                        and child_value - (c * confidence_i) < beta
+                    ):
+                        child_value += abs(delta_alpha)
                 if val_adj == 3:
-                    child_value = delta_alpha
+                    if (
+                        child_value - (c * confidence_i) > alpha
+                        and child_value + (c * confidence_i) < beta
+                    ):
+                        child_value += abs(delta_alpha)
+                if val_adj == 4:
+                    if (
+                        child_value + (c * confidence_i) > alpha
+                        and child_value - (c * confidence_i) < beta
+                    ):
+                        child_value *= 2
+                if val_adj == 5:
+                    if (
+                        child_value - (c * confidence_i) > alpha
+                        and child_value + (c * confidence_i) < beta
+                    ):
+                        child_value *= 2
+                if val_adj == 6:
+                    if child_value > alpha and child_value < beta:
+                        child_value *= 2
 
                 if ci_adjust == 1:
-                    confidence_i = c * sqrt((log(max(1, N * k))) / n_c) + rand_fact
+                    confidence_i *= pow(max(1, k), k_factor)
                 if ci_adjust == 2:
-                    confidence_i = c * sqrt(log(N) / max(1, (n_c * k))) + rand_fact
-                if ci_adjust == 3:
-                    confidence_i = c * (1.0 / k) * sqrt(log(N) / n_c) + rand_fact
+                    confidence_i *= pow(log(max(1, k)), k_factor)
 
-                uct_val = child_value + confidence_i
+                uct_val = child_value + c * confidence_i
 
                 ab_bound += 1
             else:
@@ -516,6 +542,7 @@ class MCTSPlayer:
     reuse_tree: cython.bint
     ab_style: cython.int
     c_adjust: cython.double
+    k_factor: cython.double
 
     def __init__(
         self,
@@ -535,6 +562,7 @@ class MCTSPlayer:
         imm_alpha: float = 0.0,
         imm_version: int = 0,
         ab_version: int = 0,
+        k_factor: float = 0.0,
         c_adjust: float = 0.0,
         ab_prune_version: int = 0,
         ab_style: int = 1,
@@ -593,6 +621,7 @@ class MCTSPlayer:
         self.ab_prune_version = ab_prune_version
         self.ab_style = ab_style
         self.c_adjust = c_adjust
+        self.k_factor = k_factor
         self.reuse_tree = reuse_tree
 
     @cython.ccall
@@ -832,6 +861,7 @@ class MCTSPlayer:
                         alpha=alpha if node.player == self.player else -beta,
                         beta=beta if node.player == self.player else -alpha,
                         c_adjust=self.c_adjust,
+                        k_factor=self.k_factor,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
