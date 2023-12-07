@@ -1,6 +1,7 @@
 # cython: language_level=3
 
 import random
+from random import random as rand_float
 from colorama import Back, Fore, init
 
 init(autoreset=True)
@@ -16,6 +17,15 @@ prunes: cython.int = 0
 non_prunes: cython.int = 0
 ab_bound: cython.int = 0
 ucb_bound: cython.int = 0
+
+
+@cython.cfunc
+@cython.inline
+@cython.exceptval(-99999999.9, check=False)
+def uniform(a: cython.double, b: cython.double) -> cython.double:
+    "Get a random number in the range [a, b) or [a, b] depending on rounding."
+    mod: cython.double = a + (b - a)
+    return mod * rand_float()
 
 
 @cython.cfunc
@@ -115,7 +125,8 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            rand_fact: cython.double = random.uniform(-0.0005, 0.0005)
+            rand_fact: cython.double = uniform(-0.0005, 0.0005)
+
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
@@ -263,7 +274,7 @@ class Node:
                         player=self.max_player,
                         norm=True,
                         params=eval_params,
-                    ) + random.uniform(-0.001, 0.001)
+                    ) + uniform(-0.001, 0.001)
                     child.eval_value = eval_value
 
                 if imm:
@@ -276,7 +287,7 @@ class Node:
                             player=self.max_player,
                             norm=True,
                             params=eval_params,
-                        ) + random.uniform(-0.001, 0.001)
+                        ) + uniform(-0.001, 0.001)
                     elif (
                         imm_version == 1 or imm_version == 13
                     ):  # n-ply-imm, set the evaluation score
@@ -297,7 +308,7 @@ class Node:
                             player=self.max_player,
                             norm=True,
                             params=eval_params,
-                        ) + random.uniform(-0.001, 0.001)
+                        ) + uniform(-0.001, 0.001)
                         # Play out capture sequences
                         if init_state.is_capture(action):
                             child.im_value = quiescence(
@@ -317,7 +328,7 @@ class Node:
                                 player=self.max_player,
                                 norm=True,
                                 params=eval_params,
-                            ) + random.uniform(-0.001, 0.001)
+                            ) + uniform(-0.001, 0.001)
                             child.im_value = quiescence(
                                 state=new_state,
                                 stand_pat=eval_value,
@@ -967,7 +978,7 @@ class MCTSPlayer:
 
             best_action: cython.tuple = ()
             # With probability epsilon choose the best action from a subset of moves
-            if self.e_greedy == 1 and random.uniform(0, 1) < self.epsilon:
+            if self.e_greedy == 1 and uniform(0, 1) < self.epsilon:
                 actions = state.get_legal_actions()
                 actions = actions[: self.e_g_subset]
 
@@ -978,7 +989,7 @@ class MCTSPlayer:
                         params=self.eval_params,
                         player=state.player,
                         norm=False,
-                    ) + random.uniform(-0.001, 0.001)
+                    )
                     # Keep track of the best action
                     if value > max_value:
                         max_value = value
@@ -988,7 +999,7 @@ class MCTSPlayer:
             elif (
                 self.e_greedy == 0
                 and self.roulette == 1
-                and random.uniform(0, 1) <= self.roulette_eps
+                and uniform(0, 1) <= self.roulette_eps
             ):
                 actions = state.get_legal_actions()
                 best_action = random.choices(
@@ -1091,7 +1102,7 @@ def alpha_beta(
     if depth == 0:
         return state.evaluate(
             params=eval_params, player=max_player, norm=True
-        ) + random.uniform(-0.001, 0.001)
+        ) + uniform(-0.001, 0.001)
 
     is_max_player = state.player == max_player
     # Move ordering
@@ -1153,7 +1164,7 @@ def quiescence(
             new_state = state.apply_action(move)
             new_stand_pat = new_state.evaluate(
                 params=eval_params, player=max_player, norm=True
-            ) + random.uniform(-0.001, 0.001)
+            ) + uniform(-0.001, 0.001)
             score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
             stand_pat = max(
                 stand_pat, score

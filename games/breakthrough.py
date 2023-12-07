@@ -4,8 +4,8 @@ import array
 import cython
 import numpy as np
 
-import random
-
+# import random
+from fastrand import pcg32randint as randint
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.pair import pair
 from cython.cimports.includes import normalize, where_is_k, win, loss, draw, GameState
@@ -85,7 +85,7 @@ lorentz_values = [
 @cython.cclass
 class BreakthroughGameState(GameState):
     zobrist_table = [
-        [[random.randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)]
+        [[randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)]
         for _ in range(8)
     ]
     REUSE = True
@@ -285,9 +285,7 @@ class BreakthroughGameState(GameState):
             dr = 1
         opp: cython.int = 3 - self.player
         n: cython.int = len(self.positions[self.player - 1])
-        start: cython.int = random.randint(
-            1, n
-        )  # This allows us to start at a random piece
+        start: cython.int = randint(1, n)  # This allows us to start at a random piece
 
         i: cython.int
 
@@ -301,7 +299,7 @@ class BreakthroughGameState(GameState):
             row: cython.int = position // 8
             col: cython.int = position % 8
 
-            start_dc: cython.int = random.randint(
+            start_dc: cython.int = randint(
                 0, 2
             )  # This allows us to start at in a random direction
             k: cython.int
@@ -345,19 +343,11 @@ class BreakthroughGameState(GameState):
                             cython.int, cython.int
                         ](position, new_position)
 
-                        for _ in range(4):
-                            all_moves.push_back(capture_pair)
-                            all_moves.push_back(capture_pair)
-                            all_moves.push_back(capture_pair)
+                        for _ in range(6):
                             all_moves.push_back(capture_pair)
 
                         if is_safe(new_position, self.player, self.board):
-                            for _ in range(8):
-                                all_moves.push_back(capture_pair)
-                                all_moves.push_back(capture_pair)
-                                all_moves.push_back(capture_pair)
-                                all_moves.push_back(capture_pair)
-                                all_moves.push_back(capture_pair)
+                            for _ in range(12):
                                 all_moves.push_back(capture_pair)
 
                         self.board[position] = self.player  # Put the piece back
@@ -367,7 +357,7 @@ class BreakthroughGameState(GameState):
                     )
 
         # All_moves includes captures, they'll be selected with a higher probability
-        return all_moves[random.randint(0, all_moves.size() - 1)]
+        return all_moves[randint(0, all_moves.size() - 1)]
 
     @cython.ccall
     def get_legal_actions(self) -> cython.list[cython.tuple]:
@@ -466,7 +456,7 @@ class BreakthroughGameState(GameState):
         "a": 7,
     }
 
-    default_params = array.array("d", [2, 1, 2, 1, 2, 1, 20, 120.0])
+    default_params = array.array("d", [2.0, 1.0, 2.0, 0, 1.0, 0, 10.0, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)

@@ -4,6 +4,7 @@ from array import array
 import gc
 import os
 import random
+import fastrand
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
@@ -201,7 +202,22 @@ def play_game_until_terminal(
     seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
     # Set the random seed
     random.seed(seed)
+    fastrand.pcg32_seed(seed)
+
     print(f"Random seed set to: {seed}")
+
+    for _ in range(10):
+        print(random.random())
+    for _ in range(10):
+        print(fastrand.pcg32())
+    # For some seconds, generate random numbers
+    rand_time = int.from_bytes(os.urandom(1), "big") % 20
+    print(f"Generating random numbers for {rand_time} seconds...")
+    start_time = time.time()
+    while time.time() - start_time < rand_time:
+        fastrand.pcg32()
+        random.random()
+    print("Done.")
 
     current_player: AIPlayer = player1
     turns = 1

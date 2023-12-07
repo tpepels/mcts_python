@@ -6,7 +6,8 @@ import cython
 
 import math
 
-import random
+# import random
+from fastrand import pcg32randint as randint
 import numpy as np
 from cython.cimports.libc.math import log
 from cython.cimports.libcpp.vector import vector
@@ -25,9 +26,7 @@ N_DIRECTIONS = 8
 @cython.cclass
 class AmazonsGameState(GameState):
     zobrist_tables = {
-        size: [
-            [random.randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size**2)
-        ]
+        size: [[randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size**2)]
         for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
     }
     REUSE = True
@@ -229,7 +228,7 @@ class AmazonsGameState(GameState):
         #     self.player_has_legal_moves
         # ), "Getting or making a move should not be possible"
 
-        s_q: cython.int = random.randint(0, 3)  # A random queen to start with
+        s_q: cython.int = randint(0, 3)  # A random queen to start with
         s: cython.int = self.board_size
 
         q_i: cython.int
@@ -268,7 +267,7 @@ class AmazonsGameState(GameState):
         idx=cython.int,
     )
     def find_direction(self, x: cython.int, y: cython.int, s: cython.int) -> cython.int:
-        start_idx: cython.int = random.randint(
+        start_idx: cython.int = randint(
             0, N_DIRECTIONS - 1
         )  # Get a random starting index
 
@@ -472,7 +471,7 @@ class AmazonsGameState(GameState):
         "a": 5,
     }
 
-    default_params = array.array("d", [30, 2.0, 2.0, 1.0, 0.0, 50.0])
+    default_params = array.array("d", [12, 1.0, 1.0, 2.0, 2.0, 100.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -747,7 +746,7 @@ def get_random_distance(
 
     # Generate a random distance within the valid range
     if max_dist > 0:
-        return random.randint(1, max_dist)
+        return randint(1, max_dist)
     else:
         return -1
 

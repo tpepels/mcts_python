@@ -12,6 +12,11 @@ from libc.math cimport INFINITY
 cdef double curr_time() except -1:
     return time(NULL)
 
+@cython.exceptval(-99999999.9, check=False)
+cdef inline double uniform(double a, double b):
+    "Get a random number in the range [a, b) or [a, b] depending on rounding."
+    return a + (b - a) * random.random()
+
 # Search statistics to keep track of during search
 cdef unsigned stat_n_eval = 0
 cdef unsigned stat_killers = 0

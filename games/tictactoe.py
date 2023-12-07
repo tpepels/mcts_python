@@ -2,12 +2,13 @@
 
 import array
 import itertools
-from random import randint, choice
+
+# from random import randint
+from fastrand import pcg32randint as randint
 import cython
 import numpy as np
 
 from cython.cimports import numpy as cnp
-from cython.cimports.libc.math import sqrt
 
 cnp.import_array()
 import numpy as np
@@ -189,8 +190,8 @@ class TicTacToeGameState(GameState):
     @cython.cfunc
     @cython.locals(
         pos=cython.int,
-        x=cython.int,
-        y=cython.int,
+        x=cython.long,
+        y=cython.long,
         last_x=cython.int,
         last_y=cython.int,
         last_move_int=cython.int,
@@ -204,40 +205,38 @@ class TicTacToeGameState(GameState):
         if self.n_moves > 1 and randint(0, 100) < 30:
             last_x = self.pre_last_action[0]
             last_y = self.pre_last_action[1]
-            # for _ in range(2):
-            # Generate a position using normal distribution
-            x = randint(-1, 1) + last_x
-            y = randint(-1, 1) + last_y
+
+            x = randint(0, 2) - 1 + last_x
+            y = randint(0, 2) - 1 + last_y
 
             x = max(0, min(self.size - 1, x))
             y = max(0, min(self.size - 1, y))
 
             if self.board[x, y] == 0:
-                # print(f":: Random close to my move: {x, y} ::")
+                # print(":: Pre-last move: ", x, y, "::")
                 return (x, y)
 
         if randint(0, 100) < 30:
             last_x = self.last_action[0]
             last_y = self.last_action[1]
-            # for _ in range(2):
-            # Generate a position using normal distribution
-            x = randint(-1, 1) + last_x
-            y = randint(-1, 1) + last_y
+
+            x = randint(0, 2) - 1 + last_x
+            y = randint(0, 2) - 1 + last_y
 
             x = max(0, min(self.size - 1, x))
             y = max(0, min(self.size - 1, y))
 
             if self.board[x, y] == 0:
-                # print(f":: Random close opp move: {x, y} ::")
+                # print(":: Last move: ", x, y, "::")
                 return (x, y)
 
         for _ in range(randint(0, 3)):
-            x = self.center + randint(-2, 2)
-            y = self.center + randint(-2, 2)
+            x = self.center + (randint(0, 4) - 2)
+            y = self.center + (randint(0, 4) - 2)
             x = max(0, min(self.size - 1, x))
             y = max(0, min(self.size - 1, y))
             if self.board[x, y] == 0:
-                # print(f":: Random center move: {x, y} ::")
+                # print(":: Centre move: ", x, y, "::")
                 return (x, y)
 
         # If no close move could be found, return a random move
@@ -493,7 +492,7 @@ class TicTacToeGameState(GameState):
 
     param_order: dict = {"m_power": 0, "m_centre_bonus": 1, "a": 2}
 
-    default_params = array.array("d", [3, 3, 500])
+    default_params = array.array("d", [3, 4, 700])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
