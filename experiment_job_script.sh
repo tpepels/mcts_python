@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p genoa
-#SBATCH -J MCTSExperiments
+#SBATCH -J $1
 #SBATCH -o /home/tpepels/out/%J.out
 #SBATCH -e /home/tpepels/out/err_%J.err
 #SBATCH -t 3000
@@ -8,7 +8,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=192
 #SBATCH --exclusive
-#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT_90
 #SBATCH --mail-user=tom.pepels@maastrichtuniversity.nl
 
 # Check if the time limit parameter is provided
