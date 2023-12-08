@@ -1,7 +1,8 @@
 [
   {
-    "n_games": 600,
+    "n_games": 1000,
     "game_key": "amazons",
+    "random_openings": 2,
     "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {

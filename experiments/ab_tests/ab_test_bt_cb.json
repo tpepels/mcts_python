@@ -1,6 +1,7 @@
 [
   {
-    "n_games": 600,
+    "n_games": 1000,
+    "random_openings": 2,
     "game_key": "breakthrough",
     "game_params": {},
     "p1_ai_key": "mcts",

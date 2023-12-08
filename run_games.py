@@ -220,7 +220,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
 
     print(f" :: Making {random_openings} random moves to start the game")
 
-    current_player: AIPlayer = p1
+    current_player: AIPlayer = p2 if game.player == 2 else p1
     for _ in range(random_openings):
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
@@ -273,7 +273,7 @@ def play_game_until_terminal(
             fastrand.pcg32()
             random.random()
 
-    current_player: AIPlayer = player1
+    current_player: AIPlayer = player2 if game.player == 2 else player1
     turns = 1
     while not game.is_terminal():
         # Get the best action for the current player
@@ -410,7 +410,7 @@ def run_game_experiment(
         nonlocal n_moves
         times.append(time)
         print(
-            f"Player {game.player}, action: {action}, time: {times[len(times) - 1] - times[len(times) - 2]:.1f}"
+            f"Player {str(current_player)}, action: {action}, time: {times[len(times) - 1] - times[len(times) - 2]:.1f}"
         )
         print(game.visualize())
         n_moves += 1

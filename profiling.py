@@ -133,20 +133,12 @@ else:
     eval_params_2 = {}
 
     ai_1_params = {
-        "num_simulations": 600000,
+        "num_simulations": 100000,
         "debug": args.debug,
-        "early_term_cutoff": 0,
-        "dyn_early_term_cutoff": 0,
-        "c": 4,
-        "imm_alpha": 0.01,
-        "random_top": 30,
     }
     ai_2_params = {
-        "num_simulations": 200000,
+        "num_simulations": 100000,
         "debug": args.debug,
-        "ab_version": 1,
-        "k_factor": -0.5,
-        "c_adjust": 2,
     }
 
     p1_params = AIParams(

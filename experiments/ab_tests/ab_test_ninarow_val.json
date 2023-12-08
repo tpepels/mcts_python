@@ -1,13 +1,14 @@
 [
   {
-    "n_games": 300,
+    "n_games": 1000,
+    "random_openings": 2,
     "game_key": "ninarow",
     "game_params": { "board_size": 9, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "ab_version": [10, 20, 30, 40, 50, 60],
-      "c_adjust": [0.5, 1.5, 2]
+      "ab_version": [10, 30, 50],
+      "c_adjust": [1, 1.5, 2, 2.5, 3]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

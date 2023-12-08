@@ -789,17 +789,15 @@ class MCTSPlayer:
         # In case there's no move that does not lead to a loss, we should return a random move
         if max_node is None:
             if DEBUG:
-                print(f"** No winning move found, returning random move **")
-
-            if DEBUG:
                 if self.root.solved_player != (3 - self.player):
                     print("Root not solved for opponent and no max_node found!!")
                     print(f"Root node: {str(self.root)}")
                     print("\n".join([str(child) for child in self.root.children]))
 
-            assert self.root.solved_player == (
-                3 - self.player
-            ), f"Root not solved for opponent and no max_node found!! {str(self.root)}"
+            assert (
+                self.root.solved_player == (3 - self.player) or self.root.draw
+            ), f"No max node found for root node {str(self.root)}"
+
             # return a random action if all children are losing moves
             max_node = random.choice(self.root.children)
 
