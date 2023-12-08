@@ -205,13 +205,12 @@ class Node:
             self.solved_player = 3 - self.player
             # just return a random child, they all lead to a loss anyway
             return random.choice(self.children)
-        elif (
-            children_lost == (n_children - 1)
-            and self.solved_player == 0
-            or self.solved_player == self.player
-        ):
-            # There's only one move that does not lead to a loss. This is an anti-decisive move.
-            self.anti_decisive = 1
+        elif children_lost == (n_children - 1):
+            self.check_loss_node()
+
+            if self.solved_player == 0 or self.solved_player == self.player:
+                # There's only one move that does not lead to a loss. This is an anti-decisive move.
+                self.anti_decisive = 1
         # Proven draw
         elif children_draw == n_children:
             self.draw = 1
@@ -564,8 +563,7 @@ class MCTSPlayer:
         self,
         player: int,
         eval_params: cython.double[:],
-        transposition_table_size: int = 2
-        ** 16,  # This parameter is unused but is passed by run_game
+        transposition_table_size: int = 2**16,
         num_simulations: int = 0,
         max_time: int = 0,
         c: float = 1.0,
@@ -750,7 +748,7 @@ class MCTSPlayer:
         max_node: Node = None
         max_value: cython.double = -INFINITY
         n_children: cython.int = len(self.root.children)
-
+        all_loss: cython.bint = 1
         if self.random_top == 0:
             c_i: cython.int
             for c_i in range(0, n_children):
@@ -765,7 +763,9 @@ class MCTSPlayer:
                 if node.solved_player == 3 - self.player:  # We found a losing move
                     continue
 
+                all_loss = 0
                 value: cython.double = node.n_visits
+
                 if value >= max_value:
                     max_node = node
                     max_value = value
@@ -789,14 +789,18 @@ class MCTSPlayer:
         # In case there's no move that does not lead to a loss, we should return a random move
         if max_node is None:
             if DEBUG:
-                if self.root.solved_player != (3 - self.player):
-                    print("Root not solved for opponent and no max_node found!!")
+                if self.root.solved_player != (3 - self.player) and not self.root.draw:
+                    print(
+                        "Root not solved (no draw) for opponent and no max_node found!!"
+                    )
                     print(f"Root node: {str(self.root)}")
                     print("\n".join([str(child) for child in self.root.children]))
 
             assert (
-                self.root.solved_player == (3 - self.player) or self.root.draw
-            ), f"No max node found for root node {str(self.root)}"
+                all_loss
+                or self.root.solved_player == (3 - self.player)
+                or self.root.draw
+            ), f"No max node found for root node {str(self.root)}\n{str(state)}"
 
             # return a random action if all children are losing moves
             max_node = random.choice(self.root.children)
