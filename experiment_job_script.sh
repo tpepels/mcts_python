@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p genoa
 #SBATCH -J MCTSExperiments
-#SBATCH -o /home/tpepels/out/out_%J.out
+#SBATCH -o /home/tpepels/out/%J.out
 #SBATCH -e /home/tpepels/out/err_%J.err
 #SBATCH -t 3000
 #SBATCH --nodes=1
