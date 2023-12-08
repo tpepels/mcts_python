@@ -171,10 +171,10 @@ class Node:
                     # * If k is 0, then we are dividing by 0 (if k_factor < 0)
                     if k != 0:
                         confidence_i *= pow(k, k_factor)
-                # if ci_adjust == 2:
-                #     # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                #     if k != 0:
-                #         confidence_i *= pow(log(1 + k), k_factor)
+                if ci_adjust == 2:
+                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                    if k != 0:
+                        confidence_i *= pow(log(1 + k), k_factor)
 
                 uct_val = child_value + (c * confidence_i)
 
