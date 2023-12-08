@@ -1,6 +1,7 @@
 # cython: language_level=3
 
 from array import array
+
 import gc
 import os
 import random
@@ -183,8 +184,67 @@ def init_ai_player(
     return player
 
 
+def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
+    rand_ai_params = {
+        "num_simulations": 600000,
+        "early_term_cutoff": 0,
+        "dyn_early_term_cutoff": 0,
+        "c": 6,
+        "imm_alpha": 0.01,
+        "random_top": 30,
+    }
+
+    p1_params = AIParams(
+        ai_key="mcts",
+        eval_params={},
+        max_player=1,
+        game_name=game_key,
+        ai_params=rand_ai_params,
+    )
+
+    p2_params = AIParams(
+        ai_key="mcts",
+        eval_params={},
+        max_player=2,
+        game_name=game_key,
+        ai_params=rand_ai_params,
+    )
+    p1 = init_ai_player(p1_params, game.param_order, game.default_params)
+    p2 = init_ai_player(p2_params, game.param_order, game.default_params)
+
+    if random_openings % 2 != 0:
+        random_openings = random_openings + 1
+        print(
+            f" :: Number of random openings must be even. Setting to {random_openings}"
+        )
+
+    print(f" :: Making {random_openings} random moves to start the game")
+
+    current_player: AIPlayer = p1
+    for _ in range(random_openings):
+        # Get the best action for the current player
+        action, _ = current_player.best_action(game)
+
+        assert (
+            action is not None
+        ), f"Player {current_player} returned None as best action.."
+        assert action != (), f"Player {current_player} returned () as best action.."
+
+        # Apply the action to get the new game state
+        game = game.apply_action(action)
+        gc.collect()
+        # Switch the current player
+        current_player = p2 if game.player == 2 else p1
+
+    return game
+
+
 def play_game_until_terminal(
-    game: GameState, player1: AIPlayer, player2: AIPlayer, callback=None
+    game: GameState,
+    player1: AIPlayer,
+    player2: AIPlayer,
+    callback=None,
+    boot_randomizer=True,
 ):
     """
     Play the game with the provided players and return the result.
@@ -202,15 +262,16 @@ def play_game_until_terminal(
     seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
     # Set the random seed
     random.seed(seed)
-    fastrand.pcg32_seed(seed)
+    fastrand.pcg32_seed(seed + 1)
     print(f"Random seed set to: {seed}")
-    # For some seconds, generate random numbers
-    rand_time = int.from_bytes(os.urandom(1), "big") % 20
-    print(f"Generating random numbers for {rand_time} seconds...")
-    start_time = time.time()
-    while time.time() - start_time < rand_time:
-        fastrand.pcg32()
-        random.random()
+    if boot_randomizer:
+        # For some seconds, generate random numbers
+        rand_time = int.from_bytes(os.urandom(1), "big") % 20
+        print(f"Generating random numbers for {rand_time} seconds...")
+        start_time = time.time()
+        while time.time() - start_time < rand_time:
+            fastrand.pcg32()
+            random.random()
 
     current_player: AIPlayer = player1
     turns = 1
@@ -246,6 +307,7 @@ def run_game(
     p2_params: AIParams,
     pause=False,
     debug=False,
+    boot_randomizer=True,
 ) -> float:
     """Run the game with two AI players.
 
@@ -287,7 +349,9 @@ def run_game(
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
     try:
-        reward = play_game_until_terminal(game, p1, p2, callback=callback)
+        reward = play_game_until_terminal(
+            game, p1, p2, callback=callback, boot_randomizer=boot_randomizer
+        )
         return reward
     finally:
         # Make sure that the statistics are printed even if an exception is raised (i.e. if the game is interrupted)
@@ -327,25 +391,12 @@ def run_game_experiment(
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
 
-    seed_bytes = os.urandom(8)  # Generate 8 random bytes
-    seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
-
-    # Set the random seed for making the random opening moves.
-    # The seed will be re-set in run_game_until_terminal() to ensure that the game is
-    # not affected by the random openings.
-    random.seed(seed)
-
-    #
     if random_openings > 0:
-        if random_openings % 2 != 0:
-            random_openings = random_openings + 1
-            print(
-                f" :: Number of random openings must be even. Setting to {random_openings}"
-            )
-        print(f" :: Making {random_openings} random moves to start the game")
-        # To get the game started make some random moves
-        for _ in range(random_openings):
-            game = game.apply_action(random.choice(game.get_legal_actions()))
+        seed_bytes = os.urandom(8)  # Generate 8 random bytes
+        seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
+        random.seed(seed)
+        fastrand.pcg32_seed(seed + 1)
+        game = play_n_random_moves(game, game_key, random_openings)
 
     # Initialize stats
     setup = f"Game: {game_key} with parameters {game_params}. Player 1: {p1_params}. Player 2: {p2_params}"

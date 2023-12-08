@@ -558,6 +558,7 @@ class MCTSPlayer:
     ab_style: cython.int
     c_adjust: cython.double
     k_factor: cython.double
+    random_top: cython.int
 
     def __init__(
         self,
@@ -585,6 +586,7 @@ class MCTSPlayer:
         pb_weight: float = 0.0,
         reuse_tree: bool = True,
         debug: bool = False,
+        random_top: int = 0,
     ):
         self.player = player
         self.dyn_early_term = dyn_early_term_cutoff > 0.0
@@ -638,6 +640,7 @@ class MCTSPlayer:
         self.c_adjust = c_adjust
         self.k_factor = k_factor
         self.reuse_tree = reuse_tree
+        self.random_top = random_top
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
@@ -748,23 +751,40 @@ class MCTSPlayer:
         max_value: cython.double = -INFINITY
         n_children: cython.int = len(self.root.children)
 
-        c_i: cython.int
-        for c_i in range(0, n_children):
-            node: Node = self.root.children[c_i]
-            if (
-                node.solved_player == self.player
-            ):  # We found a winning move, let's go champ
-                max_node = node
-                max_value = node.n_visits
-                break
+        if self.random_top == 0:
+            c_i: cython.int
+            for c_i in range(0, n_children):
+                node: Node = self.root.children[c_i]
+                if (
+                    node.solved_player == self.player
+                ):  # We found a winning move, let's go champ
+                    max_node = node
+                    max_value = node.n_visits
+                    break
 
-            if node.solved_player == 3 - self.player:  # We found a losing move
-                continue
+                if node.solved_player == 3 - self.player:  # We found a losing move
+                    continue
 
-            value: cython.double = node.n_visits
-            if value >= max_value:
-                max_node = node
-                max_value = value
+                value: cython.double = node.n_visits
+                if value >= max_value:
+                    max_node = node
+                    max_value = value
+        else:
+            # Compute the number of nodes to select based on the percentage (random_top)
+            n_top: cython.int = int(
+                len(self.root.children) * (float(self.random_top) / 100.0)
+            )
+            # This is used to kick-start experiments and ensure difference between experiments
+            # Select a move at random from the best self.random_top moves
+            top_nodes = sorted(self.root.children, key=get_node_visits, reverse=True)[
+                :n_top
+            ]
+            max_node = random.choice(top_nodes)
+
+            if DEBUG:
+                print(f"Randomly selected node from top {n_top} node: {str(max_node)}")
+                for n in top_nodes:
+                    print(f"{str(n)}")
 
         # In case there's no move that does not lead to a loss, we should return a random move
         if max_node is None:
@@ -777,6 +797,9 @@ class MCTSPlayer:
                     print(f"Root node: {str(self.root)}")
                     print("\n".join([str(child) for child in self.root.children]))
 
+            assert self.root.solved_player == (
+                3 - self.player
+            ), f"Root not solved for opponent and no max_node found!! {str(self.root)}"
             # return a random action if all children are losing moves
             max_node = random.choice(self.root.children)
 
@@ -810,9 +833,9 @@ class MCTSPlayer:
             print(f":: {self.root} :: ")
             print(":: Children ::")
             comparator = ChildComparator()
-            sorted_children = sorted(
-                self.root.children[:30], key=comparator, reverse=True
-            )
+            sorted_children = sorted(self.root.children, key=comparator, reverse=True)[
+                :30
+            ]
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
 
@@ -1077,6 +1100,11 @@ def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
                 print("Invalid input. The number is out of range. Please try again.")
         else:
             print("Invalid input. Please enter a number or 'q' to quit.")
+
+
+# Define a key function for sorting
+def get_node_visits(node):
+    return node.n_visits
 
 
 @cython.cfunc
