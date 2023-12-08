@@ -168,11 +168,15 @@ class Node:
                         child_value *= 2
 
                 if ci_adjust == 1:
-                    confidence_i *= pow(max(1, k), k_factor)
-                if ci_adjust == 2:
-                    confidence_i *= pow(log(max(1, k)), k_factor)
+                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                    if k != 0:
+                        confidence_i *= pow(k, k_factor)
+                # if ci_adjust == 2:
+                #     # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                #     if k != 0:
+                #         confidence_i *= pow(log(1 + k), k_factor)
 
-                uct_val = child_value + c * confidence_i
+                uct_val = child_value + (c * confidence_i)
 
                 ab_bound += 1
             else:
