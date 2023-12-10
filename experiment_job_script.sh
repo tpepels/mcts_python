@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p genoa
-#SBATCH -J $1
+#SBATCH -J mcts
 #SBATCH -o /home/tpepels/out/%J.out
 #SBATCH -e /home/tpepels/out/err_%J.err
 #SBATCH -t 3000
