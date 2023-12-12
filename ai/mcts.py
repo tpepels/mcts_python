@@ -3,6 +3,7 @@
 import random
 from random import random as rand_float
 from colorama import Back, Fore, init
+from numpy import c_
 
 init(autoreset=True)
 import cython
@@ -97,7 +98,12 @@ class Node:
         val_adj: cython.int = ab_version // 10
         ci_adjust: cython.int = ab_version % 10
 
-        if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
+        if (
+            ab_version != 0
+            and alpha != -INFINITY
+            and beta != INFINITY
+            and c_adjust != 0
+        ):
             c *= c_adjust
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
@@ -140,32 +146,19 @@ class Node:
                     if child_value > alpha and child_value < beta:
                         child_value += delta_alpha
                 if val_adj == 2:
-                    if (
-                        child_value + (c * confidence_i) > alpha
-                        and child_value - (c * confidence_i) < beta
-                    ):
-                        child_value += abs(delta_alpha)
+                    if child_value > alpha and child_value < beta:
+                        child_value = child_value - alpha + beta
                 if val_adj == 3:
-                    if (
-                        child_value - (c * confidence_i) > alpha
-                        and child_value + (c * confidence_i) < beta
-                    ):
-                        child_value += abs(delta_alpha)
-                if val_adj == 4:
-                    if (
-                        child_value + (c * confidence_i) > alpha
-                        and child_value - (c * confidence_i) < beta
-                    ):
-                        child_value *= 2
-                if val_adj == 5:
-                    if (
-                        child_value - (c * confidence_i) > alpha
-                        and child_value + (c * confidence_i) < beta
-                    ):
-                        child_value *= 2
-                if val_adj == 6:
                     if child_value > alpha and child_value < beta:
                         child_value *= 2
+                if val_adj == 4:
+                    if child_value < alpha or child_value > beta:
+                        child_value = delta_alpha
+                if val_adj != 5:
+                    # Use the c adjustment factor to boost when the child is in the interval
+                    if child_value < alpha or child_value > beta:
+                        # reset c
+                        c /= c_adjust
 
                 if ci_adjust == 1:
                     # * If k is 0, then we are dividing by 0 (if k_factor < 0)
@@ -175,6 +168,10 @@ class Node:
                     # * If k is 0, then we are dividing by 0 (if k_factor < 0)
                     if k != 0:
                         confidence_i *= pow(log(1 + k), k_factor)
+                if ci_adjust == 3:
+                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                    if k != 0:
+                        confidence_i *= log(1 + pow(k, k_factor))
 
                 uct_val = child_value + (c * confidence_i)
 

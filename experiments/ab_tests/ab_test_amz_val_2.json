@@ -1,13 +1,13 @@
 [
   {
-    "n_games": 1000,
+    "n_games": 500,
     "game_key": "amazons",
     "random_openings": 2,
     "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_version": [10, 30, 50],
+      "ab_version": [40, 50],
       "c_adjust": [1, 1.5, 2, 2.5, 3]
     },
     "p1_eval_params": {},
