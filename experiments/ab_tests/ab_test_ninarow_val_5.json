@@ -7,8 +7,8 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "ab_version": [40, 50],
-      "c_adjust": [1, 1.5, 2, 2.5, 3]
+      "ab_version": [50, 60, 70, 80],
+      "c_adjust": [1.5, 2, 2.5, 3]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

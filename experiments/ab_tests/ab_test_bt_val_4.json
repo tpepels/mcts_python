@@ -1,13 +1,13 @@
 [
   {
     "n_games": 500,
-    "game_key": "ninarow",
+    "game_key": "breakthrough",
     "random_openings": 2,
-    "game_params": { "board_size": 9, "row_length": 5 },
+    "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "ab_version": [20, 30],
+      "ab_version": [20, 30, 40],
       "c_adjust": [1, 1.5, 2, 2.5, 3]
     },
     "p1_eval_params": {},

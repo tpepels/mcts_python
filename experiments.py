@@ -715,35 +715,37 @@ def main():
     agg_loc = os.path.join(
         base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv"
     )
-    # Validate and create the base directory for logs if it doesn't exist
-    if not os.path.exists(base_path):
-        os.makedirs(base_path)
-    elif args.clean:
-        # Check if agg_loc file exists and rename it by appending a timestamp
-        if os.path.exists(agg_loc):
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            new_name = os.path.join(
-                base_path,
-                os.path.splitext(os.path.basename(args.json_file))[0]
-                + f"_{timestamp}.csv",
-            )
-            os.rename(agg_loc, new_name)
-            print(f"Renamed {agg_loc} to {new_name}")
 
-        # Remove the log directory from the base_path
-        log_path = os.path.join(base_path, "log")
-        if os.path.exists(log_path):
-            print(f"Removing {log_path}")
-            shutil.rmtree(log_path)
-        else:
-            print(f"{log_path} does not exist.")
+    if not args.count_only:
+        # Validate and create the base directory for logs if it doesn't exist
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+        elif args.clean:
+            # Check if agg_loc file exists and rename it by appending a timestamp
+            if os.path.exists(agg_loc):
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                new_name = os.path.join(
+                    base_path,
+                    os.path.splitext(os.path.basename(args.json_file))[0]
+                    + f"_{timestamp}.csv",
+                )
+                os.rename(agg_loc, new_name)
+                print(f"Renamed {agg_loc} to {new_name}")
 
-        result_path = os.path.join(base_path, "results")
-        if os.path.exists(result_path):
-            print(f"Removing {result_path}")
-            shutil.rmtree(result_path)
-        else:
-            print(f"{result_path} does not exist.")
+            # Remove the log directory from the base_path
+            log_path = os.path.join(base_path, "log")
+            if os.path.exists(log_path):
+                print(f"Removing {log_path}")
+                shutil.rmtree(log_path)
+            else:
+                print(f"{log_path} does not exist.")
+
+            result_path = os.path.join(base_path, "results")
+            if os.path.exists(result_path):
+                print(f"Removing {result_path}")
+                shutil.rmtree(result_path)
+            else:
+                print(f"{result_path} does not exist.")
 
     # Read the JSON file to see if it exists and is a valid JSON
     try:
@@ -760,8 +762,10 @@ def main():
         count_only=args.count_only,
         agg_loc=agg_loc,
     )
+
     if args.count_only:
         return
+
     print(f"Aggregating results from {base_path} to {agg_loc}")
     aggregate_csv_results(agg_loc)
 
