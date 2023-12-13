@@ -975,13 +975,13 @@ class MCTSPlayer:
                     node.im_value = -INFINITY  # Initialize to negative infinity
                     for i in range(len(node.children)):
                         child = node.children[i]
-                        temp_im_value = child.im_value
+                        temp_im_value: cython.double = child.im_value
                         node.im_value = max(node.im_value, temp_im_value)
                 else:
                     node.im_value = INFINITY  # Initialize to positive infinity
                     for i in range(len(node.children)):
                         child = node.children[i]
-                        temp_im_value = child.im_value
+                        temp_im_value: cython.double = child.im_value
                         node.im_value = min(node.im_value, temp_im_value)
 
             node.v[0] += result[0]
