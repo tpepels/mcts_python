@@ -163,9 +163,9 @@ class Node:
                         if k != 0:
                             confidence_i *= log(1 + pow(k, k_factor))
 
-                    uct_val = child_value + (c * confidence_i)
-
                     ab_bound += 1
+
+                uct_val = child_value + (c * confidence_i)
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
