@@ -199,9 +199,6 @@ class TicTacToeGameState(GameState):
         j=cython.int,
     )
     def get_random_action(self) -> cython.tuple:
-        """
-        Move in a spiral pattern starting from a position close to the center of the board.
-        """
         if self.n_moves > 1 and randint(0, 100) < 30:
             last_x = self.pre_last_action[0]
             last_y = self.pre_last_action[1]

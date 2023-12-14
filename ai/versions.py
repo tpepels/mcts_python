@@ -165,3 +165,44 @@ if (
 elif alpha[p_i] != -INFINITY and beta[p_i] != INFINITY:
     prune = 1
     prunes += 1
+
+
+# NA PRESENTATIE
+
+if val_adj == 1:
+    if child_value > alpha and child_value < beta:
+        child_value += delta_alpha
+if val_adj == 2:
+    if child_value > alpha and child_value < beta:
+        child_value += alpha + beta
+if val_adj == 3:
+    if child_value > alpha and child_value < beta:
+        child_value += k
+if val_adj == 4:
+    if child_value > alpha or child_value < beta:
+        child_value += beta
+
+if val_adj == 5:
+    if child_value > alpha and child_value < beta:
+        child_value += delta_alpha
+    else:
+        # reset c
+        c /= c_adjust
+if val_adj == 6:
+    if child_value > alpha and child_value < beta:
+        child_value += alpha + beta
+    else:
+        # reset c
+        c /= c_adjust
+if val_adj == 7:
+    if child_value > alpha and child_value < beta:
+        child_value += k
+    else:
+        # reset c
+        c /= c_adjust
+if val_adj == 8:
+    if child_value > alpha or child_value < beta:
+        child_value += beta
+    else:
+        # reset c
+        c /= c_adjust

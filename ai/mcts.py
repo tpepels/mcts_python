@@ -138,64 +138,34 @@ class Node:
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                delta_alpha: cython.double = child_value - alpha
-                # delta_beta: cython.double = beta - child_value
-                k: cython.double = beta - alpha
+                if child_value > alpha and child_value < beta:
+                    delta_alpha: cython.double = child_value - alpha
+                    # delta_beta: cython.double = beta - child_value
+                    k: cython.double = beta - alpha
 
-                if val_adj == 1:
-                    if child_value > alpha and child_value < beta:
+                    assert k > 0, f"K is negative! {k=}"
+
+                    if val_adj == 1:  # * Deze werkte beter in breakthrough...
                         child_value += delta_alpha
-                if val_adj == 2:
-                    if child_value > alpha and child_value < beta:
-                        child_value += alpha + beta
-                if val_adj == 3:
-                    if child_value > alpha and child_value < beta:
-                        child_value += k
-                if val_adj == 4:
-                    if child_value > alpha or child_value < beta:
+                    if val_adj == 2:  # * Tot nu toe de beste
                         child_value += beta
 
-                if val_adj == 5:
-                    if child_value > alpha and child_value < beta:
-                        child_value += delta_alpha
-                    else:
-                        # reset c
-                        c /= c_adjust
-                if val_adj == 6:
-                    if child_value > alpha and child_value < beta:
-                        child_value += alpha + beta
-                    else:
-                        # reset c
-                        c /= c_adjust
-                if val_adj == 7:
-                    if child_value > alpha and child_value < beta:
-                        child_value += k
-                    else:
-                        # reset c
-                        c /= c_adjust
-                if val_adj == 8:
-                    if child_value > alpha or child_value < beta:
-                        child_value += beta
-                    else:
-                        # reset c
-                        c /= c_adjust
+                    if ci_adjust == 1:
+                        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                        if k != 0:
+                            confidence_i *= pow(k, k_factor)
+                    if ci_adjust == 2:
+                        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                        if k != 0:
+                            confidence_i *= pow(log(1 + k), k_factor)
+                    if ci_adjust == 3:
+                        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                        if k != 0:
+                            confidence_i *= log(1 + pow(k, k_factor))
 
-                if ci_adjust == 1:
-                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                    if k != 0:
-                        confidence_i *= pow(k, k_factor)
-                if ci_adjust == 2:
-                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                    if k != 0:
-                        confidence_i *= pow(log(1 + k), k_factor)
-                if ci_adjust == 3:
-                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                    if k != 0:
-                        confidence_i *= log(1 + pow(k, k_factor))
+                    uct_val = child_value + (c * confidence_i)
 
-                uct_val = child_value + (c * confidence_i)
-
-                ab_bound += 1
+                    ab_bound += 1
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
@@ -466,7 +436,7 @@ class Node:
                 return ((1.0 - imm_alpha) * simulation_mean) + (
                     imm_alpha * self.im_value
                 )
-            else:
+            else:  # Subtract the im value
                 return ((1.0 - imm_alpha) * simulation_mean) - (
                     imm_alpha * self.im_value
                 )
