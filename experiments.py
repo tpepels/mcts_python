@@ -444,139 +444,151 @@ def aggregate_csv_results(output_file):
         if os.path.isdir(full_dir_path):
             files.append(os.path.join(full_dir_path, "_results.csv"))
 
-    with open(output_file, "w", newline="") as outfile:
-        writer = csv.writer(outfile)
-        writer.writerow(
-            [
-                "Experiment Name",
-                "Date-Time",
-                "Game Name",
-                "Game Parameters",
-                "p1_params",
-                "p2_params",
-                "AI1",
-                "Param1",
-                "Win_rate",
-                "AI2",
-                "Param2",
-                "Win_rate",
-                "± 95% C.I.",
-                "No. Games",
-            ]
-        )
-        aggregated_rows = []
+    try:
+        with open(output_file, "w", newline="") as outfile:
+            writer = csv.writer(outfile)
+            writer.writerow(
+                [
+                    "Experiment Name",
+                    "Date-Time",
+                    "Game Name",
+                    "Game Parameters",
+                    "p1_params",
+                    "p2_params",
+                    "AI1",
+                    "Param1",
+                    "Win_rate",
+                    "AI2",
+                    "Param2",
+                    "Win_rate",
+                    "± 95% C.I.",
+                    "No. Games",
+                ]
+            )
+            aggregated_rows = []
 
-        for file in files:
-            ai_stats = {}
-            total_games = 0
-            metadata = {}
-
-            with open(file, "r") as infile:
-                lines = infile.readlines()
-
-                # Check for enough lines in the file
-                if len(lines) < 8:
-                    print(f"Skipping {file} due to insufficient lines.")
-                    continue
-
-                # Parse metadata using regular expressions
+            for file in files:
+                ai_stats = {}
+                total_games = 0
+                metadata = {}
                 try:
-                    metadata["exp_name"] = re.search(
-                        r"exp_name='(.*?)'", lines[0]
-                    ).group(1)
-                    metadata["date_time"] = re.search(
-                        r"(\d{8}_\d{6})", metadata["exp_name"]
-                    ).group(1)
-                    metadata["game_name"] = re.search(
-                        r"game_name='(.*?)'", lines[0]
-                    ).group(1)
-                    metadata["game_params"] = re.search(
-                        r"game_params\s*=\s*(\{.*?\})", lines[1]
-                    ).group(1)
-                    metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
-                    metadata["p2_params"] = lines[3].split("=", 1)[1].strip()
-                except (AttributeError, IndexError) as e:
-                    print(f"Error parsing metadata for {file}.")
-                    print("Lines causing issues:")
-                    print(lines[:4])  # Print the lines causing the issue
+                    with open(file, "r") as infile:
+                        lines = infile.readlines()
+
+                        # Check for enough lines in the file
+                        if len(lines) < 8:
+                            print(f"Skipping {file} due to insufficient lines.")
+                            continue
+
+                        # Parse metadata using regular expressions
+                        try:
+                            metadata["exp_name"] = re.search(
+                                r"exp_name='(.*?)'", lines[0]
+                            ).group(1)
+                            metadata["date_time"] = re.search(
+                                r"(\d{8}_\d{6})", metadata["exp_name"]
+                            ).group(1)
+                            metadata["game_name"] = re.search(
+                                r"game_name='(.*?)'", lines[0]
+                            ).group(1)
+                            metadata["game_params"] = re.search(
+                                r"game_params\s*=\s*(\{.*?\})", lines[1]
+                            ).group(1)
+                            metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
+                            metadata["p2_params"] = lines[3].split("=", 1)[1].strip()
+                        except (AttributeError, IndexError) as e:
+                            print(f"Error parsing metadata for {file}.")
+                            print("Lines causing issues:")
+                            print(lines[:4])  # Print the lines causing the issue
+                            continue
+
+                        for line in lines[7:]:
+                            _, ai_config = line.strip().split(",", 1)
+                            ai_config_cleaned = sort_parameters(
+                                ai_config.strip().strip('"')
+                            )
+                            if ai_config_cleaned == "Draw":
+                                continue
+                            total_games += 1
+                            ai_stats[ai_config_cleaned] = (
+                                ai_stats.get(ai_config_cleaned, 0) + 1
+                            )
+                except Exception as e:
+                    # Because multiple processes are writing to the same file, it's possible that the file is not available to read
+                    print(f"Error reading {file}: {e}")
                     continue
 
-                for line in lines[7:]:
-                    _, ai_config = line.strip().split(",", 1)
-                    ai_config_cleaned = sort_parameters(ai_config.strip().strip('"'))
-                    if ai_config_cleaned == "Draw":
-                        continue
-                    total_games += 1
-                    ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
+                Z = 1.96
+                ai_results = []
 
-            Z = 1.96
-            ai_results = []
-
-            for ai_config, wins in ai_stats.items():
-                win_rate = wins / total_games
-                ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / total_games)
-                lower_bound = (win_rate - ci_width) * 100
-                upper_bound = (win_rate + ci_width) * 100
-                ai_results.append(
-                    (
-                        ai_config,
-                        f"{win_rate * 100:.2f}",
-                        f"±{upper_bound - lower_bound:.2f}",
+                for ai_config, wins in ai_stats.items():
+                    win_rate = wins / total_games
+                    ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / total_games)
+                    lower_bound = (win_rate - ci_width) * 100
+                    upper_bound = (win_rate + ci_width) * 100
+                    ai_results.append(
+                        (
+                            ai_config,
+                            f"{win_rate * 100:.2f}",
+                            f"±{upper_bound - lower_bound:.2f}",
+                        )
                     )
-                )
 
-            # Sort ai_results based on ai_config to ensure consistent order
-            ai_results.sort(key=lambda x: (len(x[0]), x[0]))
+                # Sort ai_results based on ai_config to ensure consistent order
+                ai_results.sort(key=lambda x: (len(x[0]), x[0]))
 
-            # Construct the row for this file
-            row = [
-                metadata["exp_name"],
-                metadata["date_time"],
-                metadata["game_name"],
-                metadata["game_params"],
-                metadata["p1_params"],
-                metadata["p2_params"],
-            ]
+                # Construct the row for this file
+                row = [
+                    metadata["exp_name"],
+                    metadata["date_time"],
+                    metadata["game_name"],
+                    metadata["game_params"],
+                    metadata["p1_params"],
+                    metadata["p2_params"],
+                ]
 
-            ai1_diffs, ai2_diffs = {}, {}
-            if len(ai_results) == 2:
-                ai1_diffs, ai2_diffs = extract_ai_param_diffs(
-                    ai_results[0][0], ai_results[1][0]
-                )
-                row.extend(
-                    [
-                        ai_results[0][0],
-                        dict_to_str(ai1_diffs),
-                        ai_results[0][1],
-                        ai_results[1][0],
-                        dict_to_str(ai2_diffs),
-                        ai_results[1][1],
-                        ai_results[0][2],
-                        total_games,
-                    ]
-                )
-            elif len(ai_results) == 1:
-                row.extend(
-                    [
-                        ai_results[0][0],
-                        "N/A",
-                        ai_results[0][1],
-                        "N/A",
-                        "N/A",
-                        "N/A",
-                        ai_results[0][2],
-                    ]
-                )
-            else:
-                row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
+                ai1_diffs, ai2_diffs = {}, {}
+                if len(ai_results) == 2:
+                    ai1_diffs, ai2_diffs = extract_ai_param_diffs(
+                        ai_results[0][0], ai_results[1][0]
+                    )
+                    row.extend(
+                        [
+                            ai_results[0][0],
+                            dict_to_str(ai1_diffs),
+                            ai_results[0][1],
+                            ai_results[1][0],
+                            dict_to_str(ai2_diffs),
+                            ai_results[1][1],
+                            ai_results[0][2],
+                            total_games,
+                        ]
+                    )
+                elif len(ai_results) == 1:
+                    row.extend(
+                        [
+                            ai_results[0][0],
+                            "N/A",
+                            ai_results[0][1],
+                            "N/A",
+                            "N/A",
+                            "N/A",
+                            ai_results[0][2],
+                        ]
+                    )
+                else:
+                    row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
 
-            aggregated_rows.append(row)
+                aggregated_rows.append(row)
 
-        # Sort the aggregated rows by the AI1 win rate
-        aggregated_rows.sort(key=lambda row: float(row[8]), reverse=True)
-        # Write the sorted rows to the output file
-        for row in aggregated_rows:
-            writer.writerow(row)
+            if len(aggregated_rows) > 0:
+                # Sort the aggregated rows by the AI1 win rate
+                aggregated_rows.sort(key=lambda row: float(row[8]), reverse=False)
+                # Write the sorted rows to the output file
+                for row in aggregated_rows:
+                    writer.writerow(row)
+    except Exception as e:
+        print(f"Error aggregating results: {e}, skipping.")
 
 
 def sort_parameters(ai_config):
