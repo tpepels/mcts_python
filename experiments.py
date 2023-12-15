@@ -167,6 +167,7 @@ def start_experiments_from_json(
     print(f"Starting {len(expanded_experiment_configs)} experiments.")
     if count_only:
         return
+    random.shuffle(expanded_experiment_configs)
     # Step 2: Start experiments using multiprocessing
     for exp_dict in expanded_experiment_configs:
         with mp.Pool(processes=n_procs) as pool:
