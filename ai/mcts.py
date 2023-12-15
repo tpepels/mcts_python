@@ -81,8 +81,9 @@ class Node:
         ab_version: cython.int = 0,
         alpha: cython.double = -INFINITY,
         beta: cython.double = INFINITY,
-        c_adjust: cython.double = 0.0,
+        c_adjust: cython.double = 1.0,
         k_factor: cython.double = 0.0,
+        ab_uct_ver: cython.int = 0,
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
@@ -97,14 +98,6 @@ class Node:
 
         val_adj: cython.int = ab_version // 10
         ci_adjust: cython.int = ab_version % 10
-
-        if (
-            ab_version != 0
-            and alpha != -INFINITY
-            and beta != INFINITY
-            and c_adjust != 0
-        ):
-            c *= c_adjust
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
@@ -138,34 +131,58 @@ class Node:
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                if child_value > alpha and child_value < beta:
-                    delta_alpha: cython.double = child_value - alpha
-                    # delta_beta: cython.double = beta - child_value
-                    k: cython.double = beta - alpha
+                k: cython.double = beta - alpha
+                new_cv: cython.double = child_value
+                new_ci: cython.double = confidence_i
+                c_ab: cython.double = c
 
-                    assert k > 0, f"K is negative! {k=}"
+                if val_adj == 1:  # * Deze werkte beter in breakthrough...
+                    new_cv += child_value - alpha
+                elif val_adj == 2:  # * Tot nu toe de beste
+                    new_cv += beta
 
-                    if val_adj == 1:  # * Deze werkte beter in breakthrough...
-                        child_value += delta_alpha
-                    if val_adj == 2:  # * Tot nu toe de beste
-                        child_value += beta
+                if ci_adjust == 1:
+                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                    if k != 0:
+                        new_ci *= pow(k, k_factor)
+                elif ci_adjust == 2:
+                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                    if k != 0:
+                        new_ci *= pow(log(1 + k), k_factor)
+                elif ci_adjust == 3:
+                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+                    if k != 0:
+                        new_ci *= log(1 + pow(k, k_factor))
 
-                    if ci_adjust == 1:
-                        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                        if k != 0:
-                            confidence_i *= pow(k, k_factor)
-                    if ci_adjust == 2:
-                        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                        if k != 0:
-                            confidence_i *= pow(log(1 + k), k_factor)
-                    if ci_adjust == 3:
-                        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                        if k != 0:
-                            confidence_i *= log(1 + pow(k, k_factor))
+                if ab_uct_ver == 1:  # * Only child value if
+                    if child_value > alpha and child_value < beta:
+                        child_value = new_cv
 
+                    c_ab *= c_adjust
+                    confidence_i = new_ci
                     ab_bound += 1
 
-                uct_val = child_value + (c * confidence_i)
+                elif ab_uct_ver == 2:  # * Only ci value if
+                    if child_value > alpha and child_value < beta:
+                        confidence_i = new_ci
+                        c_ab *= c_adjust
+
+                    child_value = new_cv
+                    ab_bound += 1
+                elif ab_uct_ver == 3:  # * Both child value and ci value
+                    if child_value > alpha and child_value < beta:
+                        child_value = new_cv
+                        confidence_i = new_ci
+                        c_ab *= c_adjust
+                        ab_bound += 1
+                elif ab_uct_ver == 4:
+                    # * Both child value and ci value without checking alpha/beta
+                    child_value = new_cv
+                    confidence_i = new_ci
+                    c_ab *= c_adjust
+                    ab_bound += 1
+
+                uct_val = child_value + (c_ab * confidence_i)
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
@@ -539,7 +556,7 @@ class MCTSPlayer:
     imm_version: cython.int
     ex_imm_D: cython.int  # The extra depth that will be searched
     ab_version: cython.int
-    ab_prune_version: cython.int
+    ab_uct_ver: cython.int
     reuse_tree: cython.bint
     ab_style: cython.int
     c_adjust: cython.double
@@ -565,7 +582,7 @@ class MCTSPlayer:
         ab_version: int = 0,
         k_factor: float = 0.0,
         c_adjust: float = 0.0,
-        ab_prune_version: int = 0,
+        ab_uct_ver: int = 0,
         ab_style: int = 1,
         ex_imm_D: int = 2,
         pb_weight: float = 0.0,
@@ -620,7 +637,7 @@ class MCTSPlayer:
         self.imm_version = imm_version
         self.ex_imm_D = ex_imm_D
         self.ab_version = ab_version
-        self.ab_prune_version = ab_prune_version
+        self.ab_uct_ver = ab_uct_ver
         self.ab_style = ab_style
         self.c_adjust = c_adjust
         self.k_factor = k_factor
@@ -889,6 +906,7 @@ class MCTSPlayer:
                         beta=beta if node.player == self.player else -alpha,
                         c_adjust=self.c_adjust,
                         k_factor=self.k_factor,
+                        ab_uct_ver=self.ab_uct_ver,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
