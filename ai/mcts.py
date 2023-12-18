@@ -181,6 +181,15 @@ class Node:
                     confidence_i = new_ci
                     c_ab *= c_adjust
                     ab_bound += 1
+                elif ab_uct_ver == 5:
+                    # * Boost when in alpha/beta else chanage confidence
+                    if child_value > alpha and child_value < beta:
+                        child_value = new_cv
+                    else:
+                        confidence_i = new_ci
+                        c_ab *= c_adjust
+
+                    ab_bound += 1
 
                 uct_val = child_value + (c_ab * confidence_i)
             else:
