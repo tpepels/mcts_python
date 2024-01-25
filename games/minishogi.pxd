@@ -1,0 +1,3 @@
+dict MOVES
+dict PIECES
+list PIECE_CHARS
