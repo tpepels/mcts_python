@@ -1,3 +1,4 @@
 dict MOVES
 dict PIECES
 list PIECE_CHARS
+int P2_OFFS
