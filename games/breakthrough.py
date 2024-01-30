@@ -6,6 +6,7 @@ import numpy as np
 
 # import random
 from fastrand import pcg32randint as randint
+
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.pair import pair
 from cython.cimports.includes import normalize, where_is_k, win, loss, draw, GameState
@@ -84,18 +85,13 @@ lorentz_values = [
 
 @cython.cclass
 class BreakthroughGameState(GameState):
-    zobrist_table = [
-        [[randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)]
-        for _ in range(8)
-    ]
+    zobrist_table = [[[randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
     REUSE = True
 
     # player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.int[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
-    positions = cython.declare(
-        cython.tuple[cython.list, cython.list], visibility="public"
-    )
+    positions = cython.declare(cython.tuple[cython.list, cython.list], visibility="public")
     last_action = cython.declare(cython.tuple, visibility="public")
 
     winner: cython.int
@@ -218,9 +214,7 @@ class BreakthroughGameState(GameState):
             # Remove the to-position from the positions list
             new_positions[captured_player - 1].remove(act_to)
             if len(new_positions[captured_player - 1]) == 0:
-                winner = (
-                    3 - captured_player
-                )  # The captured player has lost all pieces...
+                winner = 3 - captured_player  # The captured player has lost all pieces...
 
         new_positions[self.player - 1].remove(act_from)
         new_positions[self.player - 1].append(act_to)
@@ -230,9 +224,7 @@ class BreakthroughGameState(GameState):
 
         board_hash = (
             self.board_hash
-            ^ BreakthroughGameState.zobrist_table[act_from // 8][act_from % 8][
-                self.player
-            ]
+            ^ BreakthroughGameState.zobrist_table[act_from // 8][act_from % 8][self.player]
             ^ BreakthroughGameState.zobrist_table[to_row][to_col][captured_player]
             ^ BreakthroughGameState.zobrist_table[to_row][to_col][self.player]
         )
@@ -299,9 +291,7 @@ class BreakthroughGameState(GameState):
             row: cython.int = position // 8
             col: cython.int = position % 8
 
-            start_dc: cython.int = randint(
-                0, 2
-            )  # This allows us to start at in a random direction
+            start_dc: cython.int = randint(0, 2)  # This allows us to start at in a random direction
             k: cython.int
 
             for k in range(3):
@@ -321,17 +311,13 @@ class BreakthroughGameState(GameState):
                     dc != 0 and self.board[new_position] != self.player
                 ):
                     # Decisive moves
-                    if (self.player == 1 and new_position < 8) or (
-                        self.player == 2 and new_position >= 56
-                    ):
+                    if (self.player == 1 and new_position < 8) or (self.player == 2 and new_position >= 56):
                         return (position, new_position)
 
                     # Captures
                     if dc != 0 and self.board[new_position] == opp:
                         # Anti-decisive moves (captures from the last row)
-                        if (self.player == 1 and position >= 56) or (
-                            self.player == 2 and position < 8
-                        ):
+                        if (self.player == 1 and position >= 56) or (self.player == 2 and position < 8):
                             return (position, new_position)
 
                         # Prioritize safe captures
@@ -339,9 +325,9 @@ class BreakthroughGameState(GameState):
                         self.board[position] = 0
 
                         # give captures higher chance of being selected
-                        capture_pair: pair[cython.int, cython.int] = pair[
-                            cython.int, cython.int
-                        ](position, new_position)
+                        capture_pair: pair[cython.int, cython.int] = pair[cython.int, cython.int](
+                            position, new_position
+                        )
 
                         for _ in range(6):
                             all_moves.push_back(capture_pair)
@@ -352,9 +338,7 @@ class BreakthroughGameState(GameState):
 
                         self.board[position] = self.player  # Put the piece back
 
-                    all_moves.push_back(
-                        pair[cython.int, cython.int](position, new_position)
-                    )
+                    all_moves.push_back(pair[cython.int, cython.int](position, new_position))
 
         # All_moves includes captures, they'll be selected with a higher probability
         return all_moves[randint(0, all_moves.size() - 1)]
@@ -383,22 +367,16 @@ class BreakthroughGameState(GameState):
             for dc in range(-1, 2):
                 new_row: cython.int = row + dr
                 new_col: cython.int = col + dc
-                if (
-                    0 <= new_row < 8 and 0 <= new_col < 8
-                ):  # Check if the new position is within the board
+                if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if the new position is within the board
                     new_position: cython.int = new_row * 8 + new_col
 
                     if dc == 0:  # moving straight
                         if self.board[new_position] == 0:
-                            legal_actions.push_back(
-                                pair[cython.int, cython.int](position, new_position)
-                            )
+                            legal_actions.push_back(pair[cython.int, cython.int](position, new_position))
 
                     else:  # diagonal capture / move
                         if self.board[new_position] != self.player:
-                            legal_actions.push_back(
-                                pair[cython.int, cython.int](position, new_position)
-                            )
+                            legal_actions.push_back(pair[cython.int, cython.int](position, new_position))
         return legal_actions
 
     @cython.ccall
@@ -509,11 +487,7 @@ class BreakthroughGameState(GameState):
 
         piece_diff = len(self.positions[player - 1]) - len(self.positions[opponent - 1])
 
-        if (
-            params[3] > 0.0
-            and (len(self.positions[player - 1]) + len(self.positions[opponent - 1]))
-            < 12
-        ):
+        if params[3] > 0.0 and (len(self.positions[player - 1]) + len(self.positions[opponent - 1])) < 12:
             endgame_values = params[3] * piece_diff
 
         if params[6] > 0:
@@ -527,9 +501,9 @@ class BreakthroughGameState(GameState):
                 decisive_values -= params[6] if player_1_decisive else 0
 
         if params[4] > 0:
-            caps = count_capture_moves(
-                self.board, self.positions[player - 1], player
-            ) - count_capture_moves(self.board, self.positions[opponent - 1], opponent)
+            caps = count_capture_moves(self.board, self.positions[player - 1], player) - count_capture_moves(
+                self.board, self.positions[opponent - 1], opponent
+            )
 
         eval_value: cython.double = (
             decisive_values
@@ -595,17 +569,13 @@ class BreakthroughGameState(GameState):
             score = 36 + (lorentz_values[to_position] - lorentz_values[from_position])
         else:
             # Player 1 views the lorenz_values in reverse
-            score = 36 + (
-                lorentz_values[63 - to_position] - lorentz_values[63 - from_position]
-            )
+            score = 36 + (lorentz_values[63 - to_position] - lorentz_values[63 - from_position])
 
         # Reward capturing
         if self.board[to_position] == 3 - self.player:
             score = int(score**2)  # square score if it's a capture
             # An antidecisive move
-            if (self.player == 1 and from_position >= 56) or (
-                self.player == 2 and from_position < 8
-            ):
+            if (self.player == 1 and from_position >= 56) or (self.player == 2 and from_position < 8):
                 score += 1_000_000  # Add a very high score if the move is antidecisive
 
         # Reward safe positions
@@ -616,9 +586,7 @@ class BreakthroughGameState(GameState):
 
         # Reward decisive moves
         # The decisive condition checks for a piece on the penultimate row that can move to the opponent's final row without the opportunity of being captured.
-        if (self.player == 1 and (8 <= from_position <= 16)) or (
-            self.player == 2 and (48 <= from_position <= 56)
-        ):
+        if (self.player == 1 and (8 <= from_position <= 16)) or (self.player == 2 and (48 <= from_position <= 56)):
             score += 20_000_000  # Add a very high score if the move is decisive
 
         return score
@@ -633,10 +601,7 @@ class BreakthroughGameState(GameState):
         column_letters = "  " + " ".join("ABCDEFGH") + "\n"  # Use chess-style notation
 
         for i in range(8):
-            row = [
-                cell_representation.get(piece, ".")
-                for piece in self.board[i * 8 : i * 8 + 8]
-            ]
+            row = [cell_representation.get(piece, ".") for piece in self.board[i * 8 : i * 8 + 8]]
             formatted_row = " ".join(row)
             colored_row = ""
             for cell in formatted_row.split(" "):
@@ -681,9 +646,7 @@ class BreakthroughGameState(GameState):
             output += f"White has {wh_caps} capture value, black has {bl_caps} \n"
             # ---------------------------Decisiveness---------------------------------
             p1_decisive, p2_decisive = is_decisive(self)
-            output += (
-                f"Player 1 decisive: {p1_decisive}, Player 2 decisive: {p2_decisive}\n"
-            )
+            output += f"Player 1 decisive: {p1_decisive}, Player 2 decisive: {p2_decisive}\n"
             # ---------------------------Piece safety--------------------------------------
             output += "Unsafe pieces:\n"
             for piece in black_pieces:
@@ -728,28 +691,20 @@ class BreakthroughGameState(GameState):
 
             # Check that there is a piece belonging to the current player at the 'from' position.
             if self.board[from_position] != self.player:
-                print(
-                    f"No piece for current player at {to_chess_notation(from_position)}."
-                )
+                print(f"No piece for current player at {to_chess_notation(from_position)}.")
                 return False
 
             # Check that there is not a piece belonging to the current player at the 'to' position.
             if self.board[to_position] == self.player:
-                print(
-                    f"Existing piece for current player at {to_chess_notation(to_position)}."
-                )
+                print(f"Existing piece for current player at {to_chess_notation(to_position)}.")
                 return False
 
             # Check that all moves are in the correct direction (higher rows for p2, lower rows for p1).
             if self.player == 1 and to_position >= from_position:
-                print(
-                    f"Invalid move direction for player 1 at {self.readable_move(action)}."
-                )
+                print(f"Invalid move direction for player 1 at {self.readable_move(action)}.")
                 return False
             elif self.player == 2 and to_position <= from_position:
-                print(
-                    f"Invalid move direction for player 2 at {self.readable_move(action)}."
-                )
+                print(f"Invalid move direction for player 2 at {self.readable_move(action)}.")
                 return False
 
         return True
@@ -863,9 +818,7 @@ def piece_mobility(position, player, board) -> cython.int:
 
         if 0 <= new_row < 8 and 0 <= new_col < 8:
             new_position = new_row * 8 + new_col
-            if (dc == 0 and board[new_position] == 0) or (
-                abs(dc) == 1 and board[new_position] != player
-            ):
+            if (dc == 0 and board[new_position] == 0) or (abs(dc) == 1 and board[new_position] != player):
                 mobility += 1
     return mobility
 
@@ -1005,19 +958,13 @@ def count_capture_moves(board, positions, player) -> cython.int:
             new_row = row + dr
             new_col = col + dc
 
-            if (
-                0 <= new_row < 8 and 0 <= new_col < 8
-            ):  # Check if the new position is within the board boundaries
+            if 0 <= new_row < 8 and 0 <= new_col < 8:  # Check if the new position is within the board boundaries
                 new_position = new_row * 8 + new_col
                 # Check if the new position contains an opponent's piece
                 if board[new_position] == opponent:
                     # Add the lorenz value from the opponent's perspective
                     # Assume that we'll capture the most valuable piece
-                    piece_value = (
-                        lorentz_values[new_position]
-                        if opponent == 2
-                        else lorentz_values[63 - new_position]
-                    )
+                    piece_value = lorentz_values[new_position] if opponent == 2 else lorentz_values[63 - new_position]
                     piece_capture_moves = max(piece_capture_moves, piece_value)
 
         total_capture_moves += piece_capture_moves
@@ -1107,9 +1054,7 @@ def evaluate_breakthrough(
                 new_col = y + dc
                 if 0 <= new_row < 8 and 0 <= new_col < 8:
                     new_position = new_row * 8 + new_col
-                    if board[new_position] == 0 or (
-                        dc != 0 and board[new_position] != piece
-                    ):
+                    if board[new_position] == 0 or (dc != 0 and board[new_position] != piece):
                         blocked = False
                         break
 
@@ -1118,9 +1063,7 @@ def evaluate_breakthrough(
             else:
                 opponent_blocked += 1 if blocked else 0
 
-    eval_value = m_piece * (
-        len(state.positions[player - 1]) - len(state.positions[(3 - player) - 1])
-    )
+    eval_value = m_piece * (len(state.positions[player - 1]) - len(state.positions[(3 - player) - 1]))
     eval_value += m_dist * (opponent_distance - player_distance)
     eval_value += m_near * (player_near_opponent_side - opponent_near_opponent_side)
     eval_value += m_blocked * (opponent_blocked - player_blocked)
