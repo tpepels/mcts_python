@@ -8,18 +8,15 @@ import numpy
 ext_modules = [
     Extension("includes.gamestate", ["includes/gamestate.pyx"]),
     Extension("includes.c_util", ["includes/c_util.pyx"]),
-    Extension(
-        "games.amazons", ["games/amazons.py"], include_dirs=[numpy.get_include()]
-    ),
-    Extension(
-        "games.tictactoe", ["games/tictactoe.py"], include_dirs=[numpy.get_include()]
-    ),
+    Extension("games.amazons", ["games/amazons.py"], include_dirs=[numpy.get_include()]),
+    Extension("games.tictactoe", ["games/tictactoe.py"], include_dirs=[numpy.get_include()]),
     Extension(
         "games.breakthrough",
         ["games/breakthrough.py"],
         include_dirs=[numpy.get_include()],
     ),
     Extension("games.kalah", ["games/kalah.py"]),
+    Extension("games.minishogi", ["games/minishogi.py"]),
     Extension("games.blokus", ["games/blokus.py"], include_dirs=[numpy.get_include()]),
     Extension(
         "ai.transpos_table",

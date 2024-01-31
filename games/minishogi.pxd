@@ -1,5 +1,5 @@
-dict MOVES
-dict PIECES
-list PIECE_CHARS
-int P2_OFFS
-int[9] MATERIAL
+cdef dict MOVES
+cdef dict PIECES
+cdef list PIECE_CHARS
+cdef int P2_OFFS
+cdef int[10] MATERIAL
