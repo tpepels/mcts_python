@@ -5,7 +5,12 @@ from pygame.locals import *
 
 # Initialize Pygame
 pygame.init()
-
+# Colors
+WHITE = (245, 245, 220)
+BLACK = (47, 79, 79)
+BLUE = (70, 130, 180)
+RED = (188, 143, 143)
+GREEN = (143, 188, 143)
 # Set up the display
 screen_width = 800
 screen_height = 600
@@ -58,7 +63,7 @@ PIECES_MAPPING = {
     2: 9,
     10: 10,  # A promoted bishop is a dragon horse
 }
-mapped_piece_rects = []  # One dictionary for each player
+mapped_piece_rects = [0] * 21  # One dictionary for each player
 # Remap the piece names to internal numbers
 for k, v in PIECES_MAPPING.items():
     mapped_piece_rects[v] = piece_rects[0][k]
@@ -105,10 +110,15 @@ while running:
     for row in range(5):
         for col in range(5):
             piece = game_state.board[row][col]
+
             if piece != 0:  # Assuming 0 represents an empty square
                 piece_char = PIECE_CHARS[piece]
                 image_rect = piece_rects[piece]
                 screen.blit(get_piece_image(image_rect), image_rect)
+            else:
+                # Draw an empty square
+                rect = pygame.Rect(row * piece_height, col * piece_height, piece_height, piece_height)
+                pygame.draw.rect(screen, BLACK, rect, 1)
 
     # Update the display
     pygame.display.flip()

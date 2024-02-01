@@ -197,7 +197,7 @@ class MiniShogi(GameState):
 
     # Private fields
     check: cython.bint
-    # TODO DRAWS bepalen
+    # TODO DRAWS bepalen, na 4 keer zelfde positie, na herhaaldelijk check (anders dan schaak!)
     winner: cython.int
 
     def __init__(
@@ -222,8 +222,6 @@ class MiniShogi(GameState):
 
             self.captured_pieces_1 = []
             self.captured_pieces_2 = []
-            self.threatened_pieces_1 = []
-            self.threatened_pieces_2 = []
             self.current_player_moves = []
         else:
             self.board = board
@@ -275,7 +273,7 @@ class MiniShogi(GameState):
             for col in range(5):
                 piece = self.board[row, col]
                 # Use the piece value directly as the index in the Zobrist table
-                hash_value ^= MiniShogi.zobrist_table[row, col, piece]
+                hash_value ^= MiniShogi.zobrist_table[row][col][piece]
         return hash_value
 
     @cython.ccall
@@ -365,7 +363,7 @@ class MiniShogi(GameState):
             # ! This assumes that pieces are demoted on capture, i.e. the capture lists have only unpromoted pieces
             piece = from_col
             new_state.board[to_row, to_col] = piece
-            new_state.board_hash ^= MiniShogi.zobrist_table[to_row, to_col, piece]
+            new_state.board_hash ^= MiniShogi.zobrist_table[to_row][to_col][piece]
 
             # Remove the piece from the captured pieces list
             if new_state.player == 1:
@@ -379,8 +377,8 @@ class MiniShogi(GameState):
             piece = new_state.board[from_row, from_col]
             promoted_piece = new_state.get_promoted_piece(from_row, from_col)
 
-            new_state.board_hash ^= MiniShogi.zobrist_table[from_row, from_col, piece]
-            new_state.board_hash ^= MiniShogi.zobrist_table[from_row, from_col, promoted_piece]
+            new_state.board_hash ^= MiniShogi.zobrist_table[from_row][from_col][piece]
+            new_state.board_hash ^= MiniShogi.zobrist_table[from_row][from_col][promoted_piece]
             new_state.board[from_row, from_col] = promoted_piece
 
         else:
@@ -388,11 +386,11 @@ class MiniShogi(GameState):
             piece = new_state.board[from_row, from_col]
             captured_piece = new_state.board[to_row, to_col]
 
-            new_state.board_hash ^= MiniShogi.zobrist_table[from_row, from_col, piece]
-            new_state.board_hash ^= MiniShogi.zobrist_table[to_row, to_col, piece]
+            new_state.board_hash ^= MiniShogi.zobrist_table[from_row][from_col][piece]
+            new_state.board_hash ^= MiniShogi.zobrist_table[to_row][to_col][piece]
 
             if captured_piece != 0:
-                new_state.board_hash ^= MiniShogi.zobrist_table[to_row, to_col, captured_piece]
+                new_state.board_hash ^= MiniShogi.zobrist_table[to_row][to_col][captured_piece]
                 # Demote the piece if it is captured (after updating the hash)
                 captured_piece = new_state.get_demoted_piece(captured_piece)
                 # Put the piece in the opposing player's captured pieces list, so they can drop them later
