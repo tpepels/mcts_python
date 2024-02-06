@@ -75,6 +75,7 @@ all_legal_actios = {}
 
 def draw_legal_moves(screen, row, col):
     legal_actions = get_legal_actions_for_piece(game_state, row, col)
+    print(legal_actions)
     for action in legal_actions:
         # For moves, action is a tuple (from_row, from_col, to_row, to_col)
         if action[0] != -1:
@@ -82,12 +83,18 @@ def draw_legal_moves(screen, row, col):
             center_y = action[2] * square_size + square_size // 2
             center = (center_x, center_y)
             pygame.draw.circle(screen, GREEN, center, square_size // 10)
-        # For drops, action is a tuple (-1, piece, to_row, to_col)
-        else:
+
+
+def draw_legal_captures(screen, piece_id, player):
+    legal_actions = game_state.get_legal_actions()  # This needs to return actions including drops
+    for action in legal_actions:
+        if action[0] == -1 and action[1] == piece_id:
+            # This is a legal drop action for the selected piece
             center_x = captured_area_width + action[3] * square_size + square_size // 2
             center_y = action[2] * square_size + square_size // 2
-            center = (center_x, center_y)
-            pygame.draw.circle(screen, BLUE, center, square_size // 10)
+            pygame.draw.rect(
+                screen, BLUE, (center_x - square_size // 2, center_y - square_size // 2, square_size, square_size), 2
+            )
 
 
 # Add to your MiniShogi class
@@ -186,25 +193,20 @@ while running:
                     # Try to drop the captured piece if one is selected
                     piece_id, player = selected_captured_piece
                     action = (-1, piece_id, row, col)
-                    print("Dropping", PIECE_CHARS[piece_id], "at", (row, col))
                     if action in game_state.get_legal_actions():
                         game_state = game_state.apply_action(action)
                         selected_captured_piece = None  # Clear captured piece selection after drop
-                    else:
-                        print("Illegal drop action:", action)
-                        print("Legal actions:", game_state.get_legal_actions())
-                elif belongs_to_current_player:
+                # Selecting a different piece or deselecting the current piece
+                elif belongs_to_current_player and selected_piece_pos != (row, col):
                     # Select the current player's piece for moving
                     selected_piece_pos = (row, col)
                     selected_captured_piece = None  # Clear captured piece selection
                 elif selected_piece_pos:
-                    # Try to move or capture
+                    # Try to move, promote or capture
                     from_row, from_col = selected_piece_pos
                     action = (from_row, from_col, row, col)
                     if action in game_state.get_legal_actions():
                         game_state = game_state.apply_action(action)
-                    else:
-                        print("Legal actions:", game_state.get_legal_actions())
                     selected_piece_pos = None  # Clear selection after move or capture
 
     screen.fill(WHITE)
@@ -232,6 +234,11 @@ while running:
         )
         pygame.draw.rect(screen, GREEN, selected_piece_rect, 2)  # Highlight selected piece
         draw_legal_moves(screen, *selected_piece_pos)
+
+    if selected_captured_piece:
+        piece_id, player = selected_captured_piece
+        # Draw all legal drops on the board
+        draw_legal_captures(screen, piece_id, player)
 
     # Display the current player
     current_player_text = "Player to move: Black" if game_state.player == 1 else "Player to move: White"

@@ -36,9 +36,9 @@ MOVES = [
     [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)],  # King (Player 1)
     [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Gold General (Player 1, regular)
     [(-1, 0)],  # Pawn (Player 1)
-    [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (0, 1)],  # Promoted Pawn (Player 1, Gold General)
+    [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Promoted Pawn (Player 1, Gold General)
     [(-1, -1), (-1, 1), (-1, 0), (1, -1), (1, 1)],  # Silver General (Player 1)
-    [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (0, 1)],  # Promoted Silver General (Player 1, Gold General)
+    [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Promoted Silver General (Player 1, Gold General)
     [(-1, 0), (0, -1), (1, 0), (0, 1)],  # Rook (Player 1)
     [(-1, -1), (1, -1), (1, 1), (-1, 1)],  # Promoted Rook (Player 1, Dragon King)
     [(-1, -1), (1, 1), (-1, 1), (1, -1)],  # Bishop (Player 1)
@@ -46,9 +46,9 @@ MOVES = [
     [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)],  # King (Player 2)
     [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Gold General (Player 2, regular)
     [(1, 0)],  # Pawn (Player 2)
-    [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (0, -1)],  # Promoted Pawn (Player 2, Gold General)
+    [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Promoted Pawn (Player 2, Gold General)
     [(1, 1), (1, -1), (1, 0), (-1, 1), (-1, -1)],  # Silver General (Player 2)
-    [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (0, -1)],  # Promoted Silver General (Player 2, Gold General)
+    [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Promoted Silver General (Player 2, Gold General)
     [(1, 0), (0, 1), (-1, 0), (0, -1)],  # Rook (Player 2)
     [(1, 1), (-1, 1), (-1, -1), (1, -1)],  # Promoted Rook (Player 2, Dragon King)
     [(1, 1), (-1, -1), (1, -1), (-1, 1)],  # Bishop (Player 2)
@@ -290,9 +290,6 @@ class MiniShogi(GameState):
             else:
                 new_state.captured_pieces_2.remove(piece)
         elif from_row == to_row and from_col == to_col:
-            # Handle promotion
-            assert new_state.is_promotion(from_row, from_col), "Cannot promote this piece."
-
             piece = new_state.board[from_row, from_col]
             promoted_piece = new_state.get_promoted_piece(from_row, from_col)
 
@@ -492,30 +489,36 @@ class MiniShogi(GameState):
 
         # Check if the king is attacked after this action
         player = 1 if moving_piece <= P2_OFFS else 2
-        print(
-            f"Checking if king for player: {player} will be attacked after move: {from_row, from_col, to_row, to_col}"
-        )
+        if moving_piece == 1:
+            self.king_1 = (to_row, to_col)
+        elif moving_piece == 11:
+            self.king_2 = (to_row, to_col)
         exposes_king = self.is_king_attacked(player)
 
         # Restore the original state
         self.board[to_row, to_col] = original_piece
+
+        if moving_piece == 1:
+            self.king_1 = (from_row, from_col)
+        elif moving_piece == 11:
+            self.king_2 = (from_row, from_col)
 
         if not is_drop:
             self.board[from_row, from_col] = moving_piece
 
         return exposes_king
 
-    @cython.ccall
+    @cython.cfunc
     def is_legal_drop(self, row: cython.int, col: cython.int, piece: cython.int, player: cython.int) -> cython.bint:
         # Check if the target square is empty
         if self.board[row, col] != 0:
             return False  # We can only drop on unoccupied squares
 
         # Pawn-specific rules
-        if piece == PIECES["P"] or piece == PIECES["P"] + P2_OFFS:
+        if piece == 3 or piece == 13:
             # Check for another unpromoted pawn in the same column and last row restriction
             for r in range(5):
-                if self.board[r, col] == piece or (player == 1 and row == 4) or (player == 2 and row == 0):
+                if self.board[r, col] == piece or (player == 1 and row == 0) or (player == 2 and row == 4):
                     return False
             # Temporarily drop the piece
             self.board[row, col] = piece
@@ -528,7 +531,7 @@ class MiniShogi(GameState):
         # In any other case, a piece can move
         return True
 
-    @cython.ccall
+    @cython.cfunc
     def is_checkmate(self, player: cython.int) -> cython.bint:
         """
         Check if the given player is in checkmate.
@@ -596,32 +599,31 @@ class MiniShogi(GameState):
                     if self.board[new_row, new_col] != 0:
                         break  # Opposing piece encountered, stop extending
 
-        # Logic for standard and limited one-square moves
-        move_list = MOVES[piece]
-        start_index = randint(0, len(move_list) - 1) if randomize else 0
-        for i in range(len(move_list)):
-            move = move_list[(i + start_index) % len(move_list)]
-            new_row, new_col = row + move[0], col + move[1]
+        if piece != 7 and piece != 9 and piece != 17 and piece != 19:
+            # Logic for standard and limited one-square moves
+            move_list = MOVES[piece]
+            start_index = randint(0, len(move_list) - 1) if randomize else 0
+            for i in range(len(move_list)):
+                move = move_list[(i + start_index) % len(move_list)]
+                new_row, new_col = row + move[0], col + move[1]
 
-            if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
-                self.board[new_row, new_col] != 0
-                and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
-            ):
-                if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
-                    # If defensive move, call the callback with an additional flag
-                    if callback(row, col, new_row, new_col, piece, True):
-                        return True
-                continue  # Out of bounds or own piece encountered
+                if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
+                    self.board[new_row, new_col] != 0
+                    and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
+                ):
+                    if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
+                        # If defensive move, call the callback with an additional flag
+                        if callback(row, col, new_row, new_col, piece, True):
+                            return True
+                    continue  # Out of bounds or own piece encountered
 
-            if callback(row, col, new_row, new_col, piece):
-                return True  # Callback indicates to stop extending
+                if callback(row, col, new_row, new_col, piece):
+                    return True  # Callback indicates to stop extending
 
         return False  # No valid move processed or no need to stop extending
 
-    # TODO Change back to cfunc after debugging
-    # @cython.cfunc
+    @cython.cfunc
     def get_moves(self, row: cython.int, col: cython.int, moves: cython.list) -> cython.list:
-        # ? Moeten de inner functies ook @cython.cfunc zijn?
         def move_callback(from_row, from_col, to_row, to_col, piece):
             if not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col):
                 moves.append((from_row, from_col, to_row, to_col))
@@ -645,7 +647,7 @@ class MiniShogi(GameState):
                 piece = self.board[row, col]
                 if opposing_player_piece_start <= piece <= opposing_player_piece_end:
                     if self._generate_moves(row, col, piece, move_callback):
-                        print(f"{piece} at {row},{col} attacks king")
+                        print(f"{piece} at {row},{col} attacks king {king_pos}")
                         return True  # King is attacked
         return False
 
@@ -944,12 +946,8 @@ class MiniShogi(GameState):
     @cython.cfunc
     @cython.inline
     def is_promotion(self, row: cython.int, piece: cython.int) -> cython.bint:
-        # Check if piece is unpromoted and promotable
-        if (piece > 2 and piece % 2 != 0) or (piece > 12 and piece % 2 != 0):
-            if piece < 11:  # Player 1's pieces
-                return row == 4
-            else:  # Player 2's pieces
-                return row == 0
+        if piece % 2 == 1:
+            return (row == 0 and 2 < piece < 10) or (piece > 12 and row == 4)
         return False
 
     @cython.cfunc
@@ -957,19 +955,17 @@ class MiniShogi(GameState):
     @cython.exceptval(-1)
     def get_promoted_piece(self, row: cython.int, col: cython.int) -> cython.int:
         piece: cython.int = self.board[row, col]
-
         # Promote if piece is unpromoted
-        if (piece > 2 and piece % 2 != 0) or (piece > 12 and piece % 2 != 0):
+        if piece % 2 == 1 and (2 < piece < 10) or piece > 12:
             return piece + 1
-
         return piece
 
     @cython.cfunc
     @cython.inline
     @cython.exceptval(-1)
     def get_demoted_piece(self, piece: cython.int) -> cython.int:
-        # Demote if piece is promoted
-        if (piece > 3 and piece % 2 == 0) or (piece > 13 and piece % 2 == 0):
+        # Even pieces > 3 are promoted (1 - king, 2 - Gold Gen. 3 - Pawn (4 - +Pawn))
+        if piece % 2 == 0 and ((3 < piece <= 10) or piece > 13):
             return piece - 1
 
         return piece
