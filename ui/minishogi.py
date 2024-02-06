@@ -251,6 +251,11 @@ while running:
         check_surface = font.render(check_text, True, RED)
         screen.blit(check_surface, (screen_width - 150, screen_height - 45))
 
+    if game_state.is_terminal():
+        check_text = "Checkmate!"
+        check_surface = font.render(check_text, True, RED)
+        screen.blit(check_surface, (screen_width - 150, screen_height - 45))
+
     pygame.display.flip()
 
 pygame.quit()

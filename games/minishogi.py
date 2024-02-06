@@ -544,8 +544,10 @@ class MiniShogi(GameState):
         Returns:
         cython.bint: 1 if the player is in checkmate, otherwise 0.
         """
-        if not self.is_king_attacked(player):
+        # TODO this is a bit tricky, becahse check may not be set, or may be false in which case we already checked...
+        if not self.check and not self.is_king_attacked(player):
             return 0
+
         # Check for any legal move by the pieces
         for row in range(5):
             for col in range(5):
@@ -673,7 +675,10 @@ class MiniShogi(GameState):
             return 1
         # -2 means that we did not yet check whether we are in a terminal state, so if we are in check, the state may be terminal
         if self.winner == -2 and self.check:
-            return len(self.get_legal_actions()) == 0
+            if self.is_checkmate(self.player):
+                self.winner = 3 - self.player
+
+        # TODO Handle draws due to repeated positions.
 
         return 0
 
