@@ -9,144 +9,51 @@ from cython.cimports.includes import normalize, GameState, win, loss, draw, f_in
 from cython.cimports.games.minishogi import MOVES, PIECES, PIECE_CHARS, MATERIAL, P2_OFFS
 from termcolor import colored
 
-MOVES = {
-    1: [  # King (Player 1)
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-        (-1, 0),
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-    ],
-    2: [  # Gold General (Player 1, regular)
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-        (-1, 0),
-        (0, -1),
-    ],
-    3: [  # Pawn (Player 1)
-        (1, 0),
-    ],
-    4: [  # Promoted Pawn (Player 1, Gold General)
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-        (-1, 0),
-        (0, -1),
-    ],
-    5: [  # Silver General (Player 1)
-        (1, 1),
-        (1, -1),
-        (0, 1),
-        (-1, 1),
-        (-1, -1),
-    ],
-    6: [  # Promoted Silver General (Player 1, Gold General)
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-        (-1, 0),
-        (0, -1),
-    ],
-    7: [  # Rook (Player 1)
-        (1, 0),
-        (0, 1),
-        (-1, 0),
-        (0, -1),
-    ],
-    8: [  # Promoted Rook (Player 1, Dragon King)
-        (1, 1),
-        (-1, 1),
-        (-1, -1),
-        (1, -1),
-    ],
-    9: [  # Bishop (Player 1)
-        (1, 1),
-        (-1, -1),
-        (1, -1),
-        (-1, 1),
-    ],
-    10: [  # Promoted Bishop (Player 1, Dragon Horse)
-        (1, 0),
-        (0, 1),
-        (-1, 0),
-        (0, -1),
-    ],
-    11: [  # King (Player 2)
-        (-1, 0),
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-    ],
-    12: [  # Gold General (Player 2, regular)
-        (-1, 0),
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (1, 0),
-        (0, 1),
-    ],
-    13: [  # Pawn (Player 2)
-        (-1, 0),
-    ],
-    14: [  # Promoted Pawn (Player 2, Gold General)
-        (-1, 0),
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (1, 0),
-        (0, 1),
-    ],
-    15: [  # Silver General (Player 2)
-        (-1, -1),
-        (-1, 1),
-        (0, -1),
-        (1, -1),
-        (1, 1),
-    ],
-    16: [  # Promoted Silver General (Player 2, Gold General)
-        (-1, 0),
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (1, 0),
-        (0, 1),
-    ],
-    17: [  # Rook (Player 2)
-        (-1, 0),
-        (0, -1),
-        (1, 0),
-        (0, 1),
-    ],
-    18: [  # Promoted Rook (Player 2, Dragon King)
-        (-1, -1),
-        (1, -1),
-        (1, 1),
-        (-1, 1),
-    ],
-    19: [  # Bishop (Player 2)
-        (-1, -1),
-        (1, 1),
-        (-1, 1),
-        (1, -1),
-    ],
-    20: [  # Promoted Bishop (Player 2, Dragon Horse)
-        (-1, 0),
-        (0, -1),
-        (1, 0),
-        (0, 1),
-    ],
-}
+# TODO Idee om move access te versnellen mocht het nodig zijn
+# cimport cython
+# from libc.stdlib cimport malloc, free
+
+# # Example flattened move vectors for all pieces (simplified for illustration)
+# cdef int[:] flat_moves = [1, 0, -1, 0, 0, 1, 0, -1, ...]  # Flat list of move deltas
+
+# # Example start-end indices for each piece's moves in the flat_moves array
+# cdef int[:] move_indices = [0, 4, 8, ...]  # Starting index for each piece's moves
+
+# @cython.boundscheck(False)
+# @cython.wraparound(False)
+# cdef get_moves_for_piece(int piece_id):
+#     start_idx = move_indices[piece_id]
+#     end_idx = move_indices[piece_id + 1]
+#     # Access the moves for the specified piece using the start and end indices
+#     for i in range(start_idx, end_idx, 2):
+#         dx = flat_moves[i]
+#         dy = flat_moves[i + 1]
+#         # Process the move (dx, dy) for the piece
+
+
+MOVES = [
+    [],  # Empty square placeholder
+    [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)],  # King (Player 1)
+    [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Gold General (Player 1, regular)
+    [(-1, 0)],  # Pawn (Player 1)
+    [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (0, 1)],  # Promoted Pawn (Player 1, Gold General)
+    [(-1, -1), (-1, 1), (-1, 0), (1, -1), (1, 1)],  # Silver General (Player 1)
+    [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (0, 1)],  # Promoted Silver General (Player 1, Gold General)
+    [(-1, 0), (0, -1), (1, 0), (0, 1)],  # Rook (Player 1)
+    [(-1, -1), (1, -1), (1, 1), (-1, 1)],  # Promoted Rook (Player 1, Dragon King)
+    [(-1, -1), (1, 1), (-1, 1), (1, -1)],  # Bishop (Player 1)
+    [(-1, 0), (0, -1), (1, 0), (0, 1)],  # Promoted Bishop (Player 1, Dragon Horse)
+    [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)],  # King (Player 2)
+    [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Gold General (Player 2, regular)
+    [(1, 0)],  # Pawn (Player 2)
+    [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (0, -1)],  # Promoted Pawn (Player 2, Gold General)
+    [(1, 1), (1, -1), (1, 0), (-1, 1), (-1, -1)],  # Silver General (Player 2)
+    [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (0, -1)],  # Promoted Silver General (Player 2, Gold General)
+    [(1, 0), (0, 1), (-1, 0), (0, -1)],  # Rook (Player 2)
+    [(1, 1), (-1, 1), (-1, -1), (1, -1)],  # Promoted Rook (Player 2, Dragon King)
+    [(1, 1), (-1, -1), (1, -1), (-1, 1)],  # Bishop (Player 2)
+    [(1, 0), (0, 1), (-1, 0), (0, -1)],  # Promoted Bishop (Player 2, Dragon Horse)
+]
 
 P2_OFFS = 10
 
@@ -188,7 +95,7 @@ class MiniShogi(GameState):
     REUSE = True
     board = cython.declare(cython.int[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
-    last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
+    last_action = cython.declare(cython.tuple[cython.int, cython.int, cython.int, cython.int], visibility="public")
     current_player_moves = cython.declare(cython.list, visibility="public")
     captured_pieces_1 = cython.declare(cython.list, visibility="public")
     captured_pieces_2 = cython.declare(cython.list, visibility="public")
@@ -196,7 +103,7 @@ class MiniShogi(GameState):
     king_2 = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
 
     # Private fields
-    check: cython.bint
+    check = cython.declare(cython.bint, visibility="public")
     # TODO DRAWS bepalen, na 4 keer zelfde positie, na herhaaldelijk check (anders dan schaak!)
     winner: cython.int
 
@@ -206,6 +113,10 @@ class MiniShogi(GameState):
         player=1,
         board_hash=0,
         last_action=(0, 0),
+        captured_pieces_1=None,
+        captured_pieces_2=None,
+        king_1=(),
+        king_2=(),
     ):
         """
         Initialize the game state with the given board configuration. If no board is provided, the game starts with the default setup.
@@ -217,7 +128,7 @@ class MiniShogi(GameState):
             self.board = self._init_board()
             self.board_hash = self._init_hash()
             # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
-            self.last_action = (-1, -1)
+            self.last_action = (-1, -1, -1, -1)
             self.player = 1
 
             self.captured_pieces_1 = []
@@ -228,6 +139,10 @@ class MiniShogi(GameState):
             self.player = player
             self.board_hash = board_hash
             self.last_action = last_action
+            self.captured_pieces_1 = captured_pieces_1
+            self.captured_pieces_2 = captured_pieces_2
+            self.king_1 = king_1
+            self.king_2 = king_2
 
         # This needs to be determined after each move made.
         self.check = False
@@ -237,28 +152,28 @@ class MiniShogi(GameState):
     def _init_board(self):
         board = np.zeros((5, 5), dtype=np.int32)
 
-        # Set up the pieces for Player 1 (bottom of the board)
-        board[4] = [
-            PIECES["K"],
-            PIECES["G"],
-            PIECES["S"],
-            PIECES["B"],
-            PIECES["R"],
-        ]
-        board[3, 0] = PIECES["P"]  # Pawn in front of the king
-
-        # Set up the pieces for Player 2 (top of the board)
+        # Set up the pieces for White (Player 2, top of the board)
         board[0] = [
-            PIECES["K"] + P2_OFFS,
-            PIECES["G"] + P2_OFFS,
-            PIECES["S"] + P2_OFFS,
-            PIECES["B"] + P2_OFFS,
-            PIECES["R"] + P2_OFFS,
+            PIECES["K"] + P2_OFFS,  # King
+            PIECES["G"] + P2_OFFS,  # Gold General
+            PIECES["S"] + P2_OFFS,  # Silver General
+            PIECES["B"] + P2_OFFS,  # Bishop
+            PIECES["R"] + P2_OFFS,  # Rook
         ]
         board[1, 0] = PIECES["P"] + P2_OFFS  # Pawn in front of the king
 
-        self.king_1 = (4, 0)
-        self.king_2 = (0, 0)
+        # Set up the pieces for Black (Player 1, bottom of the board)
+        board[4] = [
+            PIECES["R"],  # Rook
+            PIECES["B"],  # Bishop
+            PIECES["S"],  # Silver General
+            PIECES["G"],  # Gold General
+            PIECES["K"],  # King
+        ]
+        board[3, 4] = PIECES["P"]  # Pawn in front of the king
+
+        self.king_1 = (4, 4)  # Black's king
+        self.king_2 = (0, 0)  # White's king
 
         return board
 
@@ -321,10 +236,10 @@ class MiniShogi(GameState):
                 # Put the piece in the opposing player's captured pieces list, so they can drop them later
                 if self.player == 1:
                     # Flip the piece to the opposing player's perspective
-                    self.captured_pieces_2.append(captured_piece - P2_OFFS)
+                    self.captured_pieces_1.append(captured_piece - P2_OFFS)
                 else:
                     # Flip the piece to the opposing player's perspective
-                    self.captured_pieces_1.append(captured_piece + P2_OFFS)
+                    self.captured_pieces_2.append(captured_piece + P2_OFFS)
 
             # Update the king's position if a king is moved
             if piece == PIECES["K"]:  # Check if player 1's king is moved
@@ -354,6 +269,10 @@ class MiniShogi(GameState):
             player=self.player,
             board_hash=self.board_hash,
             last_action=self.last_action,
+            captured_pieces_1=self.captured_pieces_1.copy(),
+            captured_pieces_2=self.captured_pieces_2.copy(),
+            king_1=self.king_1,
+            king_2=self.king_2,
         )
 
         from_row, from_col, to_row, to_col = action
@@ -396,10 +315,10 @@ class MiniShogi(GameState):
                 # Put the piece in the opposing player's captured pieces list, so they can drop them later
                 if new_state.player == 1:
                     # Flip the piece to the opposing player's perspective
-                    new_state.captured_pieces_2.append(captured_piece - P2_OFFS)
+                    new_state.captured_pieces_1.append(captured_piece - P2_OFFS)
                 else:
                     # Flip the piece to the opposing player's perspective
-                    new_state.captured_pieces_1.append(captured_piece + P2_OFFS)
+                    new_state.captured_pieces_2.append(captured_piece + P2_OFFS)
 
             # Update the king's position if a king is moved
             if piece == PIECES["K"]:  # Check if player 1's king is moved
@@ -419,6 +338,9 @@ class MiniShogi(GameState):
 
         # After each move, determine if I am in check
         new_state.check = new_state.is_king_attacked(new_state.player)
+        if new_state.check:
+            print(colored(f"Player {new_state.player} is in check", "red"))
+
         new_state.winner = -2  # Reset the winner
         return new_state
 
@@ -570,6 +492,9 @@ class MiniShogi(GameState):
 
         # Check if the king is attacked after this action
         player = 1 if moving_piece <= P2_OFFS else 2
+        print(
+            f"Checking if king for player: {player} will be attacked after move: {from_row, from_col, to_row, to_col}"
+        )
         exposes_king = self.is_king_attacked(player)
 
         # Restore the original state
@@ -641,9 +566,8 @@ class MiniShogi(GameState):
     ):
         player_piece_start, player_piece_end = (1, 10) if piece <= P2_OFFS else (11, 20)
 
-        # Logic for unlimited moves (e.g., Rook, Bishop, Dragon King, Dragon Horse)
-        if piece in [7, 8, 17, 18]:
-            base_piece = PIECES["R"] if piece in [7, 8, 17, 18] else PIECES["B"]
+        if 7 <= piece <= 10 or 17 <= piece <= 20:
+            base_piece = PIECES["R"] if piece == 7 or piece == 8 or piece == 17 or piece == 18 else PIECES["B"]
             if piece >= 11:
                 base_piece += P2_OFFS
 
@@ -655,9 +579,8 @@ class MiniShogi(GameState):
                 while True:
                     new_row += move[0]
                     new_col += move[1]
-                    if (
-                        not (0 <= new_row < 5 and 0 <= new_col < 5)
-                        or self.board[new_row, new_col] != 0
+                    if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
+                        self.board[new_row, new_col] != 0
                         and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
                     ):
                         if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
@@ -679,9 +602,9 @@ class MiniShogi(GameState):
         for i in range(len(move_list)):
             move = move_list[(i + start_index) % len(move_list)]
             new_row, new_col = row + move[0], col + move[1]
-            if (
-                not (0 <= new_row < 5 and 0 <= new_col < 5)
-                or self.board[new_row, new_col] != 0
+
+            if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
+                self.board[new_row, new_col] != 0
                 and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
             ):
                 if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
@@ -695,12 +618,14 @@ class MiniShogi(GameState):
 
         return False  # No valid move processed or no need to stop extending
 
-    @cython.cfunc
+    # TODO Change back to cfunc after debugging
+    # @cython.cfunc
     def get_moves(self, row: cython.int, col: cython.int, moves: cython.list) -> cython.list:
+        # ? Moeten de inner functies ook @cython.cfunc zijn?
         def move_callback(from_row, from_col, to_row, to_col, piece):
             if not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col):
                 moves.append((from_row, from_col, to_row, to_col))
-            return False  # Continue generating all moves, i.e never return True as this stops _generate_moves
+            return False  # Continue generating all moves
 
         self._generate_moves(row, col, self.board[row, col], move_callback)
         return moves
@@ -710,6 +635,8 @@ class MiniShogi(GameState):
         king_pos = self.king_1 if player == 1 else self.king_2
 
         def move_callback(from_row, from_col, to_row, to_col, piece):
+            if (to_row, to_col) == king_pos:
+                print(f"Move {from_row}, {from_col} attacks the king at {king_pos} of player {player} by {piece}")
             return (to_row, to_col) == king_pos  # Return True if king is attacked, this stops _generate_moves
 
         opposing_player_piece_start, opposing_player_piece_end = (11, 20) if player == 1 else (1, 10)
@@ -718,6 +645,7 @@ class MiniShogi(GameState):
                 piece = self.board[row, col]
                 if opposing_player_piece_start <= piece <= opposing_player_piece_end:
                     if self._generate_moves(row, col, piece, move_callback):
+                        print(f"{piece} at {row},{col} attacks king")
                         return True  # King is attacked
         return False
 

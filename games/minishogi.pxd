@@ -1,4 +1,4 @@
-cdef dict MOVES
+cdef list MOVES
 cdef dict PIECES
 cdef list PIECE_CHARS
 cdef int P2_OFFS
