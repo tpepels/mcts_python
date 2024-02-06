@@ -30,6 +30,8 @@ from termcolor import colored
 #         dy = flat_moves[i + 1]
 #         # Process the move (dx, dy) for the piece
 
+# TODO Je hebt net Gold General gekopieerd naar +P, +S maar dat moet je nog even testen
+# TODO Even alle pieces checken soms zijn rows/cols omgedraaid
 
 MOVES = [
     [],  # Empty square placeholder
