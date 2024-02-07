@@ -147,6 +147,8 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Minishogi")
 
 game_state = MiniShogi()
+print(game_state.is_terminal())
+print(game_state.get_reward(1))
 
 # Set up the font for drawing labels
 pygame.font.init()  # Initialize the font module
@@ -182,7 +184,7 @@ while running:
                 selected_piece_pos = None  # Clear any board selection
                 continue  # Skip further checks
 
-            if 0 <= row < 5 and 0 <= col < 5:  # Ensure click is within the board
+            if not game_state.is_terminal() and 0 <= row < 5 and 0 <= col < 5:  # Ensure click is within the board
                 piece_id = game_state.board[row][col]
                 # Determine if the clicked piece belongs to the current player
                 belongs_to_current_player = (game_state.player == 1 and 1 <= piece_id <= 10) or (

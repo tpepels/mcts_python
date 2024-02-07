@@ -128,6 +128,7 @@ class MiniShogi(GameState):
         """
         if board is None:
             self.board = self._init_board()
+            self.check = self.is_king_attacked(1)
             self.board_hash = self._init_hash()
             # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
             self.last_action = (-1, -1, -1, -1)
@@ -151,7 +152,7 @@ class MiniShogi(GameState):
         self.winner = -2  # -2 means that the winner was not checked yet
 
     @cython.ccall
-    def _init_board(self):
+    def _init_board(self) -> cython.int[:, :]:
         board = np.zeros((5, 5), dtype=np.int32)
 
         # Set up the pieces for White (Player 2, top of the board)
@@ -176,6 +177,13 @@ class MiniShogi(GameState):
 
         self.king_1 = (4, 4)  # Black's king
         self.king_2 = (0, 0)  # White's king
+
+        # TODO This is to test checkmate
+        board[0] = [11, 0, 18, 0, 0]
+        board[1] = [0, 0, 0, 0, 0]
+        board[2] = [0, 0, 0, 0, 0]
+        board[3] = [0, 0, 0, 0, 12]
+        board[4] = [0, 0, 0, 15, 1]
 
         return board
 
@@ -544,9 +552,9 @@ class MiniShogi(GameState):
         Returns:
         cython.bint: 1 if the player is in checkmate, otherwise 0.
         """
-        # TODO this is a bit tricky, becahse check may not be set, or may be false in which case we already checked...
-        if not self.check and not self.is_king_attacked(player):
-            return 0
+        # ! The check check is done after every move. So no reason to repeat checkmate check again.
+        if not self.check:
+            return False
 
         # Check for any legal move by the pieces
         for row in range(5):
