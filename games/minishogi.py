@@ -1,12 +1,13 @@
-# cython: language_level=3, wraparound=False, infer_types=True
+# cython: language_level=3, wraparound=False, nonecheck=False, infer_types=True, boundscheck=False, cdivision=True, initializedcheck=False, embedsignature=True
 import array
+import random
 import cython
 
 from fastrand import pcg32randint as randint
 import numpy as np
 
 from cython.cimports.includes import normalize, GameState, win, loss, draw, f_index
-from cython.cimports.games.minishogi import MOVES, PIECES, PIECE_CHARS, MATERIAL, P2_OFFS
+from cython.cimports.games.minishogi import MOVES, PIECES, PIECE_CHARS, MATERIAL, P2_OFFS, MoveCallback
 from termcolor import colored
 
 # TODO Idee om move access te versnellen mocht het nodig zijn
@@ -95,12 +96,15 @@ class MiniShogi(GameState):
     zobrist_table = [[[randint(1, 2**61 - 1) for _ in range(21)] for _ in range(5)] for _ in range(5)]
 
     REUSE = True
+
     board = cython.declare(cython.int[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.int, cython.int, cython.int, cython.int], visibility="public")
     current_player_moves = cython.declare(cython.list, visibility="public")
-    captured_pieces_1 = cython.declare(cython.list, visibility="public")
-    captured_pieces_2 = cython.declare(cython.list, visibility="public")
+
+    captured_pieces_1 = cython.declare(cython.list[cython.int], visibility="public")
+    captured_pieces_2 = cython.declare(cython.list[cython.int], visibility="public")
+
     king_1 = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
     king_2 = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
 
@@ -120,16 +124,14 @@ class MiniShogi(GameState):
         king_1=(),
         king_2=(),
     ):
-        """
-        Initialize the game state with the given board configuration. If no board is provided, the game starts with the default setup.
+        # This needs to be determined after each move made.
+        self.check = False
+        self.winner = -2  # -2 means that the winner was not checked yet
 
-        :param board: An optional board configuration.
-        :param player: The player whose turn it is (1 or 2).
-        """
         if board is None:
             self.board = self._init_board()
-            self.check = self.is_king_attacked(1)
             self.board_hash = self._init_hash()
+
             # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
             self.last_action = (-1, -1, -1, -1)
             self.player = 1
@@ -147,49 +149,34 @@ class MiniShogi(GameState):
             self.king_1 = king_1
             self.king_2 = king_2
 
-        # This needs to be determined after each move made.
-        self.check = False
-        self.winner = -2  # -2 means that the winner was not checked yet
-
     @cython.ccall
     def _init_board(self) -> cython.int[:, :]:
-        board = np.zeros((5, 5), dtype=np.int32)
+        board: cython.int[:, :] = np.zeros((5, 5), dtype=np.int32)
 
         # Set up the pieces for White (Player 2, top of the board)
-        board[0] = [
-            PIECES["K"] + P2_OFFS,  # King
-            PIECES["G"] + P2_OFFS,  # Gold General
-            PIECES["S"] + P2_OFFS,  # Silver General
-            PIECES["B"] + P2_OFFS,  # Bishop
-            PIECES["R"] + P2_OFFS,  # Rook
-        ]
+        board[0, 0] = PIECES["K"] + P2_OFFS  # King
+        board[0, 1] = PIECES["G"] + P2_OFFS  # Gold General
+        board[0, 2] = PIECES["S"] + P2_OFFS  # Silver General
+        board[0, 3] = PIECES["B"] + P2_OFFS  # Bishop
+        board[0, 4] = PIECES["R"] + P2_OFFS  # Rook
         board[1, 0] = PIECES["P"] + P2_OFFS  # Pawn in front of the king
 
         # Set up the pieces for Black (Player 1, bottom of the board)
-        board[4] = [
-            PIECES["R"],  # Rook
-            PIECES["B"],  # Bishop
-            PIECES["S"],  # Silver General
-            PIECES["G"],  # Gold General
-            PIECES["K"],  # King
-        ]
+        board[4, 0] = PIECES["R"]  # Rook
+        board[4, 1] = PIECES["B"]  # Bishop
+        board[4, 2] = PIECES["S"]  # Silver General
+        board[4, 3] = PIECES["G"]  # Gold General
+        board[4, 4] = PIECES["K"]  # King
         board[3, 4] = PIECES["P"]  # Pawn in front of the king
 
         self.king_1 = (4, 4)  # Black's king
         self.king_2 = (0, 0)  # White's king
 
-        # TODO This is to test checkmate
-        board[0] = [11, 0, 18, 0, 0]
-        board[1] = [0, 0, 0, 0, 0]
-        board[2] = [0, 0, 0, 0, 0]
-        board[3] = [0, 0, 0, 0, 12]
-        board[4] = [0, 0, 0, 15, 1]
-
         return board
 
     @cython.ccall
     def _init_hash(self):
-        #  When a promoted piece is captured, it loses its promoted status.
+        # When a promoted piece is captured, it loses its promoted status.
         # If that piece is later dropped back onto the board by the player who captured it,
         # it returns as an unpromoted piece.
         # This means that we do not have to keep track of the promoted status of captured pieces.
@@ -213,10 +200,22 @@ class MiniShogi(GameState):
         )
 
     @cython.cfunc
+    @cython.locals(
+        from_row=cython.int,
+        from_col=cython.int,
+        to_row=cython.int,
+        to_col=cython.int,
+        piece=cython.int,
+        captured_piece=cython.int,
+        promoted_piece=cython.int,
+    )
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
         assert self.winner <= -1, "Cannot apply action to a terminal state."
 
-        from_row, from_col, to_row, to_col = action
+        from_row = action[0]
+        from_col = action[1]
+        to_row = action[2]
+        to_col = action[3]
 
         if from_row == -1:
             # Handle drop action
@@ -228,10 +227,8 @@ class MiniShogi(GameState):
                 self.captured_pieces_1.remove(piece)
             else:
                 self.captured_pieces_2.remove(piece)
-        elif from_row == to_row and from_col == to_col:
-            # Handle promotion
-            assert self.is_promotion(from_row, from_col), "Cannot promote this piece."
 
+        elif from_row == to_row and from_col == to_col:
             promoted_piece = self.get_promoted_piece(from_row, from_col)
             self.board[from_row, from_col] = promoted_piece
 
@@ -270,6 +267,16 @@ class MiniShogi(GameState):
         self.winner = -2  # Reset the winner
 
     @cython.ccall
+    @cython.locals(
+        from_row=cython.int,
+        from_col=cython.int,
+        to_row=cython.int,
+        to_col=cython.int,
+        piece=cython.int,
+        captured_piece=cython.int,
+        promoted_piece=cython.int,
+        new_state=MiniShogi,
+    )
     def apply_action(self, action: cython.tuple) -> MiniShogi:
         assert self.winner <= -1, "Cannot apply action to a terminal state."
 
@@ -285,7 +292,10 @@ class MiniShogi(GameState):
             king_2=self.king_2,
         )
 
-        from_row, from_col, to_row, to_col = action
+        from_row = action[0]
+        from_col = action[1]
+        to_row = action[2]
+        to_col = action[3]
 
         if from_row == -1:
             # Handle drop action
@@ -299,7 +309,9 @@ class MiniShogi(GameState):
                 new_state.captured_pieces_1.remove(piece)
             else:
                 new_state.captured_pieces_2.remove(piece)
+
         elif from_row == to_row and from_col == to_col:
+
             piece = new_state.board[from_row, from_col]
             promoted_piece = new_state.get_promoted_piece(from_row, from_col)
 
@@ -342,28 +354,44 @@ class MiniShogi(GameState):
 
         # Switch player after the action
         new_state.player = 3 - new_state.player
-
         # After each move, determine if I am in check
         new_state.check = new_state.is_king_attacked(new_state.player)
-        if new_state.check:
-            print(colored(f"Player {new_state.player} is in check", "red"))
-
         new_state.winner = -2  # Reset the winner
         return new_state
 
     @cython.cfunc
+    @cython.locals(
+        row=cython.int,
+        col=cython.int,
+        piece=cython.int,
+        player_piece_start=cython.int,
+        player_piece_end=cython.int,
+        from_row=cython.int,
+        from_col=cython.int,
+        to_row=cython.int,
+        to_col=cython.int,
+        is_defense=cython.bint,
+        i=cython.int,
+    )
     def get_random_action(self) -> cython.tuple:
         assert self.winner <= -1, "Cannot get legal actions for a terminal state."
 
-        drops = []
-        moves = []
-        captures = []
-        promotions = []
-        move_found = False
+        drops: cython.list = []
+        moves: cython.list = []
+        captures: cython.list = []
+        promotions: cython.list = []
+        move_found: cython.bint = False
         player_piece_start, player_piece_end = (1, 10) if self.player == 1 else (11, 20)
 
         # Define callback for move generation
-        def move_callback(from_row, from_col, to_row, to_col, piece):
+        def move_callback(
+            from_row: cython.int,
+            from_col: cython.int,
+            to_row: cython.int,
+            to_col: cython.int,
+            piece: cython.int,
+            is_defense: cython.bint,
+        ):
             nonlocal move_found
             if self.board[to_row, to_col] != 0:
                 captures.append((from_row, from_col, to_row, to_col))
@@ -385,13 +413,16 @@ class MiniShogi(GameState):
                         move_found = True
 
                     # Pawn on the last rows cannot move
-                    if not (piece == PIECES["P"] and row == 4) or (piece == PIECES["P"] + P2_OFFS and row == 0):
+                    if not (piece == 3 and row == 4) or (piece == 13 and row == 0):
                         # Use _generate_moves with random flag
                         self._generate_moves(row, col, piece, move_callback, randomize=True)
 
         # Handle drop actions
-        captured_pieces = self.captured_pieces_1 if self.player == 1 else self.captured_pieces_2
-        for piece in captured_pieces:
+        captured_pieces: cython.list[cython.int] = (
+            self.captured_pieces_1 if self.player == 1 else self.captured_pieces_2
+        )
+        for i in range(len(captured_pieces)):
+            piece = captured_pieces[i]
             for row in range(5):
                 for col in range(5):
                     if self.board[row, col] == 0:  # Empty square
@@ -424,6 +455,9 @@ class MiniShogi(GameState):
         return None  # No legal actions available
 
     @cython.ccall
+    @cython.locals(
+        row=cython.int, col=cython.int, piece=cython.int, player_piece_start=cython.int, player_piece_end=cython.int
+    )
     def get_legal_actions(self) -> cython.list:
         assert self.winner <= -1, "Cannot get legal actions for a terminal state."
 
@@ -441,7 +475,7 @@ class MiniShogi(GameState):
                         legal_actions.append((row, col, row, col))
 
                     # Pawn on the last rows cannot move (this makes sure not to generate moves that are not needed)
-                    if not (piece == PIECES["P"] and row == 4) or (piece == PIECES["P"] + P2_OFFS and row == 0):
+                    if not (piece == 3 and row == 4) or (piece == 13 and row == 0):
                         # Generate moves for this piece
                         self.get_moves(row, col, legal_actions)
 
@@ -470,8 +504,11 @@ class MiniShogi(GameState):
 
         return legal_actions
 
-    @cython.ccall
-    def simulate_move_exposes_king(self, from_row, from_col, to_row, to_col) -> cython.bint:
+    @cython.cfunc
+    @cython.locals(is_drop=cython.bint, original_piece=cython.int, moving_piece=cython.int, exposes_king=cython.bint)
+    def simulate_move_exposes_king(
+        self, from_row: cython.int, from_col: cython.int, to_row: cython.int, to_col: cython.int
+    ) -> cython.bint:
         """
         Simulates a move or a drop action and checks if it exposes the king to an attack.
 
@@ -542,6 +579,7 @@ class MiniShogi(GameState):
         return True
 
     @cython.cfunc
+    @cython.locals(row=cython.int, col=cython.int, piece=cython.int, i=cython.int)
     def is_checkmate(self, player: cython.int) -> cython.bint:
         """
         Check if the given player is in checkmate.
@@ -565,8 +603,9 @@ class MiniShogi(GameState):
                         return 0  # Found a legal move
 
         # Check for any legal drop that can resolve the check
-        captured_pieces = self.captured_pieces_1 if player == 1 else self.captured_pieces_2
-        for piece in captured_pieces:
+        captured_pieces: cython.list[cython.int] = self.captured_pieces_1 if player == 1 else self.captured_pieces_2
+        for i in range(len(captured_pieces)):
+            piece = captured_pieces[i]
             for row in range(5):
                 for col in range(5):
                     if self.is_legal_drop(row, col, piece, player):
@@ -575,21 +614,40 @@ class MiniShogi(GameState):
                             return 0
         return 1  # No legal moves or drops, so it's checkmate
 
-    @cython.ccall
+    @cython.cfunc
+    @cython.locals(
+        row=cython.int,
+        col=cython.int,
+        piece=cython.int,
+        player_piece_start=cython.int,
+        player_piece_end=cython.int,
+        base_piece=cython.int,
+        new_row=cython.int,
+        new_col=cython.int,
+        i=cython.int,
+        start_index=cython.int,
+    )
     def _generate_moves(
-        self, row: cython.int, col: cython.int, piece: cython.int, callback, randomize=False, count_defense=False
+        self,
+        row: cython.int,
+        col: cython.int,
+        piece: cython.int,
+        callback,
+        randomize: cython.bint = 0,
+        count_defense: cython.bint = 0,
     ):
         player_piece_start, player_piece_end = (1, 10) if piece <= P2_OFFS else (11, 20)
 
         if 7 <= piece <= 10 or 17 <= piece <= 20:
-            base_piece = PIECES["R"] if piece == 7 or piece == 8 or piece == 17 or piece == 18 else PIECES["B"]
+            base_piece = 7 if piece == 7 or piece == 8 or piece == 17 or piece == 18 else 9
             if piece >= 11:
                 base_piece += P2_OFFS
 
-            move_list = MOVES[base_piece]
-            start_index = randint(0, len(move_list) - 1) if randomize else 0
-            for i in range(len(move_list)):
-                move = move_list[(i + start_index) % len(move_list)]
+            move_list: cython.list = MOVES[base_piece]
+            n_moves: cython.int = len(move_list)
+            start_index = randint(0, n_moves - 1) if randomize else 0
+            for i in range(n_moves):
+                move: cython.tuple[cython.int, cython.int] = move_list[(i + start_index) % n_moves]
                 new_row, new_col = row, col
                 while True:
                     new_row += move[0]
@@ -605,7 +663,7 @@ class MiniShogi(GameState):
 
                         break  # Out of bounds or own piece encountered
 
-                    if callback(row, col, new_row, new_col, piece):
+                    if callback(row, col, new_row, new_col, piece, False):
                         return True  # Callback indicates to stop extending
 
                     if self.board[new_row, new_col] != 0:
@@ -613,10 +671,11 @@ class MiniShogi(GameState):
 
         if piece != 7 and piece != 9 and piece != 17 and piece != 19:
             # Logic for standard and limited one-square moves
-            move_list = MOVES[piece]
-            start_index = randint(0, len(move_list) - 1) if randomize else 0
-            for i in range(len(move_list)):
-                move = move_list[(i + start_index) % len(move_list)]
+            move_list: cython.list = MOVES[piece]
+            n_moves: cython.int = len(move_list)
+            start_index = randint(0, n_moves - 1) if randomize else 0
+            for i in range(n_moves):
+                move = move_list[(i + start_index) % n_moves]
                 new_row, new_col = row + move[0], col + move[1]
 
                 if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
@@ -629,28 +688,54 @@ class MiniShogi(GameState):
                             return True
                     continue  # Out of bounds or own piece encountered
 
-                if callback(row, col, new_row, new_col, piece):
+                if callback(row, col, new_row, new_col, piece, False):
                     return True  # Callback indicates to stop extending
 
         return False  # No valid move processed or no need to stop extending
 
     @cython.cfunc
     def get_moves(self, row: cython.int, col: cython.int, moves: cython.list) -> cython.list:
-        def move_callback(from_row, from_col, to_row, to_col, piece):
+        def move_callback(
+            from_row: cython.int,
+            from_col: cython.int,
+            to_row: cython.int,
+            to_col: cython.int,
+            piece: cython.int,
+            is_defense: cython.bint,
+        ):
             if not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col):
                 moves.append((from_row, from_col, to_row, to_col))
             return False  # Continue generating all moves
 
-        self._generate_moves(row, col, self.board[row, col], move_callback)
+        self._generate_moves(
+            row,
+            col,
+            self.board[row, col],
+            callback=move_callback,
+            randomize=True,
+            count_defense=False,
+        )
         return moves
 
     @cython.cfunc
+    @cython.locals(
+        opposing_player_piece_start=cython.int,
+        opposing_player_piece_end=cython.int,
+        row=cython.int,
+        col=cython.int,
+        piece=cython.int,
+    )
     def is_king_attacked(self, player: cython.int) -> cython.bint:
-        king_pos = self.king_1 if player == 1 else self.king_2
+        king_pos: cython.tuple[cython.int, cython.int] = self.king_1 if player == 1 else self.king_2
 
-        def move_callback(from_row, from_col, to_row, to_col, piece):
-            if (to_row, to_col) == king_pos:
-                print(f"Move {from_row}, {from_col} attacks the king at {king_pos} of player {player} by {piece}")
+        def move_callback(
+            from_row: cython.int,
+            from_col: cython.int,
+            to_row: cython.int,
+            to_col: cython.int,
+            piece: cython.int,
+            is_defense: cython.bint,
+        ):
             return (to_row, to_col) == king_pos  # Return True if king is attacked, this stops _generate_moves
 
         opposing_player_piece_start, opposing_player_piece_end = (11, 20) if player == 1 else (1, 10)
@@ -658,18 +743,38 @@ class MiniShogi(GameState):
             for col in range(5):
                 piece = self.board[row, col]
                 if opposing_player_piece_start <= piece <= opposing_player_piece_end:
-                    if self._generate_moves(row, col, piece, move_callback):
-                        print(f"{piece} at {row},{col} attacks king {king_pos}")
+                    if self._generate_moves(
+                        row,
+                        col,
+                        piece,
+                        callback=move_callback,
+                        randomize=True,
+                        count_defense=False,
+                    ):
                         return True  # King is attacked
         return False
 
     @cython.cfunc
     def has_legal_move(self, row: cython.int, col: cython.int, piece: cython.int, player: cython.int) -> cython.bint:
-        def move_callback(from_row, from_col, to_row, to_col, piece):
+        def move_callback(
+            from_row: cython.int,
+            from_col: cython.int,
+            to_row: cython.int,
+            to_col: cython.int,
+            piece: cython.int,
+            is_defense: cython.bint,
+        ):
             # Return True if move is legal, this stops _generate_moves
             return not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col)
 
-        return self._generate_moves(row, col, piece, move_callback)
+        return self._generate_moves(
+            row,
+            col,
+            piece,
+            callback=move_callback,
+            count_defense=False,
+            randomize=True,
+        )
 
     @cython.ccall
     def is_terminal(self) -> cython.bint:
@@ -681,10 +786,12 @@ class MiniShogi(GameState):
         # Any number higher than -1 means that we have found a winner.
         if self.winner > -1:
             return 1
+
         # -2 means that we did not yet check whether we are in a terminal state, so if we are in check, the state may be terminal
         if self.winner == -2 and self.check:
             if self.is_checkmate(self.player):
                 self.winner = 3 - self.player
+                return 1
 
         # TODO Handle draws due to repeated positions.
 
@@ -734,83 +841,99 @@ class MiniShogi(GameState):
         "a": 6,
     }
 
-    default_params = array.array("d", [20.0, 1.0, 1.0, 5.0, 1.0, 80.0])
+    default_params = array.array("d", [100.0, 1.0, 1.0, 5.0, 1.0, 1000.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
+    @cython.locals(
+        from_row=cython.int,
+        from_col=cython.int,
+        to_row=cython.int,
+        to_col=cython.int,
+        piece=cython.int,
+        is_defense=cython.bint,
+        multip=cython.int,
+        row=cython.int,
+        col=cython.int,
+        i=cython.int,
+    )
     def evaluate(
         self,
         player: cython.int,
         params: cython.double[:],
         norm: cython.bint = 0,
     ) -> cython.double:
-        attacks = 0
-        captures = 0
-        defenses = 0
-        board_control = [0] * 25
-        material_score = 0
-        score = 0
+        attacks: cython.int = 0
+        captures: cython.int = 0
+        defenses: cython.int = 0
+        board_control: cython.int = 0
+        material_score: cython.int = 0
+        score: cython.float = 0
 
-        def callback(from_row, from_col, to_row, to_col, piece, is_defense=False):
-            # * Note that piece here, is the piece on the from_row/col so the piece to move
+        def callback(
+            from_row: cython.int,
+            from_col: cython.int,
+            to_row: cython.int,
+            to_col: cython.int,
+            piece: cython.int,
+            is_defense: cython.bint,
+        ):
             nonlocal attacks, defenses, board_control, material_score
             multip: cython.int = (
-                1 if player == 1 and 1 <= piece <= P2_OFFS or player == 2 and 11 <= piece <= 20 else -1
+                1 if (player == 1 and 1 <= piece <= P2_OFFS) or (player == 2 and 11 <= piece <= 20) else -1
             )
 
             if self.board[to_row, to_col] != 0:
                 if not is_defense:
-                    attacks += multip * MATERIAL[self.board[to_row, to_col]]  # I can capture a piece
+                    attacks += multip * MATERIAL[self.board[to_row, to_col]]
                 else:
-                    # Because the king has a score of 0 we exclude the king here
-                    defenses += multip * MATERIAL[self.board[to_row, to_col]]  # Defending my piece
+                    defenses += multip * MATERIAL[self.board[to_row, to_col]]
+            elif not is_defense:
+                board_control += multip
 
-            # Keep track of the control of different squares
-            board_control[to_row * 5 + to_col] += multip
+            return False
 
-            # Material count
-            material_score += multip * MATERIAL[piece]
-
-            return False  # Continue generating moves
-
-        # Iterate through the board and use _generate_moves to count attacks, control and defenses
         for row in range(5):
             for col in range(5):
                 if self.board[row, col] != 0:
-                    self._generate_moves(row, col, self.board[row, col], callback, count_defense=True)
+                    piece: cython.int = self.board[row, col]
+                    multip: cython.int = (
+                        1 if (player == 1 and 1 <= piece <= P2_OFFS) or (player == 2 and 11 <= piece <= 20) else -1
+                    )
+                    material_score += multip * MATERIAL[piece]
+                    self._generate_moves(row, col, self.board[row, col], callback, count_defense=True, randomize=False)
 
-        # Count captured pieces
-        for piece in self.captured_pieces_1 if player == 1 else self.captured_pieces_2:
-            captures += MATERIAL[piece]
-        for piece in self.captured_pieces_2 if player == 1 else self.captured_pieces_1:
-            captures -= MATERIAL[piece]
+        captured_pieces_player: cython.list[cython.int] = (
+            self.captured_pieces_1 if player == 1 else self.captured_pieces_2
+        )
+        captured_pieces_opponent: cython.list[cython.int] = (
+            self.captured_pieces_2 if player == 1 else self.captured_pieces_1
+        )
 
-        # Parameters:
-        #  "m_check": 0,
-        #  "m_attacks": 1,
-        #  "m_captures": 2,
-        #  "m_material": 3,
-        #  "m_dominance": 4,
-        #  "m_defenses": 5,
-        #  "a": 6,
+        # Accumulate captures for the current player
+        for i in range(len(captured_pieces_player)):
+            captures += MATERIAL[captured_pieces_player[i]]
 
-        # If the player to move is the player being evaluated and is in check, subtract the check penalty
+        # Subtract captures for the opponent
+        for i in range(len(captured_pieces_opponent)):
+            captures -= MATERIAL[captured_pieces_opponent[i]]
+
         if self.check and player == self.player:
             score = -params[0]
         elif self.check and player != self.player:
-            score = params[0]  # It's check for the opponent so it's good
+            score = params[0]
 
-        # Calculate the final score using parameters
         score += (
             attacks * params[1]
             + captures * params[2]
             + material_score * params[3]
-            + sum(board_control) * params[4]
+            + board_control * params[4]
             + defenses * params[5]
         )
 
         if norm:
-            return normalize(score, params[6])
+            normalized_score = normalize(score, params[6])
+            return normalized_score
         else:
             return score
 
@@ -840,8 +963,19 @@ class MiniShogi(GameState):
             scores[i] = self.evaluate_move(moves[i])
         return scores
 
-    @cython.cfunc
+    @cython.ccall
     @cython.exceptval(-1, check=False)
+    @cython.locals(
+        from_row=cython.int,
+        from_col=cython.int,
+        to_row=cython.int,
+        to_col=cython.int,
+        moving_piece=cython.int,
+        score=cython.int,
+        def_row=cython.int,
+        def_col=cython.int,
+        i=cython.int,
+    )
     def evaluate_move(self, move: cython.tuple) -> cython.int:
         """
         Evaluate the given move using a simple heuristic for move ordering
@@ -849,8 +983,12 @@ class MiniShogi(GameState):
         :param move: The move to evaluate.
         :return: The heuristic value of the move.
         """
-        from_row, from_col, to_row, to_col = move
-        moving_piece = self.board[from_row, from_col]
+        from_row = move[0]
+        from_col = move[1]
+        to_row = move[2]
+        to_col = move[3]
+        moving_piece = from_col if from_row == -1 else self.board[from_row, from_col]
+
         score = 0
 
         # Check for capture and use MATERIAL value for the captured piece
@@ -867,20 +1005,25 @@ class MiniShogi(GameState):
 
         # Evaluate defensive or offensive nature of the move
         # * This is not perfect for rooks and bishops and promoting pieces, but it's good enough for now
-        for direction in MOVES[moving_piece]:
-            def_row, def_col = to_row + direction[0], to_col + direction[1]
+        for i in range(len(MOVES[moving_piece])):
+            direction: cython.tuple[cython.int, cython.int] = MOVES[moving_piece][i]
+            def_row = to_row + direction[0]
+            def_col = to_col + direction[1]
+
             if 0 <= def_row < 5 and 0 <= def_col < 5:
                 if self.board[def_row, def_col] != 0:
                     if self.is_same_player_piece(moving_piece, self.board[def_row, def_col]):
-                        score += MATERIAL[self.board[def_row, def_col]] / 4.0  # Defensive move
+                        score += MATERIAL[self.board[def_row, def_col]] / 2  # Defensive move
                     else:
-                        score += MATERIAL[self.board[def_row, def_col]] / 2.0  # Offensive move
+                        score += MATERIAL[self.board[def_row, def_col]]  # Offensive move
+                else:
+                    score += 1  # The moves adds board dominance
 
         return cython.cast(cython.int, score)
 
     @cython.cfunc
     @cython.inline
-    def is_same_player_piece(self, piece1, piece2) -> cython.bint:
+    def is_same_player_piece(self, piece1: cython.int, piece2: cython.int) -> cython.bint:
         """
         Check if two pieces belong to the same player.
 
@@ -891,7 +1034,8 @@ class MiniShogi(GameState):
         return (piece1 <= P2_OFFS and piece2 <= P2_OFFS) or (piece1 > P2_OFFS and piece2 > P2_OFFS)
 
     @cython.ccall
-    def visualize(self, full_debug=False) -> str:
+    @cython.locals(i=cython.int, j=cython.int)
+    def visualize(self, full_debug: cython.bint = False) -> cython.str:
         """
         Visualize the Minishogi board with additional debug information.
 
@@ -905,7 +1049,7 @@ class MiniShogi(GameState):
                 piece = self.board[i, j]
 
                 char_index = piece % P2_OFFS - 1  # Adjust according to your piece encoding
-                is_promoted = (piece > 3 and piece % 2 == 0) or (piece > 13 and piece % 2 == 0)
+                is_promoted = self.get_demoted_piece(piece) != piece
                 is_player_2 = piece > P2_OFFS
 
                 # Get the character for the piece and invert for Player 2 if needed
@@ -941,16 +1085,18 @@ class MiniShogi(GameState):
 
             # All legal actions
             legal_actions = self.get_legal_actions()
-            board_str += f"Legal Actions: {legal_actions}\n"
-
             # Move evaluations (assuming you have a function for this)
             move_evaluations = [self.evaluate_move(move) for move in legal_actions]
-            board_str += f"Move Evaluations: {move_evaluations}\n"
+            actions_evaluations_zip = zip(legal_actions, move_evaluations)
+            # Formatting the string to include action and evaluation on each line
+            board_str += "\n".join(
+                [f"Action: {action}, Evaluation: {evaluation}" for action, evaluation in actions_evaluations_zip]
+            )
 
         return board_str
 
     @property
-    def transposition_table_size(self):
+    def transposition_table_size(self) -> int:
         # return an appropriate size based on the game characteristics
         return 2**20
 
@@ -967,7 +1113,7 @@ class MiniShogi(GameState):
 
     @cython.cfunc
     @cython.inline
-    @cython.exceptval(-1)
+    @cython.exceptval(-1, check=False)
     def get_promoted_piece(self, row: cython.int, col: cython.int) -> cython.int:
         piece: cython.int = self.board[row, col]
         # Promote if piece is unpromoted
@@ -977,195 +1123,13 @@ class MiniShogi(GameState):
 
     @cython.cfunc
     @cython.inline
-    @cython.exceptval(-1)
+    @cython.exceptval(-1, check=False)
     def get_demoted_piece(self, piece: cython.int) -> cython.int:
         # Even pieces > 3 are promoted (1 - king, 2 - Gold Gen. 3 - Pawn (4 - +Pawn))
         if piece % 2 == 0 and ((3 < piece <= 10) or piece > 13):
             return piece - 1
 
         return piece
-
-    # @cython.ccall
-    # @cython.locals(player=cython.int)
-    # def update_threatened_pieces(self) -> None:
-    #     # TODO Volgens mij is dit toch meer iets voor de evaluatie, omdat je de checkmate ook al in de get_legal_actions kan doen.
-    #     # Clear the current list of threatened pieces for both players
-    #     self.threatened_pieces_1.clear()
-    #     self.threatened_pieces_2.clear()
-
-    #     # Reset the check flag
-    #     self.check = False
-
-    #     # Iterate over both players
-    #     for player in range(1, 3):
-    #         # Identify the opposing player
-    #         opposing_player: cython.int = 2 if player == 1 else 1
-
-    #         # Get all legal actions for the opposing player
-    #         opposing_moves: cython.list = self.get_legal_actions(self.board, opposing_player)
-
-    #         # While we have generated the moves, we might as well store them.
-    #         if opposing_player == self.player:
-    #             self.current_player_moves = opposing_moves
-
-    #         for move in opposing_moves:
-    #             # Extract the destination position from the move
-    #             dest_row: cython.int = move[2]
-    #             dest_col: cython.int = move[3]
-
-    #             # Get the piece at the destination
-    #             target_piece: cython.int = self.board[dest_row][dest_col]
-
-    #             # Check if the destination contains a piece of the current player
-    #             if (player == 1 and 11 <= target_piece <= 20) or (player == 2 and 1 <= target_piece <= P2_OFFS):
-    #                 # Add the threatened piece to the list
-    #                 if player == 1:
-    #                     self.threatened_pieces_1.append((dest_row, dest_col, target_piece))
-    #                 else:
-    #                     self.threatened_pieces_2.append((dest_row, dest_col, target_piece))
-
-    #                 # Check if the threatened piece is a king
-    #                 if target_piece == PIECES["K"] or target_piece == PIECES["K"] + P2_OFFS:
-    #                     # Set the check flag only if the current player's king is threatened
-    #                     if self.player == player:
-    #                         self.check = True
-    #                     else:
-    #                         assert False, "Opponent's king is threatened, this should not be possible."
-
-    # @cython.ccall
-    # def get_moves(self, row: cython.int, col: cython.int, moves: cython.list) -> cython.list:
-    #     piece = self.board[row][col]
-    #     player_piece_start, player_piece_end = (1, 10) if piece <= 10 else (11, 20)
-
-    #     # Generate unlimited moves for Rook, Bishop, Dragon King, and Dragon Horse
-    #     if 7 <= piece <= P2_OFFS or 17 <= piece <= 20:
-    #         base_piece = PIECES["R"] if piece == 7 or piece == 8 or piece == 17 or piece == 18 else PIECES["B"]
-
-    #         # This takes care of the direction of the moves
-    #         if piece >= P2_OFFS:
-    #             base_piece += P2_OFFS
-
-    #         # Add the moves for the base piece
-    #         for move in MOVES[base_piece]:
-    #             new_row, new_col = row, col
-    #             while True:
-    #                 new_row += move[0]
-    #                 new_col += move[1]
-    #                 if not (0 <= new_row < 5 and 0 <= new_col < 5):
-    #                     break
-    #                 if self.board[new_row][new_col] != 0:
-    #                     if player_piece_start <= self.board[new_row][new_col] <= player_piece_end:
-    #                         break  # We've encountered one of our own pieces
-    #                     elif not self.simulate_move_exposes_king(row, col, new_row, new_col):
-    #                         # The move does not expose the king to an attack
-    #                         moves.append((row, col, new_row, new_col))
-    #                     break  # We've encountered an opposing piece, so we can't move further
-    #                 elif not self.simulate_move_exposes_king(row, col, new_row, new_col):
-    #                     # The move does not expose the king to an attack
-    #                     moves.append((row, col, new_row, new_col))
-
-    #     # Generate the standard and limited one-square moves for all pieces
-    #     # For dragon horse and dragon king, the MOVES dictionary contains ONLY the extra moves
-    #     for move in MOVES[piece]:
-    #         new_row, new_col = row + move[0], col + move[1]
-    #         if 0 <= new_row < 5 and 0 <= new_col < 5:
-    #             if self.board[new_row][new_col] == 0 or not (
-    #                 player_piece_start <= self.board[new_row][new_col] <= player_piece_end
-    #             ):
-    #                 if not self.simulate_move_exposes_king(row, col, new_row, new_col):
-    #                     moves.append((row, col, new_row, new_col))
-
-    #     return moves
-
-    # @cython.ccall
-    # def is_king_attacked(self, player: cython.int) -> bool:
-    #     king_pos = self.king_1 if player == 1 else self.king_2
-    #     opposing_player_piece_start, opposing_player_piece_end = (11, 20) if player == 1 else (1, 10)
-
-    #     for row in range(5):
-    #         for col in range(5):
-    #             piece = self.board[row][col]
-    #             if opposing_player_piece_start <= piece <= opposing_player_piece_end:
-    #                 # Generate moves for Rook, Bishop, Dragon King, Dragon Horse
-    #                 if 7 <= piece <= P2_OFFS or 17 <= piece <= 20:
-    #                     base_piece = PIECES["R"] if piece in [7, 8, 17, 18] else PIECES["B"]
-    #                     if piece >= P2_OFFS:
-    #                         base_piece += P2_OFFS
-
-    #                     for move in MOVES[base_piece]:
-    #                         new_row, new_col = row, col
-
-    #                         while True:
-    #                             new_row += move[0]
-    #                             new_col += move[1]
-
-    #                             if not (0 <= new_row < 5 and 0 <= new_col < 5):
-    #                                 break
-    #                             if (new_row, new_col) == king_pos:
-    #                                 return True
-    #                             if self.board[new_row][new_col] != 0:
-    #                                 break
-
-    #                 # Generate standard and limited one-square moves for all pieces
-    #                 for move in MOVES[piece]:
-    #                     new_row, new_col = row + move[0], col + move[1]
-    #                     if 0 <= new_row < 5 and 0 <= new_col < 5:
-    #                         if (new_row, new_col) == king_pos:
-    #                             return True
-    #                         if self.board[new_row][new_col] != 0:
-    #                             break
-
-    #     return False
-
-    # @cython.ccall
-    # def has_legal_move(self, row: cython.int, col: cython.int, piece: cython.int, player: cython.int) -> cython.bint:
-    #     """
-    #     Check if a piece has any legal moves.
-
-    #     Args:
-    #     row (cython.int): The row of the piece.
-    #     col (cython.int): The column of the piece.
-    #     piece (cython.int): The piece to check for legal moves.
-    #     player (cython.int): The player who owns the piece.
-
-    #     Returns:
-    #     cython.bint: 1 if there's at least one legal move, otherwise 0.
-    #     """
-    #     player_piece_start, player_piece_end = (1, 10) if player == 1 else (11, 20)
-
-    #     # Generate unlimited moves for Rook, Bishop, Dragon King, and Dragon Horse
-    #     if 7 <= piece <= P2_OFFS or 17 <= piece <= 20:
-    #         base_piece = PIECES["R"] if piece in [7, 8, 17, 18] else PIECES["B"]
-
-    #         if piece >= P2_OFFS:
-    #             base_piece += P2_OFFS
-
-    #         for move in MOVES[base_piece]:
-    #             new_row, new_col = row, col
-    #             while True:
-    #                 new_row += move[0]
-    #                 new_col += move[1]
-    #                 if not (0 <= new_row < 5 and 0 <= new_col < 5):
-    #                     break
-    #                 if self.board[new_row][new_col] != 0 and (
-    #                     player_piece_start <= self.board[new_row][new_col] <= player_piece_end
-    #                 ):
-    #                     break  # Encountered own piece, can't move further
-    #                 if not self.simulate_move_exposes_king(row, col, new_row, new_col):
-    #                     return 1  # Found a legal move
-
-    #     # Generate standard and limited one-square moves for all pieces
-    #     for move in MOVES.get(piece, []):
-    #         new_row, new_col = row + move[0], col + move[1]
-    #         if 0 <= new_row < 5 and 0 <= new_col < 5:
-    #             if self.board[new_row][new_col] != 0 and (
-    #                 player_piece_start <= self.board[new_row][new_col] <= player_piece_end
-    #             ):
-    #                 continue  # Encountered own piece, skip this move
-    #             if not self.simulate_move_exposes_king(row, col, new_row, new_col):
-    #                 return 1  # Found a legal move
-
-    #     return 0
 
 
 def get_upside_down_char(char):

@@ -14,6 +14,18 @@ from minishogi_definitions import *
 # Load the piece images used by the funcions below
 piece_rects = load_images()
 
+# Set transparency and color for the king highlight
+king_highlight_color_black = (200, 100, 100, 128)
+king_highlight_color_white = (100, 100, 200, 128)
+
+
+# Function to draw a transparent circle
+def draw_transparent_circle(surface, color, center, radius):
+    target_rect = pygame.Rect(center, (0, 0)).inflate((radius * 2, radius * 2))
+    shape_surf = pygame.Surface(target_rect.size, pygame.SRCALPHA)
+    pygame.draw.circle(shape_surf, color, (radius, radius), radius)
+    surface.blit(shape_surf, target_rect.topleft)
+
 
 def handle_captured_piece_click(mouse_x, mouse_y, captured_pieces_1, captured_pieces_2, player):
     label_height = font_size + 10  # The same adjustment used in draw_captured_pieces
@@ -73,28 +85,32 @@ def draw_captured_pieces(screen, captured_pieces_1, captured_pieces_2, square_si
 all_legal_actios = {}
 
 
-def draw_legal_moves(screen, row, col):
+def draw_legal_moves(screen, row, col, font):
     legal_actions = get_legal_actions_for_piece(game_state, row, col)
-    print(legal_actions)
     for action in legal_actions:
         # For moves, action is a tuple (from_row, from_col, to_row, to_col)
         if action[0] != -1:
+            evaluation = game_state.evaluate_move(action)  # Evaluate the move
             center_x = captured_area_width + action[3] * square_size + square_size // 2
             center_y = action[2] * square_size + square_size // 2
             center = (center_x, center_y)
             pygame.draw.circle(screen, GREEN, center, square_size // 10)
+            eval_text = font.render(str(evaluation), True, BLACK)  # Render the evaluation as text
+            screen.blit(eval_text, center)  # Draw the evaluation text near or inside the circle
 
 
-def draw_legal_captures(screen, piece_id, player):
+def draw_legal_drops(screen, piece_id, player, font):
     legal_actions = game_state.get_legal_actions()  # This needs to return actions including drops
     for action in legal_actions:
         if action[0] == -1 and action[1] == piece_id:
+            evaluation = game_state.evaluate_move(action)  # Evaluate the move
             # This is a legal drop action for the selected piece
             center_x = captured_area_width + action[3] * square_size + square_size // 2
             center_y = action[2] * square_size + square_size // 2
-            pygame.draw.rect(
-                screen, BLUE, (center_x - square_size // 2, center_y - square_size // 2, square_size, square_size), 2
-            )
+            rect = pygame.Rect(center_x - square_size // 2, center_y - square_size // 2, square_size, square_size)
+            pygame.draw.rect(screen, BLUE, rect, 2)
+            eval_text = font.render(str(evaluation), True, BLACK)  # Render the evaluation as text
+            screen.blit(eval_text, rect.topleft)  # Adjust the position as needed
 
 
 # Add to your MiniShogi class
@@ -143,12 +159,12 @@ board_width = square_size * 5  # Board width for a 5x5 board
 captured_area_width = square_size * 2  # Width for the area to display captured pieces
 screen_width = board_width + 2 * captured_area_width  # Total screen width including areas for captured pieces
 screen_height = square_size * 5 + 50  # Adding 50 pixels space for displaying player and check status
+
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Minishogi")
 
 game_state = MiniShogi()
-print(game_state.is_terminal())
-print(game_state.get_reward(1))
+print(game_state.visualize(full_debug=True))
 
 # Set up the font for drawing labels
 pygame.font.init()  # Initialize the font module
@@ -184,7 +200,7 @@ while running:
                 selected_piece_pos = None  # Clear any board selection
                 continue  # Skip further checks
 
-            if not game_state.is_terminal() and 0 <= row < 5 and 0 <= col < 5:  # Ensure click is within the board
+            if not game_state.is_terminal() and (0 <= row < 5 and 0 <= col < 5):  # Ensure click is within the board
                 piece_id = game_state.board[row][col]
                 # Determine if the clicked piece belongs to the current player
                 belongs_to_current_player = (game_state.player == 1 and 1 <= piece_id <= 10) or (
@@ -198,6 +214,8 @@ while running:
                     if action in game_state.get_legal_actions():
                         game_state = game_state.apply_action(action)
                         selected_captured_piece = None  # Clear captured piece selection after drop
+                        print(game_state.visualize(full_debug=True))
+
                 # Selecting a different piece or deselecting the current piece
                 elif belongs_to_current_player and selected_piece_pos != (row, col):
                     # Select the current player's piece for moving
@@ -209,6 +227,8 @@ while running:
                     action = (from_row, from_col, row, col)
                     if action in game_state.get_legal_actions():
                         game_state = game_state.apply_action(action)
+                        print(game_state.visualize(full_debug=True))
+
                     selected_piece_pos = None  # Clear selection after move or capture
 
     screen.fill(WHITE)
@@ -235,28 +255,54 @@ while running:
             square_size,
         )
         pygame.draw.rect(screen, GREEN, selected_piece_rect, 2)  # Highlight selected piece
-        draw_legal_moves(screen, *selected_piece_pos)
+        draw_legal_moves(screen, *selected_piece_pos, font)
 
     if selected_captured_piece:
         piece_id, player = selected_captured_piece
         # Draw all legal drops on the board
-        draw_legal_captures(screen, piece_id, player)
+        draw_legal_drops(screen, piece_id, player, font)
 
     # Display the current player
     current_player_text = "Player to move: Black" if game_state.player == 1 else "Player to move: White"
     text_surface = font.render(current_player_text, True, BLACK)
     screen.blit(text_surface, (10, screen_height - 45))
 
-    # Display if the king is under check
-    if game_state.check:
-        check_text = "Check!"
-        check_surface = font.render(check_text, True, RED)
-        screen.blit(check_surface, (screen_width - 150, screen_height - 45))
+    # Highlight the king positions
+    king_1_pos = game_state.king_1
+    king_2_pos = game_state.king_2
+    king_1_center = (
+        captured_area_width + king_1_pos[1] * square_size + square_size // 2,
+        king_1_pos[0] * square_size + square_size // 2,
+    )
+    king_2_center = (
+        captured_area_width + king_2_pos[1] * square_size + square_size // 2,
+        king_2_pos[0] * square_size + square_size // 2,
+    )
 
+    draw_transparent_circle(
+        screen, king_highlight_color_black, king_1_center, square_size // 4
+    )  # Highlight for Player 1's king
+    draw_transparent_circle(
+        screen, king_highlight_color_white, king_2_center, square_size // 4
+    )  # Highlight for Player 2's king
+
+    # Display if the king is under check
     if game_state.is_terminal():
         check_text = "Checkmate!"
         check_surface = font.render(check_text, True, RED)
         screen.blit(check_surface, (screen_width - 150, screen_height - 45))
+    elif game_state.check:
+        check_text = "Check!"
+        check_surface = font.render(check_text, True, RED)
+        screen.blit(check_surface, (screen_width - 150, screen_height - 45))
+
+    # After player's action, let the game state perform a random move
+    if not game_state.is_terminal() and game_state.player == 2:
+        random_action = game_state.get_random_action()
+        game_state.apply_action(random_action)
+        print("Random action applied:", random_action)
+        # Optional: Print the game state or any other debug information after the random move
+        print(game_state.visualize(full_debug=True))
 
     pygame.display.flip()
 

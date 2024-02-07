@@ -1,4 +1,4 @@
-# cython: language_level=3, wraparound=False
+# cython: language_level=3, wraparound=False, nonecheck=False
 # distutils: language=c++
 
 import array
