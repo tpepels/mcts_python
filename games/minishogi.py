@@ -1,62 +1,211 @@
 # cython: language_level=3, wraparound=False, nonecheck=False, infer_types=True, boundscheck=False, cdivision=True, initializedcheck=False, embedsignature=True
 import array
-import random
 import cython
 
 from fastrand import pcg32randint as randint
 import numpy as np
 
-from cython.cimports.includes import normalize, GameState, win, loss, draw, f_index
-from cython.cimports.games.minishogi import MOVES, PIECES, PIECE_CHARS, MATERIAL, P2_OFFS, MoveCallback
+from cython.cimports.includes import normalize, GameState, win, loss, draw
+from cython.cimports.games.minishogi import PIECES, PIECE_CHARS, MATERIAL, P2_OFFS, flat_moves, move_indices
 from termcolor import colored
 
-# TODO Idee om move access te versnellen mocht het nodig zijn
-# cimport cython
-# from libc.stdlib cimport malloc, free
-
-# # Example flattened move vectors for all pieces (simplified for illustration)
-# cdef int[:] flat_moves = [1, 0, -1, 0, 0, 1, 0, -1, ...]  # Flat list of move deltas
-
-# # Example start-end indices for each piece's moves in the flat_moves array
-# cdef int[:] move_indices = [0, 4, 8, ...]  # Starting index for each piece's moves
-
-# @cython.boundscheck(False)
-# @cython.wraparound(False)
-# cdef get_moves_for_piece(int piece_id):
-#     start_idx = move_indices[piece_id]
-#     end_idx = move_indices[piece_id + 1]
-#     # Access the moves for the specified piece using the start and end indices
-#     for i in range(start_idx, end_idx, 2):
-#         dx = flat_moves[i]
-#         dy = flat_moves[i + 1]
-#         # Process the move (dx, dy) for the piece
-
-# TODO Je hebt net Gold General gekopieerd naar +P, +S maar dat moet je nog even testen
-# TODO Even alle pieces checken soms zijn rows/cols omgedraaid
-
-MOVES = [
-    [],  # Empty square placeholder
-    [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)],  # King (Player 1)
-    [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Gold General (Player 1, regular)
-    [(-1, 0)],  # Pawn (Player 1)
-    [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Promoted Pawn (Player 1, Gold General)
-    [(-1, -1), (-1, 1), (-1, 0), (1, -1), (1, 1)],  # Silver General (Player 1)
-    [(-1, 0), (-1, -1), (-1, 1), (0, -1), (0, 1), (1, 0)],  # Promoted Silver General (Player 1, Gold General)
-    [(-1, 0), (0, -1), (1, 0), (0, 1)],  # Rook (Player 1)
-    [(-1, -1), (1, -1), (1, 1), (-1, 1)],  # Promoted Rook (Player 1, Dragon King)
-    [(-1, -1), (1, 1), (-1, 1), (1, -1)],  # Bishop (Player 1)
-    [(-1, 0), (0, -1), (1, 0), (0, 1)],  # Promoted Bishop (Player 1, Dragon Horse)
-    [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)],  # King (Player 2)
-    [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Gold General (Player 2, regular)
-    [(1, 0)],  # Pawn (Player 2)
-    [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Promoted Pawn (Player 2, Gold General)
-    [(1, 1), (1, -1), (1, 0), (-1, 1), (-1, -1)],  # Silver General (Player 2)
-    [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, 0)],  # Promoted Silver General (Player 2, Gold General)
-    [(1, 0), (0, 1), (-1, 0), (0, -1)],  # Rook (Player 2)
-    [(1, 1), (-1, 1), (-1, -1), (1, -1)],  # Promoted Rook (Player 2, Dragon King)
-    [(1, 1), (-1, -1), (1, -1), (-1, 1)],  # Bishop (Player 2)
-    [(1, 0), (0, 1), (-1, 0), (0, -1)],  # Promoted Bishop (Player 2, Dragon Horse)
+flat_moves = [
+    -1,
+    0,
+    -1,
+    -1,
+    0,
+    -1,
+    1,
+    -1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    -1,
+    1,
+    -1,
+    0,
+    -1,
+    -1,
+    -1,
+    1,
+    0,
+    -1,
+    0,
+    1,
+    1,
+    0,
+    -1,
+    0,
+    -1,
+    0,
+    -1,
+    -1,
+    -1,
+    1,
+    0,
+    -1,
+    0,
+    1,
+    1,
+    0,
+    -1,
+    -1,
+    -1,
+    1,
+    -1,
+    0,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    0,
+    -1,
+    -1,
+    -1,
+    1,
+    0,
+    -1,
+    0,
+    1,
+    1,
+    0,
+    -1,
+    0,
+    0,
+    -1,
+    1,
+    0,
+    0,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    0,
+    0,
+    -1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    -1,
+    1,
+    -1,
+    0,
+    -1,
+    -1,
+    0,
+    -1,
+    1,
+    -1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    -1,
+    0,
+    1,
+    0,
+    -1,
+    -1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    1,
+    -1,
+    0,
+    1,
+    0,
+    -1,
+    -1,
+    0,
+    1,
+    1,
+    1,
+    -1,
+    1,
+    0,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    -1,
+    0,
+    1,
+    0,
+    -1,
+    -1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    -1,
+    0,
+    0,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    0,
+    0,
+    1,
+    -1,
+    0,
+    0,
+    -1,
 ]
+
+move_indices = [0, 0, 16, 28, 30, 42, 52, 64, 72, 80, 88, 96, 112, 124, 126, 138, 148, 160, 168, 176, 184, 192]
+
 
 P2_OFFS = 10
 
@@ -359,6 +508,10 @@ class MiniShogi(GameState):
         new_state.winner = -2  # Reset the winner
         return new_state
 
+    @cython.ccall
+    def get_random_action_test(self) -> cython.tuple:
+        return self.get_random_action()
+
     @cython.cfunc
     @cython.locals(
         row=cython.int,
@@ -618,6 +771,9 @@ class MiniShogi(GameState):
     @cython.locals(
         row=cython.int,
         col=cython.int,
+        dx=cython.int,
+        dy=cython.int,
+        idx=cython.int,
         piece=cython.int,
         player_piece_start=cython.int,
         player_piece_end=cython.int,
@@ -643,15 +799,18 @@ class MiniShogi(GameState):
             if piece >= 11:
                 base_piece += P2_OFFS
 
-            move_list: cython.list = MOVES[base_piece]
-            n_moves: cython.int = len(move_list)
-            start_index = randint(0, n_moves - 1) if randomize else 0
-            for i in range(n_moves):
-                move: cython.tuple[cython.int, cython.int] = move_list[(i + start_index) % n_moves]
+            move_count: cython.int = (move_indices[base_piece + 1] - move_indices[base_piece]) // 2
+            start_random_idx: cython.int = randint(0, move_count - 1) if randomize else 0
+
+            for i in range(move_count):
+                # Circular iteration using modulo
+                idx = move_indices[base_piece] + ((start_random_idx + i) % move_count) * 2
                 new_row, new_col = row, col
-                while True:
-                    new_row += move[0]
-                    new_col += move[1]
+
+                while 1:
+                    new_row += flat_moves[idx]
+                    new_col += flat_moves[idx + 1]
+
                     if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
                         self.board[new_row, new_col] != 0
                         and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
@@ -659,24 +818,26 @@ class MiniShogi(GameState):
                         if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
                             # If defensive move, call the callback with an additional flag
                             if callback(row, col, new_row, new_col, piece, True):
-                                return True
+                                return 1
 
                         break  # Out of bounds or own piece encountered
 
                     if callback(row, col, new_row, new_col, piece, False):
-                        return True  # Callback indicates to stop extending
+                        return 1  # Callback indicates to stop extending
 
                     if self.board[new_row, new_col] != 0:
                         break  # Opposing piece encountered, stop extending
 
         if piece != 7 and piece != 9 and piece != 17 and piece != 19:
             # Logic for standard and limited one-square moves
-            move_list: cython.list = MOVES[piece]
-            n_moves: cython.int = len(move_list)
-            start_index = randint(0, n_moves - 1) if randomize else 0
-            for i in range(n_moves):
-                move = move_list[(i + start_index) % n_moves]
-                new_row, new_col = row + move[0], col + move[1]
+
+            move_count: cython.int = (move_indices[piece + 1] - move_indices[piece]) // 2
+            start_random_idx: cython.int = randint(0, move_count - 1) if randomize else 0
+
+            for i in range(move_count):
+                idx = move_indices[piece] + ((start_random_idx + i) % move_count) * 2
+                new_row = row + flat_moves[idx]
+                new_col = col + flat_moves[idx + 1]
 
                 if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
                     self.board[new_row, new_col] != 0
@@ -685,13 +846,13 @@ class MiniShogi(GameState):
                     if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
                         # If defensive move, call the callback with an additional flag
                         if callback(row, col, new_row, new_col, piece, True):
-                            return True
+                            return 1
                     continue  # Out of bounds or own piece encountered
 
                 if callback(row, col, new_row, new_col, piece, False):
-                    return True  # Callback indicates to stop extending
+                    return 1  # Callback indicates to stop extending
 
-        return False  # No valid move processed or no need to stop extending
+        return 0  # No valid move processed or no need to stop extending
 
     @cython.cfunc
     def get_moves(self, row: cython.int, col: cython.int, moves: cython.list) -> cython.list:
@@ -765,7 +926,8 @@ class MiniShogi(GameState):
             is_defense: cython.bint,
         ):
             # Return True if move is legal, this stops _generate_moves
-            return not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col)
+            # return not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col)
+            print("")
 
         return self._generate_moves(
             row,
@@ -841,7 +1003,7 @@ class MiniShogi(GameState):
         "a": 6,
     }
 
-    default_params = array.array("d", [100.0, 1.0, 1.0, 5.0, 1.0, 1000.0])
+    default_params = array.array("d", [100.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1000.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1005,10 +1167,16 @@ class MiniShogi(GameState):
 
         # Evaluate defensive or offensive nature of the move
         # * This is not perfect for rooks and bishops and promoting pieces, but it's good enough for now
-        for i in range(len(MOVES[moving_piece])):
-            direction: cython.tuple[cython.int, cython.int] = MOVES[moving_piece][i]
-            def_row = to_row + direction[0]
-            def_col = to_col + direction[1]
+        move_count: cython.int = (move_indices[moving_piece + 1] - move_indices[moving_piece]) // 2
+
+        # Assuming there's no randomness needed here, so we'll iterate in order
+        for i in range(move_count):
+            # Calculate the index into flat_moves
+            idx = move_indices[moving_piece] + i * 2  # Skipping by 2 because moves are in (dx, dy) pairs
+
+            # Apply the move deltas to the to_row and to_col
+            def_row = to_row + flat_moves[idx]
+            def_col = to_col + flat_moves[idx + 1]
 
             if 0 <= def_row < 5 and 0 <= def_col < 5:
                 if self.board[def_row, def_col] != 0:
@@ -1090,10 +1258,32 @@ class MiniShogi(GameState):
             actions_evaluations_zip = zip(legal_actions, move_evaluations)
             # Formatting the string to include action and evaluation on each line
             board_str += "\n".join(
-                [f"Action: {action}, Evaluation: {evaluation}" for action, evaluation in actions_evaluations_zip]
+                [
+                    f"Action: {self.readable_move(action)}, Evaluation: {evaluation}"
+                    for action, evaluation in actions_evaluations_zip
+                ]
             )
 
         return board_str
+
+    @cython.ccall
+    def readable_move(self, move):
+        # Define mappings for columns and rows
+        cols = ["a", "b", "c", "d", "e"]
+        rows = ["1", "2", "3", "4", "5"]
+
+        # Unpack the move
+        from_row, from_col, to_row, to_col = move
+
+        # Handle drop moves
+        if from_row == -1:
+            return f"Drop {from_col} to {cols[to_col]}{rows[to_row]}"
+
+        # Convert indices to readable format for regular moves
+        from_pos = cols[from_col] + rows[from_row]
+        to_pos = cols[to_col] + rows[to_row]
+
+        return f"{from_pos} to {to_pos}"
 
     @property
     def transposition_table_size(self) -> int:

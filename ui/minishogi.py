@@ -3,6 +3,7 @@ from breakthroughgui import BLUE
 
 from games.minishogi import MiniShogi
 from pygame.locals import *
+from run_games import AIParams, init_ai_player
 
 from ui.kalahgui import RED
 
@@ -170,7 +171,16 @@ print(game_state.visualize(full_debug=True))
 pygame.font.init()  # Initialize the font module
 font_size = 24
 font = pygame.font.SysFont("Arial", font_size)
-
+ai_player = 2
+ai_params = AIParams(
+    ai_key="alphabeta",
+    eval_params={},
+    max_player=2,
+    game_name="minishogi",
+    ai_params={"max_depth": 10, "max_time": 10, "debug": True},
+    transposition_table_size=game_state.transposition_table_size,
+)
+ai = init_ai_player(ai_params, MiniShogi.param_order, MiniShogi.default_params)
 
 # Main game loop
 running = True
@@ -239,6 +249,11 @@ while running:
                 captured_area_width + col * square_size, row * square_size, square_size, square_size
             )
             pygame.draw.rect(screen, BLACK, square_rect, 1)
+            # Draw coordinates
+            coord_text = chr(97 + col) + str(5 - row)  # Convert to 'a' - 'e' for columns and 1-5 for rows
+            text_surface = pygame.font.SysFont("Arial", 16).render(coord_text, True, BLACK)
+            screen.blit(text_surface, (square_rect.left + 5, square_rect.top + 5))
+
             piece_id = game_state.board[row][col]
             if piece_id != 0:
                 draw_piece(screen, piece_id, square_rect.topleft)
@@ -298,9 +313,11 @@ while running:
 
     # After player's action, let the game state perform a random move
     if not game_state.is_terminal() and game_state.player == 2:
-        random_action = game_state.get_random_action()
-        game_state.apply_action(random_action)
-        print("Random action applied:", random_action)
+        # random_action = game_state.get_random_action_test()
+        # game_state = game_state.apply_action(random_action)
+        move, _ = ai.best_action(game_state)
+        game_state = game_state.apply_action(move)
+        print("ai action applied:", move)
         # Optional: Print the game state or any other debug information after the random move
         print(game_state.visualize(full_debug=True))
 

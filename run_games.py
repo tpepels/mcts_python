@@ -14,6 +14,7 @@ from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
 from default_params import DEFAULT_SETTINGS
 
+from games.minishogi import MiniShogi
 from games.amazons import AmazonsGameState
 from games.blokus import BlokusGameState
 from games.breakthrough import BreakthroughGameState
@@ -43,6 +44,7 @@ game_dict = {
     "amazons": AmazonsGameState,
     "kalah": KalahGameState,
     "blokus": BlokusGameState,
+    "minishogi": MiniShogi,
 }
 
 # Contains all possible ai players for use in factory
@@ -83,9 +85,7 @@ class AIParams:
                             f"Using default ai value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
                         )
                         self.ai_params[key] = default_value
-            if self.eval_params is not None and self.eval_params.get(
-                "no_defaults", False
-            ):
+            if self.eval_params is not None and self.eval_params.get("no_defaults", False):
                 print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
                 self.eval_params.pop("no_defaults")
             else:
@@ -214,9 +214,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
 
     if random_openings % 2 != 0:
         random_openings = random_openings + 1
-        print(
-            f" :: Number of random openings must be even. Setting to {random_openings}"
-        )
+        print(f" :: Number of random openings must be even. Setting to {random_openings}")
 
     print(f" :: Making {random_openings} random moves to start the game")
 
@@ -225,9 +223,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
 
-        assert (
-            action is not None
-        ), f"Player {current_player} returned None as best action.."
+        assert action is not None, f"Player {current_player} returned None as best action.."
         assert action != (), f"Player {current_player} returned () as best action.."
 
         # Apply the action to get the new game state
@@ -279,12 +275,8 @@ def play_game_until_terminal(
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
 
-        assert (
-            action is not None
-        ), f"Player {current_player} returned None as best action{turns=}"
-        assert (
-            action != ()
-        ), f"Player {current_player} returned () as best action {turns=}"
+        assert action is not None, f"Player {current_player} returned None as best action{turns=}"
+        assert action != (), f"Player {current_player} returned () as best action {turns=}"
 
         # Apply the action to get the new game state
         game = game.apply_action(action)
@@ -322,9 +314,7 @@ def run_game(
 
     def callback(player, action, game: GameState, time):
         print("--" * 20)
-        print(
-            f"\n\n{player}\n\n -> mv.: {action}.\n\n{game.visualize(full_debug=debug)}\n"
-        )
+        print(f"\n\n{player}\n\n -> mv.: {action}.\n\n{game.visualize(full_debug=debug)}\n")
         if debug:
             nonlocal max_eval, n_moves
             n_moves += 1
@@ -349,9 +339,7 @@ def run_game(
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
     try:
-        reward = play_game_until_terminal(
-            game, p1, p2, callback=callback, boot_randomizer=boot_randomizer
-        )
+        reward = play_game_until_terminal(game, p1, p2, callback=callback, boot_randomizer=boot_randomizer)
         return reward
     finally:
         # Make sure that the statistics are printed even if an exception is raised (i.e. if the game is interrupted)

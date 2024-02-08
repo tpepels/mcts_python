@@ -16,7 +16,7 @@ ext_modules = [
         include_dirs=[numpy.get_include()],
     ),
     Extension("games.kalah", ["games/kalah.py"]),
-    Extension("games.minishogi", ["games/minishogi.py", "games/minishogi.pyx"]),
+    Extension("games.minishogi", ["games/minishogi.py"]),
     Extension("games.blokus", ["games/blokus.py"], include_dirs=[numpy.get_include()]),
     Extension(
         "ai.transpos_table",
