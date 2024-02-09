@@ -713,7 +713,7 @@ class MiniShogi(GameState):
         # Check if the target square is empty
         if self.board[row, col] != 0:
             return False  # We can only drop on unoccupied squares
-
+        captured_pieces: cython.list = self.captured_pieces_1 if player == 1 else self.captured_pieces_2
         # Pawn-specific rules
         if piece == 3 or piece == 13:
             # Check for another unpromoted pawn in the same column and last row restriction
@@ -722,8 +722,10 @@ class MiniShogi(GameState):
                     return False
             # Temporarily drop the piece
             self.board[row, col] = piece
+            captured_pieces.remove(piece)
             # Check if this results in checkmate
             checkmate = self.is_checkmate(3 - player)
+            captured_pieces.append(piece)
             # Undo the drop
             self.board[row, col] = 0
             # Dropping a pawn may not result in checkmate
