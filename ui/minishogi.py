@@ -171,8 +171,7 @@ print(game_state.visualize(full_debug=True))
 pygame.font.init()  # Initialize the font module
 font_size = 24
 font = pygame.font.SysFont("Arial", font_size)
-ai_player = 2
-ai_params = AIParams(
+ab_params = AIParams(
     ai_key="alphabeta",
     eval_params={},
     max_player=2,
@@ -180,7 +179,19 @@ ai_params = AIParams(
     ai_params={"max_depth": 10, "max_time": 10, "debug": True},
     transposition_table_size=game_state.transposition_table_size,
 )
-ai = init_ai_player(ai_params, MiniShogi.param_order, MiniShogi.default_params)
+ab_ai = init_ai_player(ab_params, MiniShogi.param_order, MiniShogi.default_params)
+
+mcts_player = 1
+mcts_params = AIParams(
+    ai_key="mcts",
+    eval_params={},
+    max_player=1,
+    game_name="minishogi",
+    ai_params={"max_time": 10, "early_term_turns": 5, "debug": True},
+    transposition_table_size=game_state.transposition_table_size,
+)
+
+mcts_ai = init_ai_player(mcts_params, MiniShogi.param_order, MiniShogi.default_params)
 
 # Main game loop
 running = True
@@ -311,13 +322,17 @@ while running:
         check_surface = font.render(check_text, True, RED)
         screen.blit(check_surface, (screen_width - 150, screen_height - 45))
 
-    # After player's action, let the game state perform a random move
-    if not game_state.is_terminal() and game_state.player == 2:
-        # random_action = game_state.get_random_action_test()
-        # game_state = game_state.apply_action(random_action)
-        move, _ = ai.best_action(game_state)
+    if not game_state.is_terminal() and game_state.player == 1:
+        move, _ = mcts_ai.best_action(game_state)
         game_state = game_state.apply_action(move)
-        print("ai action applied:", move)
+        print("mcts action applied:", move)
+        # Optional: Print the game state or any other debug information after the random move
+        print(game_state.visualize(full_debug=True))
+
+    if not game_state.is_terminal() and game_state.player == 2:
+        move, _ = ab_ai.best_action(game_state)
+        game_state = game_state.apply_action(move)
+        print("alpha beta action applied:", move)
         # Optional: Print the game state or any other debug information after the random move
         print(game_state.visualize(full_debug=True))
 
