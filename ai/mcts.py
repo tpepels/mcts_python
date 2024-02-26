@@ -245,6 +245,16 @@ class Node:
         if self.children == []:
             # * Idee: move ordering!
             self.actions = init_state.get_legal_actions()
+            # in MiniShogi we reach positions with None pass moves, which mean the game is over.
+            if self.actions[0] == None and len(self.actions) == 1:
+
+                assert init_state.is_terminal(), "State with None action is not terminal.."
+
+                self.actions = []
+                # A pass move means that I lost because I have no remaining moves
+                self.solved_player = 3 - self.player
+                self.im_value = loss
+
             self.children = [None] * len(self.actions)
 
         while len(self.actions) > 0:
@@ -391,10 +401,16 @@ class Node:
             # Return the best node for another visit
             return best_node
 
-        assert self.children != [], f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}"
-        
+        assert (
+            self.children != [] or self.solved_player != 0
+        ), f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}"
+
         # Return a random child for another visit
-        return random.choice(self.children)
+        if len(self.children) > 0:
+            return random.choice(self.children)
+        else:
+            # This is a minishogi pass move, we should return the node itself
+            return None
 
     @cython.cfunc
     def add_all_children(
@@ -863,7 +879,9 @@ class MCTSPlayer:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
 
                 assert node is not None, f"Node is None after UCT {prev_node}"
+
             elif not node.expanded and not expanded:
+                prev_node = node
                 # * Expand should always returns a node, even after adding the last node
                 node = node.expand(
                     init_state=next_state,
@@ -875,15 +893,22 @@ class MCTSPlayer:
                 )
                 expanded = 1
 
-                assert node is not None, f"Node is None after expansion {prev_node}"
+                assert (
+                    node is not None or prev_node.solved_player != 0
+                ), f"non-terminal Node is None after expansion {prev_node}\n{next_state.visualize(True)}"
 
             elif expanded:
                 break
 
-            next_state = next_state.apply_action(node.action)
-            is_terminal = next_state.is_terminal()
+            if node is not None:
+                next_state = next_state.apply_action(node.action)
+                selected.append(node)
+            else:
+                node = prev_node
+                is_terminal = True
+                assert node.solved_player != 0, f"Node is None and not solved {prev_node}"
 
-            selected.append(node)
+            is_terminal = next_state.is_terminal()
 
         # * Playout / Terminal node reached
         result: tuple[cython.double, cython.double]

@@ -229,9 +229,7 @@ class BlokusGameState(GameState):
     n_turns: cython.int
     zobrist_table: cython.longlong[:, :, :]
 
-    def __init__(
-        self, board=None, pieces=None, player=1, n_turns=0, passed=None, last_action=(-1, -1, -1, -1)
-    ):
+    def __init__(self, board=None, pieces=None, player=1, n_turns=0, passed=None, last_action=(-1, -1, -1, -1)):
         if passed is None:
             passed = np.zeros((4,), dtype=np.uint8)
 
@@ -286,7 +284,6 @@ class BlokusGameState(GameState):
         piece_index=cython.int,
         rotation=cython.int,
         i=cython.int,
-        x=cython.int,
         dx=cython.int,
         dy=cython.int,
     )
@@ -467,9 +464,7 @@ class BlokusGameState(GameState):
 
                             checked_actions.add(action)
 
-                            if is_legal_action(
-                                x, y, piece_index, rotation, self.n_turns, self.color, self.board
-                            ):
+                            if is_legal_action(x, y, piece_index, rotation, self.n_turns, self.color, self.board):
                                 legal_actions.append(action)
 
         if not legal_actions:  # If legal_actions list is empty, then it's a PASS_MOVE
@@ -482,9 +477,7 @@ class BlokusGameState(GameState):
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
-    def evaluate(
-        self, player: cython.int, params: cython.double[:], norm: cython.bint = False
-    ) -> cython.double:
+    def evaluate(self, player: cython.int, params: cython.double[:], norm: cython.bint = False) -> cython.double:
         if player == 1:
             p_color1: cython.int = 1
             p_color2: cython.int = 3
@@ -501,9 +494,7 @@ class BlokusGameState(GameState):
         corner_diff -= count_corners(self.board, o_color1) + count_corners(self.board, o_color2)
 
         # Prefer to place pieces that are as large as possible
-        piece_size_diff: cython.int = self.pieces.sum_piece_size(3 - player) - self.pieces.sum_piece_size(
-            player
-        )
+        piece_size_diff: cython.int = self.pieces.sum_piece_size(3 - player) - self.pieces.sum_piece_size(player)
         # "m_corn_diff": 0, "m_piece_size": 1, a": 2
         score: cython.double = (params[0] * corner_diff) + (params[1] * piece_size_diff)
 
@@ -593,8 +584,7 @@ class BlokusGameState(GameState):
                             ortho_i, ortho_j = new_i + di, new_j + dj
                             # If the orthogonal cell is inside the board and touches the opponent's color
                             if (0 <= ortho_i < 20 and 0 <= ortho_j < 20) and (
-                                self.board[ortho_i, ortho_j] == o_color1
-                                or self.board[ortho_i, ortho_j] == o_color2
+                                self.board[ortho_i, ortho_j] == o_color1 or self.board[ortho_i, ortho_j] == o_color2
                             ):
                                 score += 10
         return score
@@ -691,9 +681,7 @@ class BlokusGameState(GameState):
             debug_info = "\n"
             debug_info += f"Player: {self.player}, Color: {colors[self.color-1]} (1: [{colors[0]}, {colors[2]}], 2: [{colors[1]},{colors[2]}]) \n"
             debug_info += f"Reward: {self.get_reward(1)}/{self.get_reward(2)} | Terminal: {self.is_terminal()} | n_turns: {self.n_turns} | {len(actions)} actions available \n"
-            debug_info += (
-                f"passed: 1:{self.passed[0]}, 2:{self.passed[1]}, 3:{self.passed[2]}, 4:{self.passed[3]} \n"
-            )
+            debug_info += f"passed: 1:{self.passed[0]}, 2:{self.passed[1]}, 3:{self.passed[2]}, 4:{self.passed[3]} \n"
             debug_info += "---" * 20 + "\n"
             debug_info += f"eval ({self.evaluate(1, self.default_params, norm=False):.2f}/{self.evaluate(2, self.default_params, norm=False):.2f}) | "
             debug_info += f"norm ({self.evaluate(1, self.default_params, norm=True):.2f}/{self.evaluate(2, self.default_params, norm=True):.2f}) \n"
@@ -782,7 +770,9 @@ def is_legal_action(
                     and 0 <= y + dy + j < board.shape[1]
                     and board[x + dx + i, y + dy + j] == color
                 ):
-                    return 0  # Some cell of the piece is orthogonally touching a cell of an existing piece of the player
+                    return (
+                        0  # Some cell of the piece is orthogonally touching a cell of an existing piece of the player
+                    )
 
     return corner_touch
 
@@ -946,11 +936,7 @@ def find_corners_for_color_cpp(board, color) -> cset[pair[cython.int, cython.int
                     for dy in range(-1, 2, 2):
                         new_i, new_j = i + dx, j + dy
                         # If the diagonal cell is inside the board and is empty
-                        if (
-                            0 <= new_i < board.shape[0]
-                            and 0 <= new_j < board.shape[1]
-                            and board[new_i, new_j] == 0
-                        ):
+                        if 0 <= new_i < board.shape[0] and 0 <= new_j < board.shape[1] and board[new_i, new_j] == 0:
                             # Check orthogonals
                             orthogonal_touch = 0
                             for di in range(-1, 2):
@@ -1007,11 +993,7 @@ def count_corners(board, color) -> cython.int:
                     for dy in range(-1, 2, 2):
                         new_i, new_j = i + dx, j + dy
                         # If the diagonal cell is inside the board and is empty
-                        if (
-                            0 <= new_i < board.shape[0]
-                            and 0 <= new_j < board.shape[1]
-                            and board[new_i, new_j] == 0
-                        ):
+                        if 0 <= new_i < board.shape[0] and 0 <= new_j < board.shape[1] and board[new_i, new_j] == 0:
                             # Check orthogonals
                             orthogonal_touch = 0
                             for di in range(-1, 2):

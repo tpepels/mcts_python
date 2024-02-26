@@ -11,14 +11,10 @@ from util import format_time
 ai_choices = ["mcts", "alphabeta"]
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
-parser.add_argument(
-    "--no_profile", action="store_true", help="Run without the profiler."
-)
+parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
 parser.add_argument("--debug", action="store_true", help="Show debug messages.")
 parser.add_argument("--pause", action="store_true", help="Pause after each turn.")
-parser.add_argument(
-    "--battle", action="store_true", help="Run a battle between two AIs."
-)
+parser.add_argument("--battle", action="store_true", help="Run a battle between two AIs.")
 parser.add_argument(
     "--algo",
     choices=ai_choices,
@@ -36,9 +32,10 @@ parser.add_argument(
         "kalah86",
         "blokus",
         "gomoku",
+        "minishogi",
     ],
     default="ninarow",
-    help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus, gomoku).",
+    help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus, gomoku, minishogi).",
 )
 
 
@@ -137,12 +134,14 @@ else:
         "debug": args.debug,
         "ab_version": 13,
         "k_factor": -0.5,
+        "early_term_turns": 10,
     }
     ai_2_params = {
         "num_simulations": 200000,
         "debug": args.debug,
         "ab_version": 12,
         "k_factor": -0.5,
+        "early_term_turns": 10,
     }
 
     p1_params = AIParams(

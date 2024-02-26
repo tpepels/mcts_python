@@ -21,7 +21,6 @@ DIRECTIONS = [[dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx 
 N_DIRECTIONS = 8
 
 
-@cython.freelist(10)
 @cython.cclass
 class AmazonsGameState(GameState):
     zobrist_tables = {

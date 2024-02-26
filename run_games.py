@@ -10,18 +10,21 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
+from numpy import full
+
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
 from default_params import DEFAULT_SETTINGS
 
 from games.minishogi import MiniShogi
 from games.amazons import AmazonsGameState
-from games.blokus import BlokusGameState
+
+# from games.blokus import BlokusGameState
 from games.breakthrough import BreakthroughGameState
 
 from cython.cimports.includes import GameState, loss, win
 
-from games.kalah import KalahGameState
+# from games.kalah import KalahGameState
 from games.tictactoe import TicTacToeGameState
 from util import log_exception_handler
 
@@ -42,8 +45,8 @@ game_dict = {
     "ninarow": TicTacToeGameState,
     "breakthrough": BreakthroughGameState,
     "amazons": AmazonsGameState,
-    "kalah": KalahGameState,
-    "blokus": BlokusGameState,
+    # "kalah": KalahGameState,
+    # "blokus": BlokusGameState,
     "minishogi": MiniShogi,
 }
 
@@ -271,6 +274,7 @@ def play_game_until_terminal(
 
     current_player: AIPlayer = player2 if game.player == 2 else player1
     turns = 1
+
     while not game.is_terminal():
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
@@ -338,6 +342,7 @@ def run_game(
                 print("Game Over. Draw")
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
+    print(game.visualize(full_debug=debug))
     try:
         reward = play_game_until_terminal(game, p1, p2, callback=callback, boot_randomizer=boot_randomizer)
         return reward
