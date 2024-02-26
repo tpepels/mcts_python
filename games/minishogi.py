@@ -1,4 +1,4 @@
-# cython: language_level=3, wraparound=False, nonecheck=False, infer_types=True, boundscheck=False, cdivision=True, initializedcheck=False, embedsignature=True
+# cython: language_level=3
 import array
 import cython
 
@@ -223,6 +223,7 @@ PIECES = {
 }
 
 MATERIAL = [
+    0,  # Empty square (0)
     0,  # King (1)
     6,  # Gold General (2)
     1,  # Pawn (3)
@@ -233,6 +234,16 @@ MATERIAL = [
     12,  # Promoted Rook (Dragon King) (8)
     8,  # Bishop (9)
     10,  # Promoted Bishop (Dragon Horse) (10)
+    0,  # King (11)
+    6,  # Gold General (12)
+    1,  # Pawn (13)
+    7,  # Promoted Pawn (Gold General) (14)
+    5,  # Silver General (15)
+    6,  # Promoted Silver General (Gold General) (16)
+    9,  # Rook (17)
+    12,  # Promoted Rook (Dragon King) (18)
+    8,  # Bishop (19)
+    10,  # Promoted Bishop (Dragon Horse) (20)
 ]
 
 
@@ -615,8 +626,7 @@ class MiniShogi(GameState):
                                         new_col += flat_moves[idx + 1]
 
                                         if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
-                                            self.board[new_row, new_col] != 0
-                                            and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
+                                            player_piece_start <= self.board[new_row, new_col] <= player_piece_end
                                         ):
                                             break  # Out of bounds or own piece encountered
 
@@ -649,8 +659,7 @@ class MiniShogi(GameState):
                                     new_col = col + flat_moves[idx + 1]
 
                                     if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
-                                        self.board[new_row, new_col] != 0
-                                        and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
+                                        player_piece_start <= self.board[new_row, new_col] <= player_piece_end
                                     ):
                                         continue  # Out of bounds or own piece encountered
 
@@ -910,15 +919,17 @@ class MiniShogi(GameState):
                     new_row += flat_moves[idx]
                     new_col += flat_moves[idx + 1]
 
-                    if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
-                        self.board[new_row, new_col] != 0
+                    if (
+                        count_defense
+                        and (0 <= new_row < 5 and 0 <= new_col < 5)
                         and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
                     ):
-                        if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
-                            # If defensive move, call the callback with an additional flag
-                            if callback(row, col, new_row, new_col, piece, True):
-                                return 1
+                        # If defensive move, call the callback with an additional flag
+                        callback(row, col, new_row, new_col, piece, True)
 
+                    if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
+                        player_piece_start <= self.board[new_row, new_col] <= player_piece_end
+                    ):
                         break  # Out of bounds or own piece encountered
 
                     if callback(row, col, new_row, new_col, piece, False):
@@ -929,7 +940,6 @@ class MiniShogi(GameState):
 
         if piece != 7 and piece != 9 and piece != 17 and piece != 19:
             # Logic for standard and limited one-square moves
-
             move_count: cython.int = (move_indices[piece + 1] - move_indices[piece]) // 2
             start_random_idx: cython.int = randint(0, move_count - 1) if randomize else 0
 
@@ -938,14 +948,18 @@ class MiniShogi(GameState):
                 new_row = row + flat_moves[idx]
                 new_col = col + flat_moves[idx + 1]
 
-                if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
-                    self.board[new_row, new_col] != 0
+                if (
+                    count_defense
+                    and (0 <= new_row < 5 and 0 <= new_col < 5)
                     and player_piece_start <= self.board[new_row, new_col] <= player_piece_end
                 ):
-                    if count_defense and player_piece_start <= self.board[new_row, new_col] <= player_piece_end:
-                        # If defensive move, call the callback with an additional flag
-                        if callback(row, col, new_row, new_col, piece, True):
-                            return 1
+                    # If defensive move, call the callback with an additional flag
+                    callback(row, col, new_row, new_col, piece, True)
+
+                # Out of bounds or own piece
+                if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
+                    player_piece_start <= self.board[new_row, new_col] <= player_piece_end
+                ):
                     continue  # Out of bounds or own piece encountered
 
                 if callback(row, col, new_row, new_col, piece, False):
@@ -1099,7 +1113,7 @@ class MiniShogi(GameState):
         "a": 6,
     }
 
-    default_params = array.array("d", [100.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1000.0])
+    default_params = array.array("d", [50.0, 1.0, 1.0, 3.0, 1.0, 1.0, 300.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1145,7 +1159,9 @@ class MiniShogi(GameState):
                 if not is_defense:
                     attacks += multip * MATERIAL[self.board[to_row, to_col]]
                 else:
+                    print(f"{piece} is defending {self.board[to_row, to_col]} at {to_row},{to_col}")
                     defenses += multip * MATERIAL[self.board[to_row, to_col]]
+
             elif not is_defense:
                 board_control += multip
 
@@ -1187,6 +1203,9 @@ class MiniShogi(GameState):
             + material_score * params[3]
             + board_control * params[4]
             + defenses * params[5]
+        )
+        print(
+            f"Final Score Components - Attacks: {attacks}, Captures: {captures}, Material Score: {material_score}, Board Control: {board_control}, Defenses: {defenses}, Score: {score}"
         )
 
         if norm:

@@ -279,7 +279,9 @@ def play_game_until_terminal(
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
 
-        assert action is not None, f"Player {current_player} returned None as best action{turns=}"
+        assert (
+            action is not None or game.is_terminal()
+        ), f"Player {current_player} returned None as best action{turns=} in a non_terminal position"
         assert action != (), f"Player {current_player} returned () as best action {turns=}"
 
         # Apply the action to get the new game state
@@ -343,6 +345,7 @@ def run_game(
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
     print(game.visualize(full_debug=debug))
+    input("Press Enter to continue...")
     try:
         reward = play_game_until_terminal(game, p1, p2, callback=callback, boot_randomizer=boot_randomizer)
         return reward

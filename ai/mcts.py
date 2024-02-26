@@ -454,7 +454,9 @@ class Node:
     @cython.inline
     @cython.exceptval(-777777777, check=False)
     def get_value_imm(self, player: cython.int, imm_alpha: cython.double) -> cython.double:
-        simulation_mean: cython.double = (self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits
+        # simulation_mean: cython.double = (self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits
+        simulation_mean: cython.double = (1 + ((self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits)) / 2.0
+
         if imm_alpha > 0.0:
             # Max player is the player that is maximizing overall, not just in this node
             if player == self.max_player:
@@ -496,7 +498,8 @@ class Node:
         im_str = f"{Fore.WHITE}IM:{self.im_value:6.3f} " if abs(self.im_value) != INFINITY else ""
 
         # This is flipped because I want to see it in view of the parent
-        value = (self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / max(1, self.n_visits)
+        # simulation_mean: cython.double = 0.5 * ((self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits) + 0.5
+        value = (1 + ((self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / max(1, self.n_visits))) / 2.0
 
         return (
             f"{solved_bg}"
@@ -505,7 +508,7 @@ class Node:
             f"{Fore.CYAN}EXP: {'True' if self.expanded else 'False':<3} "
             f"{Fore.MAGENTA}SOLVP: {self.solved_player:<3} "
             f"{Fore.MAGENTA}DRW: {self.draw:<3} "
-            f"{Fore.WHITE}VAL: {value:2.1f} "
+            f"{Fore.WHITE}VAL: {value:2.2f} "
             f"{Back.YELLOW + Fore.BLACK}NVIS: {self.n_visits:,}{Back.RESET + Fore.RESET}"
         )
 
@@ -782,6 +785,10 @@ class MCTSPlayer:
             ), f"No max node found for root node {str(self.root)}\n{str(state)}"
 
             # return a random action if all children are losing moves
+            if len(self.root.children) == 0:
+                self.root = None
+                return None, 0.0
+
             max_node = random.choice(self.root.children)
 
         if DEBUG:

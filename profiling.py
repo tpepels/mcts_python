@@ -132,15 +132,15 @@ else:
     ai_1_params = {
         "num_simulations": 200000,
         "debug": args.debug,
-        "ab_version": 13,
-        "k_factor": -0.5,
+        # "ab_version": 13,
+        # "k_factor": -0.5,
         "early_term_turns": 10,
     }
     ai_2_params = {
         "num_simulations": 200000,
         "debug": args.debug,
-        "ab_version": 12,
-        "k_factor": -0.5,
+        # "ab_version": 12,
+        # "k_factor": -0.5,
         "early_term_turns": 10,
     }
 
