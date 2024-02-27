@@ -394,10 +394,17 @@ class Node:
         # If we've reached this point, then the node is fully expanded so we can switch to UCT selection
         self.expanded = 1
 
+        # We reached a node with no successors, this means loss/draw depending on the game
+        if len(self.children) == 0:
+            assert (
+                self.solved_player != 0
+            ), f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}"
+            return None
+
         # Check if all my nodes lead to a loss.
         self.check_loss_node()
 
-        if imm and len(self.children) > 0:
+        if imm:
             # Do the full minimax back-up
             best_im: cython.double
             best_node: Node
@@ -419,16 +426,8 @@ class Node:
             # Return the best node for another visit
             return best_node
 
-        assert (
-            self.children != [] or self.solved_player != 0
-        ), f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}"
-
         # Return a random child for another visit
-        if len(self.children) > 0:
-            return random.choice(self.children)
-        else:
-            # This is a minishogi pass move, we should return the node itself
-            return None
+        return random.choice(self.children)
 
     @cython.cfunc
     def add_all_children(
