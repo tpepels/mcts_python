@@ -397,7 +397,7 @@ class Node:
         # Check if all my nodes lead to a loss.
         self.check_loss_node()
 
-        if imm:
+        if imm and len(self.children) > 0:
             # Do the full minimax back-up
             best_im: cython.double
             best_node: Node
