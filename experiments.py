@@ -101,29 +101,15 @@ def expand_rows(json_file_path):
     df = pd.DataFrame(data_dict)
 
     # Find columns that need to be expanded
-    params_cols = [
-        col
-        for col in df.columns
-        if col.endswith("_params") and df[col].dtype == "object"
-    ]
+    params_cols = [col for col in df.columns if col.endswith("_params") and df[col].dtype == "object"]
 
     res = []
     for _, row in df.iterrows():
-        params_values = [
-            (json.loads(row[col]) if isinstance(row[col], str) else row[col])
-            for col in params_cols
-        ]
-        params_values = [
-            param if isinstance(param, dict) else {} for param in params_values
-        ]
+        params_values = [(json.loads(row[col]) if isinstance(row[col], str) else row[col]) for col in params_cols]
+        params_values = [param if isinstance(param, dict) else {} for param in params_values]
 
         keys_values_list = [
-            [
-                (col, *item)
-                for item in list(
-                    itertools.product([k], v if isinstance(v, list) else [v])
-                )
-            ]
+            [(col, *item) for item in list(itertools.product([k], v if isinstance(v, list) else [v]))]
             for col, dict_ in zip(params_cols, params_values)
             for k, v in dict_.items()
         ]
@@ -151,9 +137,7 @@ def expand_rows(json_file_path):
     return res
 
 
-def start_experiments_from_json(
-    json_file_path, n_procs=4, count_only=False, agg_loc=None
-):
+def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg_loc=None):
     """
     Read experiment configurations from a JSON file and start the experiments.
 
@@ -304,9 +288,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
                 if len(log_contents) < 3:
                     continue
 
-                game_number = log_file.split("/")[-1].split(".")[
-                    0
-                ]  # Get game number from log file name
+                game_number = log_file.split("/")[-1].split(".")[0]  # Get game number from log file name
                 if (
                     "Experiment completed" in log_contents[-1]
                 ):  # Assuming "Experiment completed" is second to last line
@@ -315,10 +297,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
                     winner_info = log_contents[-2]
                     winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
 
-                    if (
-                        "Game Over. Winner: P1" in winner_info
-                        or "Game Over. Winner: P2" in winner_info
-                    ):
+                    if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
                         loser_info = log_contents[-3]
                         loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
 
@@ -333,9 +312,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
                     else:
                         draws += 1
                         writer.writerow([game_number, "Draw"])
-                elif (
-                    "Experiment error" in log_contents[-1]
-                ):  # Assuming "Experiment error" is the last line
+                elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
                     writer.writerow([game_number, "Error"])
                     error_games += 1
 
@@ -351,13 +328,11 @@ def update_running_experiment_status(exp_name, print_tables=True):
             if completed_games > 0:
                 win_rate = wins / completed_games
                 ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
-                lower_bound = (win_rate - ci_width) * 100
-                upper_bound = (win_rate + ci_width) * 100
                 writer.writerow(
                     [
                         ai,
                         f"{win_rate * 100:.2f}",
-                        f"±{upper_bound - lower_bound:.2f}",
+                        f"±{ci_width * 100:.2f}",
                         completed_games,
                     ]
                 )
@@ -379,11 +354,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
         for ai, wins in ai_stats.items():
             win_rate = wins / completed_games
             ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
-            lower_bound = (win_rate - ci_width) * 100
-            upper_bound = (win_rate + ci_width) * 100
-            print_stats.add_row(
-                [ai, f"{win_rate * 100:.2f}", f"±{upper_bound - lower_bound:.2f}"]
-            )
+            print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{ci_width*100:.2f}"])
 
         # Keep track of all experiments, also the finished ones to print
         tables[exp_name]["table"] = print_stats
@@ -399,9 +370,7 @@ def update_running_experiment_status(exp_name, print_tables=True):
                 print(f"Finished: {v['end_time'].strftime('%Y-%m-%d %H:%M:%S')}")
                 print(f"Duration: {v['end_time'] - v['start_time']}")
                 if completed_games > 0:
-                    print(
-                        f"Average time per game: {(v['end_time'] - v['start_time']) / float(completed_games)}"
-                    )
+                    print(f"Average time per game: {(v['end_time'] - v['start_time']) / float(completed_games)}")
 
 
 tables = {}
@@ -483,18 +452,10 @@ def aggregate_csv_results(output_file):
 
                         # Parse metadata using regular expressions
                         try:
-                            metadata["exp_name"] = re.search(
-                                r"exp_name='(.*?)'", lines[0]
-                            ).group(1)
-                            metadata["date_time"] = re.search(
-                                r"(\d{8}_\d{6})", metadata["exp_name"]
-                            ).group(1)
-                            metadata["game_name"] = re.search(
-                                r"game_name='(.*?)'", lines[0]
-                            ).group(1)
-                            metadata["game_params"] = re.search(
-                                r"game_params\s*=\s*(\{.*?\})", lines[1]
-                            ).group(1)
+                            metadata["exp_name"] = re.search(r"exp_name='(.*?)'", lines[0]).group(1)
+                            metadata["date_time"] = re.search(r"(\d{8}_\d{6})", metadata["exp_name"]).group(1)
+                            metadata["game_name"] = re.search(r"game_name='(.*?)'", lines[0]).group(1)
+                            metadata["game_params"] = re.search(r"game_params\s*=\s*(\{.*?\})", lines[1]).group(1)
                             metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
                             metadata["p2_params"] = lines[3].split("=", 1)[1].strip()
                         except (AttributeError, IndexError) as e:
@@ -505,15 +466,11 @@ def aggregate_csv_results(output_file):
 
                         for line in lines[7:]:
                             _, ai_config = line.strip().split(",", 1)
-                            ai_config_cleaned = sort_parameters(
-                                ai_config.strip().strip('"')
-                            )
+                            ai_config_cleaned = sort_parameters(ai_config.strip().strip('"'))
                             if ai_config_cleaned == "Draw":
                                 continue
                             total_games += 1
-                            ai_stats[ai_config_cleaned] = (
-                                ai_stats.get(ai_config_cleaned, 0) + 1
-                            )
+                            ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
                 except Exception as e:
                     # Because multiple processes are writing to the same file, it's possible that the file is not available to read
                     print(f"Error reading {file}: {e}")
@@ -550,9 +507,7 @@ def aggregate_csv_results(output_file):
 
                 ai1_diffs, ai2_diffs = {}, {}
                 if len(ai_results) == 2:
-                    ai1_diffs, ai2_diffs = extract_ai_param_diffs(
-                        ai_results[0][0], ai_results[1][0]
-                    )
+                    ai1_diffs, ai2_diffs = extract_ai_param_diffs(ai_results[0][0], ai_results[1][0])
                     row.extend(
                         [
                             ai_results[0][0],
@@ -645,9 +600,7 @@ def run_single_experiment(
     log_path = os.path.join(base_path, "log", "games", exp_name, f"{i}.log")
     try:
         with redirect_print_to_log(log_path):
-            run_game_experiment(
-                game_key, game_params, p1_params, p2_params, random_openings
-            )
+            run_game_experiment(game_key, game_params, p1_params, p2_params, random_openings)
 
         with open(log_path, "a") as log_file:
             # Write a status message to the log file
@@ -662,9 +615,7 @@ def run_single_experiment(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Start experiments based on JSON config."
-    )
+    parser = argparse.ArgumentParser(description="Start experiments based on JSON config.")
     parser.add_argument(
         "-n",
         "--n_procs",
@@ -706,9 +657,7 @@ def main():
     args = parser.parse_args()
 
     if not (args.json_file or args.aggregate_results):
-        parser.error(
-            "Either --json_file should be set OR --aggregate_resultsshould be enabled."
-        )
+        parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")
 
     global base_path
 
@@ -720,14 +669,10 @@ def main():
         return
 
     # Include the experiment file in the base_path
-    base_path = os.path.join(
-        args.base_path, os.path.splitext(os.path.basename(args.json_file))[0]
-    )
+    base_path = os.path.join(args.base_path, os.path.splitext(os.path.basename(args.json_file))[0])
     print("Base path:", base_path)
     # Use the name of the JSON file with a .csv extension if --aggregate_results is not provided.
-    agg_loc = os.path.join(
-        base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv"
-    )
+    agg_loc = os.path.join(base_path, os.path.splitext(os.path.basename(args.json_file))[0] + ".csv")
 
     if not args.count_only:
         # Validate and create the base directory for logs if it doesn't exist
@@ -739,8 +684,7 @@ def main():
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 new_name = os.path.join(
                     base_path,
-                    os.path.splitext(os.path.basename(args.json_file))[0]
-                    + f"_{timestamp}.csv",
+                    os.path.splitext(os.path.basename(args.json_file))[0] + f"_{timestamp}.csv",
                 )
                 os.rename(agg_loc, new_name)
                 print(f"Renamed {agg_loc} to {new_name}")

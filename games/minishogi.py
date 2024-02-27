@@ -1113,7 +1113,7 @@ class MiniShogi(GameState):
         "a": 6,
     }
 
-    default_params = array.array("d", [50.0, 1.0, 1.0, 3.0, 1.0, 1.0, 300.0])
+    default_params = array.array("d", [50.0, 1.0, 1.0, 3.0, 1.0, 0.5, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1135,6 +1135,7 @@ class MiniShogi(GameState):
         params: cython.double[:],
         norm: cython.bint = 0,
     ) -> cython.double:
+        # TODO hier was je gebleven, deze moet je nog goed nakijken... Er was bijvoorbeeld iets vreemds met de defense, die niet deterministisch was..
         attacks: cython.int = 0
         captures: cython.int = 0
         defenses: cython.int = 0
@@ -1159,7 +1160,7 @@ class MiniShogi(GameState):
                 if not is_defense:
                     attacks += multip * MATERIAL[self.board[to_row, to_col]]
                 else:
-                    print(f"{piece} is defending {self.board[to_row, to_col]} at {to_row},{to_col}")
+                    # print(f"{piece} is defending {self.board[to_row, to_col]} at {to_row},{to_col}")
                     defenses += multip * MATERIAL[self.board[to_row, to_col]]
 
             elif not is_defense:
@@ -1204,9 +1205,9 @@ class MiniShogi(GameState):
             + board_control * params[4]
             + defenses * params[5]
         )
-        print(
-            f"Final Score Components - Attacks: {attacks}, Captures: {captures}, Material Score: {material_score}, Board Control: {board_control}, Defenses: {defenses}, Score: {score}"
-        )
+        # print(
+        #     f"Final Score Components - Attacks: {attacks}, Captures: {captures}, Material Score: {material_score}, Board Control: {board_control}, Defenses: {defenses}, Score: {score}"
+        # )
 
         if norm:
             normalized_score = normalize(score, params[6])
@@ -1422,7 +1423,7 @@ class MiniShogi(GameState):
     @property
     def transposition_table_size(self) -> int:
         # return an appropriate size based on the game characteristics
-        return 2**20
+        return 2**21
 
     def __repr__(self) -> str:
         game: str = "minishogi"

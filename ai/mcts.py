@@ -1,7 +1,10 @@
 # cython: language_level=3
 
+from hmac import new
+from os import path
 import random
 from random import random as rand_float
+from click import pass_context
 from colorama import Back, Fore, init
 from numpy import c_
 
@@ -79,9 +82,10 @@ class Node:
         ab_version: cython.int = 0,
         alpha: cython.double = -INFINITY,
         beta: cython.double = INFINITY,
+        path_score: cython.double = 0.0,
+        visit_ratio: cython.double = 0.0,
         c_adjust: cython.double = 1.0,
         k_factor: cython.double = 0.0,
-        ab_uct_ver: cython.int = 0,
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
@@ -95,7 +99,7 @@ class Node:
         ci: cython.int
 
         val_adj: cython.int = ab_version // 10
-        ci_adjust: cython.int = ab_version % 10
+        ci_adj: cython.int = ab_version % 10
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
@@ -129,67 +133,19 @@ class Node:
             confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
             if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
-                k: cython.double = beta - alpha
-                new_cv: cython.double = child_value
-                new_ci: cython.double = confidence_i
-                c_ab: cython.double = c
-
-                if val_adj == 1:  # * Deze werkte beter in breakthrough...
-                    new_cv += child_value - alpha
-                elif val_adj == 2:  # * Tot nu toe de beste
-                    new_cv += beta
-
-                if ci_adjust == 1:
-                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                    if k != 0:
-                        new_ci *= pow(k, k_factor)
-                elif ci_adjust == 2:
-                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                    if k != 0:
-                        new_ci *= pow(log(1 + k), k_factor)
-                elif ci_adjust == 3:
-                    # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-                    if k != 0:
-                        new_ci *= log(1 + pow(k, k_factor))
-
-                if ab_uct_ver == 1:  # * Only child value if
-                    if child_value > alpha and child_value < beta:
-                        child_value = new_cv
-
-                    c_ab *= c_adjust
-                    confidence_i = new_ci
-                    ab_bound += 1
-
-                elif ab_uct_ver == 2:  # * Only ci value if
-                    if child_value > alpha and child_value < beta:
-                        confidence_i = new_ci
-                        c_ab *= c_adjust
-
-                    child_value = new_cv
-                    ab_bound += 1
-                elif ab_uct_ver == 3:  # * Both child value and ci value
-                    if child_value > alpha and child_value < beta:
-                        child_value = new_cv
-                        confidence_i = new_ci
-                        c_ab *= c_adjust
-                        ab_bound += 1
-                elif ab_uct_ver == 4:
-                    # * Both child value and ci value without checking alpha/beta
-                    child_value = new_cv
-                    confidence_i = new_ci
-                    c_ab *= c_adjust
-                    ab_bound += 1
-                elif ab_uct_ver == 5:
-                    # * Boost when in alpha/beta else chanage confidence
-                    if child_value > alpha and child_value < beta:
-                        child_value = new_cv
-                    else:
-                        confidence_i = new_ci
-                        c_ab *= c_adjust
-
-                    ab_bound += 1
-
-                uct_val = child_value + (c_ab * confidence_i)
+                uct_val = self.uct_prime(
+                    child_value,
+                    confidence_i,
+                    c,
+                    val_adj,
+                    ci_adj,
+                    alpha,
+                    beta,
+                    path_score,
+                    visit_ratio,
+                    c_adjust,
+                    k_factor,
+                )
             else:
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
@@ -228,6 +184,68 @@ class Node:
         return (
             selected_child  # A random child was chosen at the beginning of the method, hence this will never be None
         )
+
+    @cython.cfunc
+    @cython.locals(cv_adj=cython.double, k=cython.double)
+    def uct_prime(
+        self,
+        child_value: cython.double,
+        confidence_i: cython.double,
+        c: cython.double,
+        val_adj: cython.int,
+        ci_adj: cython.int,
+        alpha: cython.double,
+        beta: cython.double,
+        path_score: cython.double = 0.0,
+        visit_ratio: cython.double = 0.0,
+        c_adjust: cython.double = 1.0,
+        k_factor: cython.double = 1.0,
+    ):
+        if val_adj == 1:
+            cv_adj = beta
+        elif val_adj == 2:
+            cv_adj = path_score + visit_ratio
+        elif val_adj == 3:
+            cv_adj = path_score
+        elif val_adj == 4:
+            cv_adj = visit_ratio
+        elif val_adj == 5:
+            cv_adj = beta - alpha
+        elif val_adj == 6:
+            cv_adj = abs(child_value - path_score)
+        elif val_adj == 7:
+            cv_adj = 1 - visit_ratio
+        elif val_adj == 8:
+            cv_adj = 1 - path_score
+        elif val_adj == 9:
+            cv_adj = path_score * visit_ratio
+
+        if ci_adj == 1:
+            k = beta - alpha
+        elif ci_adj == 2:
+            k = path_score
+        elif ci_adj == 3:
+            k = visit_ratio
+        elif ci_adj == 4:
+            k = 1 - visit_ratio
+        elif ci_adj == 5:
+            k = 1 - path_score
+        elif ci_adj == 6:
+            k = path_score * visit_ratio
+
+        new_cv: cython.double = child_value
+        # * Boost a child that is in bounds
+        if child_value > alpha and child_value < beta:
+            new_cv += cv_adj
+
+        new_ci: cython.double = confidence_i
+        new_c: cython.double = c * c_adjust
+
+        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
+        if k != 0:
+            new_ci *= pow(log(1 + k), k_factor)
+
+        return new_cv + (new_c * new_ci)
 
     @cython.cfunc
     def expand(
@@ -454,8 +472,7 @@ class Node:
     @cython.inline
     @cython.exceptval(-777777777, check=False)
     def get_value_imm(self, player: cython.int, imm_alpha: cython.double) -> cython.double:
-        # simulation_mean: cython.double = (self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits
-        simulation_mean: cython.double = (1 + ((self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits)) / 2.0
+        simulation_mean: cython.double = self.v[player - 1] / self.n_visits
 
         if imm_alpha > 0.0:
             # Max player is the player that is maximizing overall, not just in this node
@@ -498,8 +515,7 @@ class Node:
         im_str = f"{Fore.WHITE}IM:{self.im_value:6.3f} " if abs(self.im_value) != INFINITY else ""
 
         # This is flipped because I want to see it in view of the parent
-        # simulation_mean: cython.double = 0.5 * ((self.v[player - 1] - self.v[(3 - player) - 1]) / self.n_visits) + 0.5
-        value = (1 + ((self.v[(3 - self.player) - 1] - self.v[self.player - 1]) / max(1, self.n_visits))) / 2.0
+        value = self.v[(3 - self.player) - 1] / max(1, self.n_visits)
 
         return (
             f"{solved_bg}"
@@ -840,6 +856,8 @@ class MCTSPlayer:
         prune: cython.bint = 0
         child: Node
         i: cython.int
+        path_score: cython.double = 0.0
+        path_visits: cython.double = 0.0
 
         global prunes, non_prunes
 
@@ -878,9 +896,10 @@ class MCTSPlayer:
                         ab_version=self.ab_version,
                         alpha=alpha if node.player == self.player else -beta,
                         beta=beta if node.player == self.player else -alpha,
+                        path_score=path_score / path_visits if path_visits > 0 else 0,
+                        visit_ratio=path_visits / self.root.n_visits if path_visits > 0 else 0,
                         c_adjust=self.c_adjust,
                         k_factor=self.k_factor,
-                        ab_uct_ver=self.ab_uct_ver,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
@@ -908,6 +927,10 @@ class MCTSPlayer:
                 break
 
             if node is not None:
+                # Keep track of the visits and "total" score of the path
+                path_score += node.v[self.player - 1] * node.n_visits
+                path_visits += node.n_visits  # * Later we can normalize with this value
+
                 next_state = next_state.apply_action(node.action)
                 selected.append(node)
             else:

@@ -137,11 +137,8 @@ else:
         "early_term_turns": 10,
     }
     ai_2_params = {
-        "num_simulations": 200000,
+        "max_time": 10,
         "debug": args.debug,
-        # "ab_version": 12,
-        # "k_factor": -0.5,
-        "early_term_turns": 10,
     }
 
     p1_params = AIParams(
@@ -153,7 +150,7 @@ else:
     )
 
     p2_params = AIParams(
-        ai_key="mcts",
+        ai_key="alphabeta",
         eval_params=eval_params_2,
         max_player=2,
         game_name=game_name,

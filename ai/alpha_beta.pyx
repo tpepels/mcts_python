@@ -66,7 +66,7 @@ cdef double value(
     
     cdef bint is_max_player = state.player == max_player
     cdef double v, cur_time, new_v
-    cdef list actions
+    cdef list actions, legal_actions
     cdef tuple trans_move, killer_move, move
     cdef int m = 0
     cdef int i
@@ -102,7 +102,14 @@ cdef double value(
     try:
         v = -INFINITY if is_max_player else INFINITY
 
-        actions = state.evaluate_moves(state.get_legal_actions())
+        legal_actions = state.get_legal_actions()
+
+        # A None move means a pass and a loss. Return the reward immediately.
+        if legal_actions[0] == None:
+            v = state.get_reward(max_player)
+            return v
+
+        actions = state.evaluate_moves(legal_actions)
         n_actions = len(actions)
         # Put moves that were in the move history before the rest by giving them a really high score
         if move_history is not None:
