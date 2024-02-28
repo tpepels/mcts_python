@@ -6,7 +6,7 @@ DEFAULT_SETTINGS = {
         # C_ab: 0.3
         "ai_params": {
             "c": 0.1,
-            "imm_alpha": 0.75,
+            "imm_alpha": 0.5,
             "dyn_early_term_cutoff": 0.4,
         },
         "eval_params": {},
@@ -17,7 +17,7 @@ DEFAULT_SETTINGS = {
         # c_vanilla: 0.8
         # c_ab: 0.55
         "ai_params": {
-            "c": 0.4,
+            "c": 0.2,
             "imm_alpha": 0.3,
             "early_term_turns": 10,
             # "pb_weight": 0.3,
@@ -33,8 +33,8 @@ DEFAULT_SETTINGS = {
         # C_vanilla: 0.5
         # C_ab: 0.4
         "ai_params": {
-            "c": 0.1,
-            "imm_alpha": 0.9,
+            "c": 0.2,
+            "imm_alpha": 0.8,
             "early_term_turns": 20,
             "early_term_cutoff": 0.3,
             # "e_g_subset": 10,

@@ -7,15 +7,7 @@ from playout_test import play_out
 parser = argparse.ArgumentParser(description="Run test a playout for a game.")
 parser.add_argument(
     "--game",
-    choices=[
-        "amazons",
-        "amazons8",
-        "breakthrough",
-        "ninarow59",
-        "kalah66",
-        "kalah86",
-        "blokus",
-    ],
+    choices=["amazons", "amazons8", "breakthrough", "ninarow59", "kalah66", "kalah86", "blokus", "minishogi"],
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus).",
 )

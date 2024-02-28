@@ -10,8 +10,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from numpy import full
-
 from ai.alpha_beta import AlphaBetaPlayer
 from ai.mcts import MCTSPlayer
 from default_params import DEFAULT_SETTINGS
@@ -366,27 +364,6 @@ def run_game_experiment(
     p2_params: AIParams,
     random_openings: int = 0,
 ):
-    """
-    Run a game experiment with two AI players, and return detailed game information.
-
-    The function initializes the game and players based on the provided parameters. It then runs the game, recording
-    the moves made by the AI players and tracking the time taken for each move. The function records the game state
-    after each move. The game continues until it reaches a terminal state.
-
-    Args:
-        game_key (str): The key identifying the type of game to be played.
-        game_params (Dict[str, Any]): The parameters for initializing the game.
-        p1_params (AIParams): The parameters for initializing the AI of player 1.
-        p2_params (AIParams): The parameters for initializing the AI of player 2.
-
-    Returns:
-        setup (str): Description of the game setup.
-        game_output (str): A string with line-by-line visualization of the game state after each move.
-        total_time (float): The total time the game took in seconds.
-        avg_time_per_move (Tuple[float, float]): A tuple containing the average time per move for player 1 and player 2, respectively.
-        n_moves (int): The total number of moves made in the game.
-        result (int): The result of the game. 1 if player 1 won, 2 if player 2 won, and 0 if the game was a draw.
-    """
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
 
