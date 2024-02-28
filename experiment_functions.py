@@ -301,20 +301,10 @@ def update_running_experiment_status(exp_name, tables, base_path, print_tables=T
             with open(log_file, "r") as log_f:
                 log_contents = log_f.readlines()
 
-                game_number = log_file.split("/")[-1].split(".")[0]  # Get game number from log file name
-
-                # If a file has not been changed in the last 10 minutes, consider it as an error
-                if datetime.datetime.now() - datetime.datetime.fromtimestamp(
-                    os.path.getmtime(log_file)
-                ) > datetime.timedelta(minutes=10):
-                    writer.writerow([game_number, "Stuck"])
-                    error_games += 1
-                    stuck_games_list.append(game_number)
-                    # TODO Mark the file as an error and stop the process so we don't get stuck
-
                 if len(log_contents) < 3:
                     continue
 
+                game_number = log_file.split("/")[-1].split(".")[0]  # Get game number from log file name
                 # ! Assuming "Experiment completed" is second to last line, this must remain true
                 if "Experiment completed" in log_contents[-1]:
                     completed_games += 1
