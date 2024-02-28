@@ -1,4 +1,12 @@
 DEFAULT_SETTINGS = {
+    ("minishogi", "mcts"): {
+        "ai_params": {
+            "c": 0.4,
+            "imm_alpha": 0.8,
+            "early_term_turns": 10,
+        },
+        "eval_params": {},
+    },
     ("ninarow", "mcts"): {
         # C_ab_imm: 0.1 (imm: 0.6)
         # C_imm: 0.1 (imm: 0.75)
