@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -p genoa
 #SBATCH -J mcts
-#SBATCH -o /home/tpepels/out/%J.out
-#SBATCH -e /home/tpepels/out/err_%J.err
+#SBATCH -o /home/tpepels/out/$1_%J.out
+#SBATCH -e /home/tpepels/out/$1_err_%J.err
 #SBATCH -t 3000
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
