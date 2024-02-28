@@ -86,8 +86,8 @@ setup(
         ext_modules,
         annotate=True,
         compiler_directives={
-            "profile": True,
-            "overflowcheck": False,
+            # "profile": True,
+            "overflowcheck": True,
             "language_level": "3",
             "embedsignature": True,
             "wraparound": False,
@@ -96,6 +96,7 @@ setup(
             "nonecheck": False,
             "cdivision": True,
             "infer_types": True,
+            "cdivision_warnings": True,
         },
     ),
 )
