@@ -201,6 +201,9 @@ class Node:
         c_adjust: cython.double = 1.0,
         k_factor: cython.double = 1.0,
     ):
+        # val_adj --> // 10 (decimal)
+        # ci_adj -> % 10 (remainder)
+
         if val_adj == 1:
             cv_adj = beta
         elif val_adj == 2:
