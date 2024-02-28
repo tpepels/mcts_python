@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 300,
+    "n_games": 192,
     "game_key": "minishogi",
     "game_params": {},
     "p1_ai_key": "mcts",

@@ -1,0 +1,53 @@
+[
+  {
+    "n_games": 192,
+    "game_key": "minishogi",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 10,
+      "early_term_turns": [5, 10, 15, 20],
+      "early_term_cutoff": [0.1, 0.2, 0.3]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "alphabeta",
+    "p2_ai_params": {
+      "max_time": 8
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 192,
+    "game_key": "minishogi",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 10,
+      "dyn_early_term_cutoff": [0.1, 0.2, 0.3, 0.4]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "alphabeta",
+    "p2_ai_params": {
+      "max_time": 8
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 192,
+    "game_key": "minishogi",
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 10,
+      "early_term_turns": 10,
+      "e_g_subset": [3, 5, 7],
+      "epsilon": [0.03, 0.05, 0.08]
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "alphabeta",
+    "p2_ai_params": {
+      "max_time": 8
+    },
+    "p2_eval_params": {}
+  }
+]
