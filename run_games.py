@@ -76,26 +76,26 @@ class AIParams:
             defaults = DEFAULT_SETTINGS[game_algorithm_combo]
 
             if self.ai_params.get("no_defaults", False):
-                print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
+                # print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
                 self.ai_params.pop("no_defaults")
             else:
                 # Apply defaults for ai_params
                 for key, default_value in defaults.get("ai_params", {}).items():
                     if key not in self.ai_params:
-                        print(
-                            f"Using default ai value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
-                        )
+                        # print(
+                        #     f"Using default ai value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
+                        # )
                         self.ai_params[key] = default_value
             if self.eval_params is not None and self.eval_params.get("no_defaults", False):
-                print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
+                # print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
                 self.eval_params.pop("no_defaults")
             else:
                 # Apply defaults for eval_params
                 for key, default_value in defaults.get("eval_params", {}).items():
                     if key not in self.eval_params:
-                        print(
-                            f"Using default eval value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
-                        )
+                        # print(
+                        #     f"Using default eval value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
+                        # )
                         self.eval_params[key] = default_value
 
     def __str__(self):

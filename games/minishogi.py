@@ -1113,7 +1113,7 @@ class MiniShogi(GameState):
         "a": 6,
     }
 
-    default_params = array.array("d", [50.0, 1.0, 1.0, 3.0, 1.0, 0.5, 200.0])
+    default_params = array.array("d", [20.0, 1.0, 1.0, 2.0, 2.0, 1.0, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)

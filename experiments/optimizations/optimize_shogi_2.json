@@ -5,28 +5,15 @@
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "max_time": 8,
-      "early_term_turns": [5, 10, 15, 20],
-      "early_term_cutoff": [0.2, 0.3, 0.4]
+      "max_time": 5
     },
-    "p1_eval_params": {},
-    "p2_ai_key": "alphabeta",
-    "p2_ai_params": {
-      "max_time": 8
+    "p1_eval_params": {
+      "m_attacks": [0, 1, 2],
+      "m_captures": [0, 1, 2],
+      "m_material": [0, 1, 2],
+      "m_dominance": [0, 1, 2],
+      "m_defenses": [0, 1, 2]
     },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 192,
-    "game_key": "minishogi",
-    "game_params": {},
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "max_time": 8,
-      "epsilon": [0.03, 0.05, 0.1],
-      "e_g_subset": [3, 5, 8, 10]
-    },
-    "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
     "p2_ai_params": {
       "max_time": 8
