@@ -725,7 +725,7 @@ class BreakthroughGameState(GameState):
     @property
     def transposition_table_size(self):
         # return an appropriate size based on the game characteristics
-        return 2**24
+        return 2**16
 
     def __repr__(self) -> str:
         return "breakthrough"
