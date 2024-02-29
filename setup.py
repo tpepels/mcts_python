@@ -87,7 +87,7 @@ setup(
         annotate=True,
         compiler_directives={
             # "profile": True,
-            "overflowcheck": True,
+            "overflowcheck": False,
             "language_level": "3",
             "embedsignature": True,
             "wraparound": False,
@@ -96,7 +96,7 @@ setup(
             "nonecheck": False,
             "cdivision": True,
             "infer_types": True,
-            "cdivision_warnings": True,
+            "cdivision_warnings": False,
         },
     ),
 )
