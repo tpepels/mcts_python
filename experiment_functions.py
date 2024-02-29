@@ -38,6 +38,8 @@ def aggregate_csv_results(output_file, base_path):
         if os.path.isdir(full_dir_path):
             files.append(os.path.join(full_dir_path, f"{game_name}_results.csv"))
 
+    print(f"Aggregating results from the {len(files)} results files.")
+
     try:
         with open(output_file, "w", newline="") as outfile:
             writer = csv.writer(outfile)
@@ -62,6 +64,7 @@ def aggregate_csv_results(output_file, base_path):
             aggregated_rows = []
 
             for file in files:
+                print(f"processing {file}")
                 ai_stats = {}
                 total_games = 0
                 metadata = {}
@@ -95,6 +98,8 @@ def aggregate_csv_results(output_file, base_path):
                                 continue
                             total_games += 1
                             ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
+
+                        print(f"  The total number of games is {total_games}")
                 except Exception as e:
                     # Because multiple processes are writing to the same file, it's possible that the file is not available to read
                     print(f"Error reading {file}: {e}")
