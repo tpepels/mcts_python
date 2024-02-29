@@ -63,7 +63,7 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg
             aggregate_csv_results(agg_loc, base_path)
 
 
-def run_new_experiment(exp_dict, timeout=30 * 60):
+def run_new_experiment(exp_dict, timeout=40 * 60):
     game_params = exp_dict[ColName.GAME_PARAMS]
     game_name = exp_dict[ColName.GAME_KEY]
     random_openings = int(exp_dict.get(ColName.RANDOM_OPENINGS, 0))

@@ -94,7 +94,11 @@ def aggregate_csv_results(output_file, base_path):
                         for line in lines[7:]:
                             _, ai_config = line.strip().split(",", 1)
                             ai_config_cleaned = sort_parameters(ai_config.strip().strip('"'))
-                            if ai_config_cleaned == "Draw":
+                            if (
+                                ai_config_cleaned == "Draw"
+                                or ai_config_cleaned == "Stuck"
+                                or ai_config_cleaned == "Error"
+                            ):
                                 continue
                             total_games += 1
                             ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
