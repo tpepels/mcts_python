@@ -1,7 +1,10 @@
 from copy import deepcopy
 import datetime
-
-from multiprocessing import Process
+from pprint import pprint
+import sys
+from pebble import ProcessPool, ProcessExpired
+import threading
+import time
 
 import os
 import random
@@ -25,45 +28,102 @@ from util import redirect_print_to_log
 tables = {}
 
 
-def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg_loc=None):
-    """
-    Read experiment configurations from a JSON file and start the experiments.
+def run_single_experiment(
+    i: int,
+    game_key: str,
+    game_params: dict,
+    p1_params: AIParams,
+    p2_params: AIParams,
+    exp_name: str,
+    base_path: str = ".",
+    random_openings: int = 0,
+) -> None:
 
-    Args:
-        json_file_path (str): The path to the JSON file containing the experiment configurations.
-        n_procs (int): The number of processes to be used for parallel execution. Default is 4.
-    """
+    log_path = os.path.join(base_path, "log", exp_name, f"{i}.log")
+    try:
+        with redirect_print_to_log(log_path):
+            run_game_experiment(game_key, game_params, p1_params, p2_params, random_openings)
 
-    # Step 1: Expand rows (if needed)
+        with open(log_path, "a") as log_file:
+            # Write a status message to the log file
+            log_file.write("Experiment completed")
+
+    except Exception as e:
+        with open(log_path, "a") as log_file:
+            # Writing the traceback
+            traceback.print_exc(file=log_file)
+            log_file.write(f"Experiment error: {e}")
+            log_file.flush()
+
+
+def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg_loc=None, timeout=30 * 60):
     expanded_experiment_configs = expand_rows(json_file_path)
-    print(f"Starting {len(expanded_experiment_configs)} experiments.")
+    print(f"{len(expanded_experiment_configs)} experiments.")
     if count_only:
         return
-    random.shuffle(expanded_experiment_configs)
-    # Step 2: Start experiments using multiprocessing
-    for exp_dict in expanded_experiment_configs:
-        processes, exp_name = run_new_experiment(exp_dict, 30 * 60)  # Adjusted to return processes
 
-        # Wait for all processes to complete
-        all_done = False
-        while not all_done:
-            time.sleep(30)  # Wait a bit before checking again
-            # Update running experiment status periodically
-            update_running_experiment_status(exp_name=exp_name, tables=tables, base_path=base_path)
+    # Interval for status updates (e.g., every 60 seconds)
+    update_interval = 120
+    stop_event = threading.Event()
 
-            # Check if all processes are done
-            all_done = all(process.is_alive() == False for process in processes)
+    # Process experiments
+    all_experiments = [experiment for config in expanded_experiment_configs for experiment in get_experiments(config)]
+    # Start the periodic status update thread (tables and base_path are global variables)
+    status_thread = threading.Thread(
+        target=run_periodic_status_updates, args=(update_interval, stop_event, tables, base_path)
+    )
+    status_thread.start()
+    random.shuffle(all_experiments)
 
-        tables[exp_name]["end_time"] = datetime.datetime.now()
+    with ProcessPool(max_workers=n_procs) as pool:
+        print(f"Starting {len(all_experiments)} experiments with {n_procs} processes.")
+        future_tasks = [pool.schedule(run_single_experiment, args=exp, timeout=timeout) for exp in all_experiments]
+        print(f"All {len(all_experiments)} experiments pooled.")
 
-        # Post-experiment updates
-        time.sleep(30)
-        update_running_experiment_status(exp_name=exp_name, tables=tables, base_path=base_path)
-        if agg_loc is not None:
-            aggregate_csv_results(agg_loc, base_path)
+        for future in future_tasks:
+            try:
+                # Blocks until the task completes or raises TimeoutError if it times out
+                future.result(timeout=timeout)
+            except TimeoutError as e:
+                print(f"Task timed out: {e}", sys.stderr)
+            except ProcessExpired as e:
+                print(f"Task process expired: {e}", sys.stderr)
+            except Exception as e:
+                print(f"Task raised an exception: {e}", sys.stderr)
+
+    if agg_loc is not None:
+        print("aggregate results..")
+        aggregate_csv_results(agg_loc, base_path)
+
+    # Experiments are done, signal the status update thread to stop and wait for it to finish
+    stop_event.set()
+    status_thread.join()
+
+    # perform any final status update after all experiments are complete
+    update_running_experiment_status(tables=tables, base_path=base_path)
+    print("Completed all experiments and updates.")
 
 
-def run_new_experiment(exp_dict, timeout=40 * 60):
+def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_path):
+    """
+    Periodically runs the update_running_experiment_status function until a stop event is set.
+
+    Args:
+        update_interval (int): The interval between updates in seconds.
+        stop_event (threading.Event): An event to signal the thread to stop.
+        tables (dict): The shared data structure to pass to the update function.
+        base_path (str): The base path to pass to the update function.
+    """
+    while not stop_event.is_set():
+        # time.sleep(update_interval // 2)
+        update_running_experiment_status(tables_dict, base_path=base_path)
+        time.sleep(update_interval // 2)
+
+
+exp_names = []
+
+
+def get_experiments(exp_dict):
     game_params = exp_dict[ColName.GAME_PARAMS]
     game_name = exp_dict[ColName.GAME_KEY]
     random_openings = int(exp_dict.get(ColName.RANDOM_OPENINGS, 0))
@@ -86,12 +146,17 @@ def run_new_experiment(exp_dict, timeout=40 * 60):
         transposition_table_size=game.transposition_table_size,
     )
 
-    exp_name = f"{game}_{exp_dict[ColName.P1_AI_KEY]}_{exp_dict[ColName.P2_AI_KEY]}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    exp_name = f"{game}_{exp_dict[ColName.P1_AI_KEY]}_{exp_dict[ColName.P2_AI_KEY]}_{datetime.datetime.now().strftime('%m%d_%H%M')}"
+    if exp_name in exp_names:
+        exp_name += f"_{len(exp_names)}"
+
+    exp_names.append(exp_name)
+
     start_game = 0
 
     del game
     n_games = exp_dict[ColName.N_GAMES]
-    print(f"starting experiment {exp_name}")
+    print(f"Expanding experiment {exp_name}")
 
     games_params = []
     for i in range(n_games):
@@ -128,13 +193,6 @@ def run_new_experiment(exp_dict, timeout=40 * 60):
     games_params = [(i, *params) for i, params in enumerate(games_params)]
     games_params = [game for game in games_params if game[0] >= start_game]  # Make sure the process has ended
 
-    processes = []
-    for exp_params in games_params:
-
-        p = Process(target=experiment_wrapper, args=exp_params, kwargs={"timeout": timeout})
-        p.start()
-        processes.append(p)
-
     """
     Write the experiment configuration as a header to a CSV file in the log directory.
     So we can easily find results of a specific experiment.
@@ -143,7 +201,7 @@ def run_new_experiment(exp_dict, timeout=40 * 60):
     path_to_log = os.path.join(base_path, "log", exp_name)
     os.makedirs(path_to_log, exist_ok=True)
     os.makedirs(path_to_result, exist_ok=True)
-
+    global tables
     tables[exp_name] = {}
     description_str = f"{exp_name=}  --  {game_name=}\n"
     description_str += f"{game_params=}\n"
@@ -153,49 +211,8 @@ def run_new_experiment(exp_dict, timeout=40 * 60):
     description_str += f"Started: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n     -------- \n"
     tables[exp_name]["description"] = description_str
     tables[exp_name]["start_time"] = datetime.datetime.now()
-    time.sleep(1)
 
-    return processes, exp_name
-
-
-def experiment_wrapper(*args, timeout=30 * 60):
-    # Start the actual experiment in a separate process
-    p = Process(target=run_single_experiment, args=args)
-
-    p.start()
-    p.join(timeout)  # Wait for the process to complete or timeout
-
-    if p.is_alive():
-        p.terminate()  # Terminate the process if it is still alive
-        p.join()
-
-
-def run_single_experiment(
-    i: int,
-    game_key: str,
-    game_params: dict,
-    p1_params: AIParams,
-    p2_params: AIParams,
-    exp_name: str,
-    base_path: str = ".",
-    random_openings: int = 0,
-) -> None:
-
-    log_path = os.path.join(base_path, "log", exp_name, f"{i}.log")
-    try:
-        with redirect_print_to_log(log_path):
-            run_game_experiment(game_key, game_params, p1_params, p2_params, random_openings)
-
-        with open(log_path, "a") as log_file:
-            # Write a status message to the log file
-            log_file.write("Experiment completed")
-
-    except Exception as e:
-        with open(log_path, "a") as log_file:
-            # Writing the traceback
-            traceback.print_exc(file=log_file)
-            log_file.write(f"Experiment error: {e}")
-            log_file.flush()
+    return games_params
 
 
 def main():

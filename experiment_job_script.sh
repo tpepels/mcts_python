@@ -25,4 +25,4 @@ module load Python/3.10.4-GCCcore-11.3.0
 cd $HOME/mcts_python
 
 # Use the provided file parameter in the srun command
-srun python -O experiments.py -n 192 -b $HOME -j $1 -c
+srun python experiments.py -n 192 -b $HOME -j $1 -c

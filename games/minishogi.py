@@ -1423,7 +1423,7 @@ class MiniShogi(GameState):
     @property
     def transposition_table_size(self) -> int:
         # return an appropriate size based on the game characteristics
-        return 2**16
+        return 2**18
 
     def __repr__(self) -> str:
         game: str = "minishogi"

@@ -29,7 +29,7 @@ class ColName:
 def aggregate_csv_results(output_file, base_path):
     files = []
     experiments_path = os.path.join(base_path, "results")
-
+    stuck_games_list = []
     for dir_name in os.listdir(experiments_path):
         # Extract the game name from the directory name
         game_name = dir_name.split("_")[0]
@@ -75,6 +75,16 @@ def aggregate_csv_results(output_file, base_path):
                         # Check for enough lines in the file
                         if len(lines) < 8:
                             print(f"Skipping {file} due to insufficient lines.")
+                            # If a file is empty and has not received data for the last 10 minutes it is stuck
+                            if (
+                                os.path.getsize(file) == 0
+                                and (
+                                    datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(file))
+                                ).seconds
+                                > 600
+                            ):
+                                print(f"File {file} is empty and has not received data for the last 10 minutes.")
+                                stuck_games_list.append(file)
                             continue
 
                         # Parse metadata using regular expressions
@@ -190,6 +200,8 @@ def aggregate_csv_results(output_file, base_path):
         # Print the stack trace so we can find the error
         traceback.print_exc()
 
+    return stuck_games_list
+
 
 def sort_parameters(ai_config):
     params = ai_config.split(", ")
@@ -297,116 +309,254 @@ def expand_rows(json_file_path):
     return res
 
 
-def update_running_experiment_status(exp_name, tables, base_path, print_tables=True) -> list[str]:
-    completed_games = 0
-    error_games = 0
-    draws = 0
-    ai_stats = Counter()  # To hold cumulative statistics per AI
+import os
 
+
+def prepare_paths(base_path, exp_name):
+    """
+    Ensure that the necessary directories for logging and results exist for a given experiment.
+
+    Args:
+        base_path (str): The base directory where experiment logs and results are stored.
+        exp_name (str): The name of the experiment, used to create specific subdirectories.
+
+    Returns:
+        tuple: A tuple containing the paths to the result and log directories for the experiment.
+    """
+    # Construct paths for the experiment's results and log directories
     path_to_result = os.path.join(base_path, "results", exp_name)
     path_to_log = os.path.join(base_path, "log", exp_name)
+
+    # Ensure the directories exist, creating them if necessary
     os.makedirs(path_to_log, exist_ok=True)
     os.makedirs(path_to_result, exist_ok=True)
-    # The first part of the exp_name is the name of the game
-    game_name = exp_name.split("_")[0]
-    log_files = glob.glob(f"{path_to_log}/*.log")
-    stuck_games_list = []
 
-    # Open CSV file in write mode (it needs to be overwritten every time)
-    with open(os.path.join(path_to_result, f"{game_name}_results.csv"), "w", newline="") as f:
-        if exp_name in tables:
-            f.write(tables[exp_name]["description"])
+    # Return the paths for further use
+    return path_to_result, path_to_log
 
-        writer = csv.writer(f)
 
-        for log_file in log_files:
-            with open(log_file, "r") as log_f:
-                log_contents = log_f.readlines()
+def update_running_experiment_status(tables, base_path, print_tables=True):
+    exp_directories = os.listdir(os.path.join(base_path, "log"))
+    # Write a seperator so that we can easily identify the start of a new update
+    if print_tables:
+        print(f"\n\n\n\n\n\n\n\n{'-' * 20}{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{'-' * 20}\n")
 
-                if len(log_contents) < 3:
-                    continue
+    for exp_name in exp_directories:
+        ai_stats = Counter()
+        path_to_result, path_to_log = prepare_paths(base_path, exp_name)
+        log_files = glob.glob(f"{path_to_log}/*.log")
+        game_name = exp_name.split("_")[0]
 
-                game_number = log_file.split("/")[-1].split(".")[0]  # Get game number from log file name
-                # ! Assuming "Experiment completed" is second to last line, this must remain true
-                if "Experiment completed" in log_contents[-1]:
-                    completed_games += 1
-                    # Assuming the last line is "Game Over. Winner: Px [px_params]"
-                    winner_info = log_contents[-2]
-                    winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
+        with open(os.path.join(path_to_result, f"{game_name}_results.csv"), "a", newline="") as f:
+            writer = csv.writer(f)
+            if exp_name in tables:
+                f.write(tables[exp_name]["description"])
+            completed_games, error_games, draws = process_log_files(log_files, ai_stats, writer)
 
-                    if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
-                        loser_info = log_contents[-3]
-                        loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
+        # Write cumulative table to separate CSV file
+        write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games)
 
-                        # Make sure there's a line for each player
-                        if winner_params not in ai_stats:
-                            ai_stats[winner_params] = 0
-                        if loser_params not in ai_stats:
-                            ai_stats[loser_params] = 0
+        # Print tables, if required
+        if print_tables:
+            print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws)
 
-                        writer.writerow([game_number, winner_params])
-                        ai_stats[winner_params] += 1  # Update AI statistics
-                    else:
-                        draws += 1
-                        writer.writerow([game_number, "Draw"])
-                elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
-                    writer.writerow([game_number, "Error"])
-                    error_games += 1
 
-    # Write cumulative table to separate CSV file
-    with open(f"{path_to_result}/{game_name}_cumulative_stats.csv", "w", newline="") as f:
+def process_log_files(log_files, ai_stats, writer):
+    completed_games, error_games, draws = 0, 0, 0
+
+    def extract_winner_loser_info(log_contents):
+        winner_info = log_contents[-2]
+        winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
+        loser_info = log_contents[-3]
+        loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
+        return winner_info, winner_params, loser_params
+
+    for log_file in log_files:
+        with open(log_file, "r") as log_f:
+            log_contents = log_f.readlines()
+
+        if len(log_contents) < 3:
+            continue
+
+        game_number = log_file.split("/")[-1].split(".")[0]
+        if "Experiment completed" in log_contents[-1]:
+            completed_games += 1
+            winner_info, winner_params, loser_params = extract_winner_loser_info(log_contents)
+            update_stats_and_write(ai_stats, winner_params, loser_params, writer, game_number)
+        elif "Experiment error" in log_contents[-1]:
+            writer.writerow([game_number, "Error"])
+            error_games += 1
+        else:
+            draws += 1
+            writer.writerow([game_number, "Draw"])
+
+    return completed_games, error_games, draws
+
+
+def update_stats_and_write(ai_stats, winner_params, loser_params, writer, game_number):
+    if winner_params not in ai_stats:
+        ai_stats[winner_params] = 0
+    if loser_params not in ai_stats:
+        ai_stats[loser_params] = 0
+
+    ai_stats[winner_params] += 1  # Update AI statistics
+    writer.writerow([game_number, winner_params])
+
+
+def write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games):
+    with open(os.path.join(path_to_result, f"{game_name}_cumulative_stats.csv"), "w", newline="") as f:
         if exp_name in tables:
             f.write(tables[exp_name]["description"])
         writer = csv.writer(f)
         writer.writerow(["AI", "Win %", "95% C.I.", "# Games"])
-
         Z = 1.96
         for ai, wins in ai_stats.items():
-            if completed_games > 0:
-                win_rate = wins / completed_games
-                ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
-                writer.writerow(
-                    [
-                        ai,
-                        f"{win_rate * 100:.2f}",
-                        f"±{ci_width * 100:.2f}",
-                        completed_games,
-                    ]
-                )
-            else:
-                writer.writerow([ai, "N/A", "N/A", 0])
+            win_rate, ci_width = calculate_win_rate_and_ci(wins, completed_games, Z)
+            writer.writerow([ai, f"{win_rate * 100:.2f}", f"±{ci_width * 100:.2f}", completed_games])
 
-    if print_tables:
-        # Print cumulative statistics per AI to the screen
-        print_stats = PrettyTable(
-            [
-                f"AI ({exp_name})",
-                f"Win % (Games: {completed_games}, Errors: {error_games}, Draws: {draws})",
-                "95% C.I.",
-            ]
-        )
-        # Z-score for 95% confidence interval
-        Z = 1.96
-        # Add rows to the table
-        for ai, wins in ai_stats.items():
-            win_rate = wins / completed_games
-            ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
-            print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{ci_width*100:.2f}"])
 
-        # Keep track of all experiments, also the finished ones to print
-        tables[exp_name]["table"] = print_stats
-        print("\n\n\n\n")
-        print("-" * 20, end="")
-        print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), end="")
-        print("-" * 20)
-        print("\n")
-        for _, v in tables.items():
-            print(v["description"])
-            print(v["table"])
-            if "end_time" in v:
-                print(f"Finished: {v['end_time'].strftime('%Y-%m-%d %H:%M:%S')}")
-                print(f"Duration: {v['end_time'] - v['start_time']}")
-                if completed_games > 0:
-                    print(f"Average time per game: {(v['end_time'] - v['start_time']) / float(completed_games)}")
-                if stuck_games_list != []:
-                    print(f"Stuck games: {stuck_games_list}")
+def calculate_win_rate_and_ci(wins, completed_games, Z):
+    win_rate = wins / completed_games if completed_games > 0 else 0
+    ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games) if completed_games > 0 else 0
+    return win_rate, ci_width
+
+
+def print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws):
+    # Initialize PrettyTable with headers
+    print_stats = PrettyTable(["AI Name", "Win %", "95% C.I.", "Wins", "Total Games"])
+
+    # Z-score for 95% confidence interval
+    Z = 1.96
+
+    # Populate the table with AI stats
+    for ai, wins in ai_stats.items():
+        win_rate, ci_width = calculate_win_rate_and_ci(wins, completed_games, Z)
+        print_stats.add_row([ai, f"{win_rate * 100:.2f}%", f"±{ci_width * 100:.2f}%", wins, completed_games])
+
+    # Print the statistics table for the current experiment
+    print(f"Statistics for {exp_name}:")
+
+    print(tables[exp_name]["description"])
+    print(tables[exp_name]["start_time"])
+    print(print_stats)
+
+    tables[exp_name]["table"] = print_stats.get_string()
+
+    # Add summary of games below the table
+    summary = f"Completed Games: {completed_games}, Errors: {error_games}, Draws: {draws}"
+    print(summary)
+
+
+# def update_running_experiment_status(tables, base_path, print_tables=True) -> list[str]:
+#     exp_directories = os.listdir(os.path.join(base_path, "log"))
+
+#     for exp_name in exp_directories:
+#         completed_games = 0
+#         error_games = 0
+#         draws = 0
+#         ai_stats = Counter()  # To hold cumulative statistics per AI
+
+#         path_to_result = os.path.join(base_path, "results", exp_name)
+#         path_to_log = os.path.join(base_path, "log", exp_name)
+#         os.makedirs(path_to_log, exist_ok=True)
+#         os.makedirs(path_to_result, exist_ok=True)
+
+#         # The first part of the exp_name is the name of the game
+#         game_name = exp_name.split("_")[0]
+#         log_files = glob.glob(f"{path_to_log}/*.log")
+#         stuck_games_list = []
+
+#         # Open CSV file in write mode (it needs to be overwritten every time)
+#         with open(os.path.join(path_to_result, f"{game_name}_results.csv"), "w", newline="") as f:
+#             if exp_name in tables:
+#                 f.write(tables[exp_name]["description"])
+
+#             writer = csv.writer(f)
+
+#             for log_file in log_files:
+#                 with open(log_file, "r") as log_f:
+#                     log_contents = log_f.readlines()
+
+#                     if len(log_contents) < 3:
+#                         continue
+
+#                     game_number = log_file.split("/")[-1].split(".")[0]  # Get game number from log file name
+#                     # ! Assuming "Experiment completed" is second to last line, this must remain true
+#                     if "Experiment completed" in log_contents[-1]:
+#                         completed_games += 1
+#                         # Assuming the last line is "Game Over. Winner: Px [px_params]"
+#                         winner_info = log_contents[-2]
+#                         winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
+
+#                         if "Game Over. Winner: P1" in winner_info or "Game Over. Winner: P2" in winner_info:
+#                             loser_info = log_contents[-3]
+#                             loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
+
+#                             # Make sure there's a line for each player
+#                             if winner_params not in ai_stats:
+#                                 ai_stats[winner_params] = 0
+#                             if loser_params not in ai_stats:
+#                                 ai_stats[loser_params] = 0
+
+#                             writer.writerow([game_number, winner_params])
+#                             ai_stats[winner_params] += 1  # Update AI statistics
+#                         else:
+#                             draws += 1
+#                             writer.writerow([game_number, "Draw"])
+#                     elif "Experiment error" in log_contents[-1]:  # Assuming "Experiment error" is the last line
+#                         writer.writerow([game_number, "Error"])
+#                         error_games += 1
+
+#         # Write cumulative table to separate CSV file
+#         with open(f"{path_to_result}/{game_name}_cumulative_stats.csv", "w", newline="") as f:
+#             if exp_name in tables:
+#                 f.write(tables[exp_name]["description"])
+#             writer = csv.writer(f)
+#             writer.writerow(["AI", "Win %", "95% C.I.", "# Games"])
+
+#             Z = 1.96
+#             for ai, wins in ai_stats.items():
+#                 if completed_games > 0:
+#                     win_rate = wins / completed_games
+#                     ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
+#                     writer.writerow(
+#                         [
+#                             ai,
+#                             f"{win_rate * 100:.2f}",
+#                             f"±{ci_width * 100:.2f}",
+#                             completed_games,
+#                         ]
+#                     )
+#                 else:
+#                     writer.writerow([ai, "N/A", "N/A", 0])
+
+#         if print_tables:
+#             # Print cumulative statistics per AI to the screen
+#             print_stats = PrettyTable(
+#                 [
+#                     f"AI ({exp_name})",
+#                     f"Win % (Games: {completed_games}, Errors: {error_games}, Draws: {draws})",
+#                     "95% C.I.",
+#                 ]
+#             )
+#             # Z-score for 95% confidence interval
+#             Z = 1.96
+#             # Add rows to the table
+#             for ai, wins in ai_stats.items():
+#                 win_rate = wins / completed_games
+#                 ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games)
+#                 print_stats.add_row([ai, f"{win_rate * 100:.2f}", f"±{ci_width*100:.2f}"])
+
+#             # Keep track of all experiments, also the finished ones to print
+#             tables[exp_name]["table"] = print_stats
+#             print("\n\n\n\n")
+#             print("-" * 20, end="")
+#             print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), end="")
+#             print("-" * 20)
+#             print("\n")
+#             for _, v in tables.items():
+#                 print(v["description"])
+#                 print(v["table"])
+
+#             if stuck_games_list != []:
+#                 print(f"Stuck games: {stuck_games_list}")
