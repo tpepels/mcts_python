@@ -118,6 +118,7 @@ def aggregate_csv_results(output_file, base_path):
                             f"±{ci_width * 100:.2f}",
                         )
                     )
+                    print(f"  {ai_config}: {win_rate * 100:.2f}% ±{ci_width * 100:.2f}%")
 
                 # Sort ai_results based on ai_config to ensure consistent order
                 ai_results.sort(key=lambda x: (len(x[0]), x[0]))
@@ -134,6 +135,7 @@ def aggregate_csv_results(output_file, base_path):
 
                 ai1_diffs, ai2_diffs = {}, {}
                 if len(ai_results) == 2:
+                    print(f"There are two AI results for {file}.")
                     ai1_diffs, ai2_diffs = extract_ai_param_diffs(ai_results[0][0], ai_results[1][0])
                     row.extend(
                         [
@@ -148,6 +150,7 @@ def aggregate_csv_results(output_file, base_path):
                         ]
                     )
                 elif len(ai_results) == 1:
+                    print(f"Only one AI result for {file}.")
                     row.extend(
                         [
                             ai_results[0][0],
@@ -160,14 +163,13 @@ def aggregate_csv_results(output_file, base_path):
                         ]
                     )
                 else:
+                    print(f"Error: {file} has {len(ai_results)} results. Skipping.")
                     row.extend(["N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
 
                 aggregated_rows.append(row)
 
             if len(aggregated_rows) > 0:
                 print(f"Writing {len(aggregated_rows)} rows to {output_file}.")
-                print(f"First row: {aggregated_rows[1]}")
-                print(f"Last row: {aggregated_rows[-1]}")
                 # Sort the aggregated rows by the AI1 win rate
                 try:
                     aggregated_rows.sort(key=lambda row: float(row[8]), reverse=False)
