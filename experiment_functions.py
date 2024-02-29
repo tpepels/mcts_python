@@ -166,7 +166,7 @@ def aggregate_csv_results(output_file, base_path):
                 for row in aggregated_rows:
                     writer.writerow(row)
     except Exception as e:
-        print(f"Error aggregating results: {e}, skipping.")
+        print(f"Error aggregating results: {e}, skipping {file}")
 
 
 def sort_parameters(ai_config):
