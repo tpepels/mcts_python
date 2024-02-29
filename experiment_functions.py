@@ -189,7 +189,7 @@ def aggregate_csv_results(output_file, base_path):
 
             if len(aggregated_rows) > 0:
                 print(f"Writing {len(aggregated_rows)} rows to {output_file}.")
-                print(f"row 8: {aggregated_rows[8]}")  # Sort the aggregated rows by the AI1 win rate
+
                 try:
                     aggregated_rows.sort(key=lambda row: float(row[8]), reverse=False)
                 except ValueError as e:
