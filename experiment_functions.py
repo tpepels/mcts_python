@@ -161,7 +161,11 @@ def aggregate_csv_results(output_file, base_path):
 
             if len(aggregated_rows) > 0:
                 # Sort the aggregated rows by the AI1 win rate
-                aggregated_rows.sort(key=lambda row: float(row[8]), reverse=False)
+                try:
+                    aggregated_rows.sort(key=lambda row: float(row[8]), reverse=False)
+                except ValueError as e:
+                    print(f"Error sorting rows: {e}, {file}")
+
                 # Write the sorted rows to the output file
                 for row in aggregated_rows:
                     writer.writerow(row)
