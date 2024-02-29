@@ -65,7 +65,7 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
         return
 
     # Interval for status updates (e.g., every 60 seconds)
-    update_interval = 120
+    update_interval = 300
     stop_event = threading.Event()
 
     # Process experiments
@@ -125,7 +125,7 @@ def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_p
     """
     start_time = datetime.datetime.now()
     while not stop_event.is_set():
-        # time.sleep(update_interval // 2)
+        time.sleep(update_interval // 2)
         update_running_experiment_status(
             tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
