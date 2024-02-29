@@ -5,9 +5,9 @@ from Cython.Build import cythonize
 
 import numpy
 
-# compile_args = ["-O3", "-DCYTHON_WITHOUT_ASSERTIONS"]
+compile_args = ["-O3", "-DCYTHON_WITHOUT_ASSERTIONS"]
 # * Switch comments to disable/enable optimizations
-compile_args = []
+# compile_args = []
 
 ext_modules = [
     Extension(

@@ -5,10 +5,13 @@ import glob
 import itertools
 import json
 import math
+import traceback
 import os
 import re
 import pandas as pd
 from prettytable import PrettyTable
+
+from util import format_time
 
 
 class ColName:
@@ -90,7 +93,7 @@ def aggregate_csv_results(output_file, base_path):
                         # Parse metadata using regular expressions
                         try:
                             metadata["exp_name"] = re.search(r"exp_name='(.*?)'", lines[0]).group(1)
-                            metadata["date_time"] = re.search(r"(\d{8}_\d{6})", metadata["exp_name"]).group(1)
+                            metadata["date_time"] = re.search(r"(\d{4}_\d{4})", metadata["exp_name"]).group(1)
                             metadata["game_name"] = re.search(r"game_name='(.*?)'", lines[0]).group(1)
                             metadata["game_params"] = re.search(r"game_params\s*=\s*(\{.*?\})", lines[1]).group(1)
                             metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
@@ -99,6 +102,8 @@ def aggregate_csv_results(output_file, base_path):
                             print(f"Error parsing metadata for {file}.")
                             print("Lines causing issues:")
                             print(lines[:4])  # Print the lines causing the issue
+                            print(f"Error: {e}")
+                            traceback.print_exc()
                             continue
 
                         for line in lines[7:]:
@@ -195,8 +200,6 @@ def aggregate_csv_results(output_file, base_path):
                     writer.writerow(row)
     except Exception as e:
         print(f"Error aggregating results: {e}, skipping {file}")
-        import traceback
-
         # Print the stack trace so we can find the error
         traceback.print_exc()
 
@@ -335,41 +338,70 @@ def prepare_paths(base_path, exp_name):
     return path_to_result, path_to_log
 
 
-def update_running_experiment_status(tables, base_path, print_tables=True):
+def update_running_experiment_status(tables, base_path, total_games, start_time, n_procs, print_tables=True):
     exp_directories = os.listdir(os.path.join(base_path, "log"))
+
     # Write a seperator so that we can easily identify the start of a new update
     if print_tables:
         print(f"\n\n\n\n\n\n\n\n{'-' * 20}{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{'-' * 20}\n")
-
+    tot_completed_games = 0
     for exp_name in exp_directories:
+        # May be an old experiment that has already been processed
+        if exp_name not in tables:
+            continue
+
         ai_stats = Counter()
         path_to_result, path_to_log = prepare_paths(base_path, exp_name)
         log_files = glob.glob(f"{path_to_log}/*.log")
         game_name = exp_name.split("_")[0]
 
-        with open(os.path.join(path_to_result, f"{game_name}_results.csv"), "a", newline="") as f:
+        with open(os.path.join(path_to_result, f"{game_name}_results.csv"), "w", newline="") as f:
             writer = csv.writer(f)
             if exp_name in tables:
                 f.write(tables[exp_name]["description"])
             completed_games, error_games, draws = process_log_files(log_files, ai_stats, writer)
-
+            tot_completed_games += completed_games
         # Write cumulative table to separate CSV file
         write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games)
-
         # Print tables, if required
         if print_tables:
             print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws)
+
+        print(
+            f"\n{'- -'* 30}\n\nOverall completed/total games: {tot_completed_games}/{total_games}, errors: {error_games}\n"
+        )
+        if tot_completed_games > 0:
+            games_remaining = total_games - tot_completed_games
+            sets_remaining = math.ceil(games_remaining / n_procs)
+            elapsed_time_seconds = (datetime.datetime.now() - start_time).seconds
+            # Adjusting the average time per game calculation to account for parallel execution
+            effective_average_time_per_game = elapsed_time_seconds / (tot_completed_games / n_procs)
+            estimated_time_remaining_seconds = effective_average_time_per_game * sets_remaining
+
+            print(f"Average time per game (adjusted for parallelism): {format_time(effective_average_time_per_game)}")
+            print(f"Estimated time remaining: {format_time(estimated_time_remaining_seconds)}\n{'- -' * 30}\n")
 
 
 def process_log_files(log_files, ai_stats, writer):
     completed_games, error_games, draws = 0, 0, 0
 
     def extract_winner_loser_info(log_contents):
-        winner_info = log_contents[-2]
-        winner_params = re.search(r"\[(.*)\]", winner_info).group(1)
+        winner_search = re.search(r"\[(.*)\]", log_contents[-2])
         loser_info = log_contents[-3]
-        loser_params = re.search(r"\[(.*)\]", loser_info).group(1)
-        return winner_info, winner_params, loser_params
+        loser_search = re.search(r"\[(.*)\]", loser_info)
+
+        # Initialize default values in case the search fails
+        winner_params = None
+        loser_params = None
+
+        # Check if the searches found matches before accessing groups
+        if winner_search:
+            winner_params = winner_search.group(1)
+        if loser_search:
+            loser_params = loser_search.group(1)
+
+        # Return the extracted parameters, which might be None if not found
+        return winner_params, loser_params
 
     for log_file in log_files:
         with open(log_file, "r") as log_f:
@@ -381,7 +413,7 @@ def process_log_files(log_files, ai_stats, writer):
         game_number = log_file.split("/")[-1].split(".")[0]
         if "Experiment completed" in log_contents[-1]:
             completed_games += 1
-            winner_info, winner_params, loser_params = extract_winner_loser_info(log_contents)
+            winner_params, loser_params = extract_winner_loser_info(log_contents)
             update_stats_and_write(ai_stats, winner_params, loser_params, writer, game_number)
         elif "Experiment error" in log_contents[-1]:
             writer.writerow([game_number, "Error"])
@@ -422,8 +454,9 @@ def calculate_win_rate_and_ci(wins, completed_games, Z):
 
 
 def print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws):
+
     # Initialize PrettyTable with headers
-    print_stats = PrettyTable(["AI Name", "Win %", "95% C.I.", "Wins", "Total Games"])
+    print_stats = PrettyTable([f"({exp_name}) AI Name", "Win %", "95% C.I.", "Wins", "Total Games"])
 
     # Z-score for 95% confidence interval
     Z = 1.96
@@ -439,7 +472,6 @@ def print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_ga
     print(tables[exp_name]["description"])
     print(tables[exp_name]["start_time"])
     print(print_stats)
-
     tables[exp_name]["table"] = print_stats.get_string()
 
     # Add summary of games below the table

@@ -2,6 +2,7 @@ from copy import deepcopy
 import datetime
 from pprint import pprint
 import sys
+from tracemalloc import start
 from pebble import ProcessPool, ProcessExpired
 import threading
 import time
@@ -42,6 +43,7 @@ def run_single_experiment(
     log_path = os.path.join(base_path, "log", exp_name, f"{i}.log")
     try:
         with redirect_print_to_log(log_path):
+            print("Running experiment", i)
             run_game_experiment(game_key, game_params, p1_params, p2_params, random_openings)
 
         with open(log_path, "a") as log_file:
@@ -56,7 +58,7 @@ def run_single_experiment(
             log_file.flush()
 
 
-def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg_loc=None, timeout=30 * 60):
+def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=30 * 60):
     expanded_experiment_configs = expand_rows(json_file_path)
     print(f"{len(expanded_experiment_configs)} experiments.")
     if count_only:
@@ -69,8 +71,9 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg
     # Process experiments
     all_experiments = [experiment for config in expanded_experiment_configs for experiment in get_experiments(config)]
     # Start the periodic status update thread (tables and base_path are global variables)
+    total_games = len(all_experiments)
     status_thread = threading.Thread(
-        target=run_periodic_status_updates, args=(update_interval, stop_event, tables, base_path)
+        target=run_periodic_status_updates, args=(update_interval, stop_event, tables, base_path, total_games, n_procs)
     )
     status_thread.start()
     random.shuffle(all_experiments)
@@ -92,7 +95,7 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg
                 print(f"Task raised an exception: {e}", sys.stderr)
 
     if agg_loc is not None:
-        print("aggregate results..")
+        print("aggregating results..")
         aggregate_csv_results(agg_loc, base_path)
 
     # Experiments are done, signal the status update thread to stop and wait for it to finish
@@ -100,11 +103,17 @@ def start_experiments_from_json(json_file_path, n_procs=4, count_only=False, agg
     status_thread.join()
 
     # perform any final status update after all experiments are complete
-    update_running_experiment_status(tables=tables, base_path=base_path)
+    update_running_experiment_status(
+        tables=tables,
+        base_path=base_path,
+        total_games=total_games,
+        start_time=datetime.datetime.now(),
+        n_procs=n_procs,
+    )
     print("Completed all experiments and updates.")
 
 
-def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_path):
+def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_path, total_games, n_procs):
     """
     Periodically runs the update_running_experiment_status function until a stop event is set.
 
@@ -114,9 +123,12 @@ def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_p
         tables (dict): The shared data structure to pass to the update function.
         base_path (str): The base path to pass to the update function.
     """
+    start_time = datetime.datetime.now()
     while not stop_event.is_set():
         # time.sleep(update_interval // 2)
-        update_running_experiment_status(tables_dict, base_path=base_path)
+        update_running_experiment_status(
+            tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
+        )
         time.sleep(update_interval // 2)
 
 
