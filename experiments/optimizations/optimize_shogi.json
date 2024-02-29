@@ -12,7 +12,7 @@
     "p1_eval_params": {},
     "p2_ai_key": "alphabeta",
     "p2_ai_params": {
-      "max_time": 11
+      "max_time": 8
     },
     "p2_eval_params": {}
   }
