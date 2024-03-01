@@ -1112,8 +1112,7 @@ class MiniShogi(GameState):
         "m_defenses": 5,
         "a": 6,
     }
-
-    default_params = array.array("d", [20.0, 1.0, 1.0, 2.0, 2.0, 1.0, 200.0])
+    default_params = array.array("d", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1176,7 +1175,7 @@ class MiniShogi(GameState):
                         1 if (player == 1 and 1 <= piece <= P2_OFFS) or (player == 2 and 11 <= piece <= 20) else -1
                     )
                     material_score += multip * MATERIAL[piece]
-                    self._generate_moves(row, col, self.board[row, col], callback, count_defense=True, randomize=False)
+                    self._generate_moves(row, col, self.board[row, col], callback, count_defense=params[5] > 0, randomize=False)
 
         captured_pieces_player: cython.list[cython.int] = (
             self.captured_pieces_1 if player == 1 else self.captured_pieces_2

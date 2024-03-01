@@ -73,7 +73,8 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     # Start the periodic status update thread (tables and base_path are global variables)
     total_games = len(all_experiments)
     status_thread = threading.Thread(
-        target=run_periodic_status_updates, args=(update_interval, stop_event, tables, base_path, total_games, n_procs)
+        target=run_periodic_status_updates,
+        args=(update_interval, stop_event, tables, base_path, total_games, n_procs, agg_loc),
     )
     status_thread.start()
     random.shuffle(all_experiments)
@@ -113,7 +114,9 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     print("Completed all experiments and updates.")
 
 
-def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_path, total_games, n_procs):
+def run_periodic_status_updates(
+    update_interval, stop_event, tables_dict, base_path, total_games, n_procs, agg_loc=None
+):
     """
     Periodically runs the update_running_experiment_status function until a stop event is set.
 
@@ -124,12 +127,18 @@ def run_periodic_status_updates(update_interval, stop_event, tables_dict, base_p
         base_path (str): The base path to pass to the update function.
     """
     start_time = datetime.datetime.now()
+    counter = 0
     while not stop_event.is_set():
         time.sleep(update_interval // 2)
         update_running_experiment_status(
             tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
         time.sleep(update_interval // 2)
+        counter += 1
+        # Every 5 updates, aggregate the results
+        if counter % 5 == 0 and agg_loc is not None:
+            print("aggregating results..")
+            aggregate_csv_results(agg_loc, base_path)
 
 
 exp_names = []
