@@ -1,8 +1,10 @@
 from copy import deepcopy
 import datetime
+from nis import cat
 from pprint import pprint
 import sys
 from tracemalloc import start
+from warnings import catch_warnings
 from pebble import ProcessPool, ProcessExpired
 import threading
 import time
@@ -138,7 +140,11 @@ def run_periodic_status_updates(
         # Every 5 updates, aggregate the results
         if counter % 5 == 0 and agg_loc is not None:
             print("aggregating results..")
-            aggregate_csv_results(agg_loc, base_path)
+            try:
+                aggregate_csv_results(agg_loc, base_path)
+            except Exception as e:
+                # This is probably because the file is still being written to or some such reason
+                print(f"Error aggregating results: {e}", sys.stderr)
 
 
 exp_names = []
