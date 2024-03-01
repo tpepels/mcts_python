@@ -270,9 +270,7 @@ def generate_ascii_art(text):
         print(line)
 
 
-def expand_rows(json_file_path):
-    # Read JSON data into a DataFrame
-    data_dict = read_json_file(json_file_path)
+def expand_rows(data_dict: list):
     df = pd.DataFrame(data_dict)
 
     # Find columns that need to be expanded
@@ -338,13 +336,14 @@ def prepare_paths(base_path, exp_name):
     return path_to_result, path_to_log
 
 
-def update_running_experiment_status(tables, base_path, total_games, start_time, n_procs, print_tables=True):
+def update_running_experiment_status(tables, base_path, total_games, start_time, n_procs, print_tables=True, top_n=0):
     exp_directories = os.listdir(os.path.join(base_path, "log"))
 
     # Write a seperator so that we can easily identify the start of a new update
     if print_tables:
         print(f"\n\n\n\n\n\n\n\n{'-' * 20}{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{'-' * 20}\n")
     tot_completed_games = 0
+    experiment_performance = {}
     for exp_name in exp_directories:
         # May be an old experiment that has already been processed
         if exp_name not in tables:
@@ -356,13 +355,23 @@ def update_running_experiment_status(tables, base_path, total_games, start_time,
         game_name = exp_name.split("_")[0]
 
         with open(os.path.join(path_to_result, f"{game_name}_results.csv"), "w", newline="") as f:
+
             writer = csv.writer(f)
             if exp_name in tables:
                 f.write(tables[exp_name]["description"])
+
             completed_games, error_games, draws = process_log_files(log_files, ai_stats, writer)
             tot_completed_games += completed_games
+
+            Z = 1.645  # Z-score for 90% confidence interval
+            # Calculate performance metric for each experiment, e.g., win rate
+            win_rate, ci_width = calculate_win_rate_and_ci(ai_stats["wins"], completed_games, Z)
+            if completed_games > 50:  # We need to have at least some number games to make a decision
+                experiment_performance[exp_name] = (win_rate, ci_width)
+
         # Write cumulative table to separate CSV file
         write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games)
+
         # Print tables, if required
         if print_tables:
             print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws)
@@ -380,6 +389,43 @@ def update_running_experiment_status(tables, base_path, total_games, start_time,
 
             print(f"Average time per game (adjusted for parallelism): {format_time(effective_average_time_per_game)}")
             print(f"Estimated time remaining: {format_time(estimated_time_remaining_seconds)}\n{'- -' * 30}\n")
+
+        # Sort experiments by their win rate in descending order
+        sorted_experiments = sorted(experiment_performance.items(), key=lambda x: x[1][0], reverse=True)
+        # Extract the win rates (and CI for later use) for the top N experiments
+        top_n_win_rates = sorted_experiments[:top_n] if top_n > 0 else []
+        # If there are at least N experiments, determine the lower threshold for cancellation
+        if len(top_n_win_rates) == top_n:
+            # Use the lowest win rate in the top N as the benchmark
+            benchmark_win_rate = top_n_win_rates[-1][1][0]  # The win rate of the Nth experiment
+            # Identify experiments below the top N whose upper CI bound win rate does not exceed the benchmark
+            experiments_to_cancel = [
+                exp_name
+                for exp_name, (win_rate, ci_width) in sorted_experiments[top_n:]
+                if win_rate + ci_width < benchmark_win_rate
+            ]
+        else:
+            experiments_to_cancel = []  # If there are not enough experiments to form a top N, don't cancel any
+
+        return experiments_to_cancel
+
+
+def write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games):
+    with open(os.path.join(path_to_result, f"{game_name}_cumulative_stats.csv"), "w", newline="") as f:
+        if exp_name in tables:
+            f.write(tables[exp_name]["description"])
+        writer = csv.writer(f)
+        writer.writerow(["AI", "Win %", "95% C.I.", "# Games"])
+        Z = 1.96
+        for ai, wins in ai_stats.items():
+            win_rate, ci_width = calculate_win_rate_and_ci(wins, completed_games, Z)
+            writer.writerow([ai, f"{win_rate * 100:.2f}", f"±{ci_width * 100:.2f}", completed_games])
+
+
+def calculate_win_rate_and_ci(wins, completed_games, Z):
+    win_rate = wins / completed_games if completed_games > 0 else 0
+    ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games) if completed_games > 0 else 0
+    return win_rate, ci_width
 
 
 def process_log_files(log_files, ai_stats, writer):
@@ -433,24 +479,6 @@ def update_stats_and_write(ai_stats, winner_params, loser_params, writer, game_n
 
     ai_stats[winner_params] += 1  # Update AI statistics
     writer.writerow([game_number, winner_params])
-
-
-def write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games):
-    with open(os.path.join(path_to_result, f"{game_name}_cumulative_stats.csv"), "w", newline="") as f:
-        if exp_name in tables:
-            f.write(tables[exp_name]["description"])
-        writer = csv.writer(f)
-        writer.writerow(["AI", "Win %", "95% C.I.", "# Games"])
-        Z = 1.96
-        for ai, wins in ai_stats.items():
-            win_rate, ci_width = calculate_win_rate_and_ci(wins, completed_games, Z)
-            writer.writerow([ai, f"{win_rate * 100:.2f}", f"±{ci_width * 100:.2f}", completed_games])
-
-
-def calculate_win_rate_and_ci(wins, completed_games, Z):
-    win_rate = wins / completed_games if completed_games > 0 else 0
-    ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / completed_games) if completed_games > 0 else 0
-    return win_rate, ci_width
 
 
 def print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws):

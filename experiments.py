@@ -1,5 +1,6 @@
 from copy import deepcopy
 import datetime
+import json
 
 import sys
 from pebble import ProcessPool, ProcessExpired
@@ -57,8 +58,23 @@ def run_single_experiment(
             log_file.flush()
 
 
+# This has the form "exp_name": False/True
+# True means the experiment is running and should be cancelled, False means it has been cancelled
+cancel_experiments = {}
+
+
 def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=30 * 60):
-    expanded_experiment_configs = expand_rows(json_file_path)
+    with open(json_file_path) as json_file:
+        data = json.load(json_file)
+
+    # Check if the first element contains the 'top_n' configuration
+    top_n = 0  # Default value indicating no top_n filtering
+    if "top_n" in data[0]:
+        top_n = data[0]["top_n"]
+        expanded_experiment_configs = expand_rows(data[1:])  # Exclude the top_n configuration
+    else:
+        expanded_experiment_configs = expand_rows(data)
+
     print(f"{len(expanded_experiment_configs)} experiments.")
     if count_only:
         return
@@ -73,14 +89,21 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     total_games = len(all_experiments)
     status_thread = threading.Thread(
         target=run_periodic_status_updates,
-        args=(update_interval, stop_event, tables, base_path, total_games, n_procs, agg_loc),
+        args=(update_interval, stop_event, tables, base_path, total_games, n_procs, agg_loc, top_n),
     )
     status_thread.start()
     random.shuffle(all_experiments)
 
     with ProcessPool(max_workers=n_procs) as pool:
         print(f"Starting {len(all_experiments)} experiments with {n_procs} processes.")
-        future_tasks = [pool.schedule(run_single_experiment, args=exp, timeout=timeout) for exp in all_experiments]
+        future_tasks = {}
+        for exp in all_experiments:
+            exp_name = exp["exp_name"]
+            if exp_name not in future_tasks:
+                future_tasks[exp_name] = []
+            # Schedule the task and store the future with the exp_name
+            future = pool.schedule(run_single_experiment, args=(exp,))
+            future_tasks[exp_name].append(future)
         print(f"All {len(all_experiments)} experiments pooled.")
 
         for future in future_tasks:
@@ -93,6 +116,17 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
                 print(f"Task process expired: {e}", sys.stderr)
             except Exception as e:
                 print(f"Task raised an exception: {e}", sys.stderr)
+
+        # Check for and cancel any experiments marked for cancellation
+        exp_names_to_cancel = [exp_name for exp_name, should_cancel in cancel_experiments.items() if should_cancel]
+        cancel_experiments(future_tasks, exp_names_to_cancel)
+        # Print the cancelled experiments
+        cancel_str = "Cancelled (outside bounds) experiments: " + "\n".join(exp_names_to_cancel)
+        print(cancel_str)
+
+        # Update cancelled_experiments to False for those that were cancelled
+        for exp_name in exp_names_to_cancel:
+            cancel_experiments[exp_name] = False
 
     if agg_loc is not None:
         print("aggregating results..")
@@ -113,8 +147,16 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     print("Completed all experiments and updates.")
 
 
+def cancel_experiments(future_tasks, exp_names_to_cancel):
+    for exp_name in exp_names_to_cancel:
+        if exp_name in future_tasks:
+            for future in future_tasks[exp_name]:
+                if not future.done():
+                    future.cancel()
+
+
 def run_periodic_status_updates(
-    update_interval, stop_event, tables_dict, base_path, total_games, n_procs, agg_loc=None
+    update_interval, stop_event, tables_dict, base_path, total_games, n_procs, agg_loc=None, top_n=0
 ):
     """
     Periodically runs the update_running_experiment_status function until a stop event is set.
@@ -129,9 +171,20 @@ def run_periodic_status_updates(
     counter = 0
     while not stop_event.is_set():
         time.sleep(update_interval // 2)
-        update_running_experiment_status(
-            tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
+        cancel_list = update_running_experiment_status(
+            tables_dict,
+            base_path=base_path,
+            total_games=total_games,
+            start_time=start_time,
+            n_procs=n_procs,
+            top_n=top_n,
         )
+        # Update the global cancelled_experiments dictionary based on cancel_list
+        for exp_name in cancel_list:
+            if exp_name not in cancel_experiments:
+                # Mark for cancellation if not already cancelled
+                cancel_experiments[exp_name] = True
+
         time.sleep(update_interval // 2)
         counter += 1
         # Every 5 updates, aggregate the results

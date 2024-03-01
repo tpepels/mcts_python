@@ -1,8 +1,8 @@
 DEFAULT_SETTINGS = {
     ("minishogi", "mcts"): {
         "ai_params": {
-            "c": 0.4,
-            "imm_alpha": 0.8,
+            "c": 0.5,
+            "imm_alpha": 0.9,
             "early_term_turns": 15,
             "early_term_cutoff": 0.4,
             "epsilon": 0.03,
