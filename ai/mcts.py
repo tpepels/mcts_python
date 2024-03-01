@@ -1,5 +1,6 @@
 # cython: language_level=3
 
+import gc
 from hmac import new
 from os import path
 import random
@@ -7,6 +8,8 @@ from random import random as rand_float
 from click import pass_context
 from colorama import Back, Fore, init
 from numpy import c_
+
+from includes.dynamic_bin import DynamicBin
 
 init(autoreset=True)
 import cython
@@ -21,6 +24,15 @@ prunes: cython.int = 0
 non_prunes: cython.int = 0
 ab_bound: cython.int = 0
 ucb_bound: cython.int = 0
+# This is just for debuging purposes
+n_bins: cython.int = 15
+dynamic_bins: cython.dict = {}
+if __debug__:
+    dynamic_bins["alpha"] = {"bin": DynamicBin(n_bins), "label": "alpha values"}
+    dynamic_bins["beta"] = {"bin": DynamicBin(n_bins), "label": "beta values"}
+    dynamic_bins["path_score"] = {"bin": DynamicBin(n_bins), "label": "path_score values"}
+    dynamic_bins["visit_ratio"] = {"bin": DynamicBin(n_bins), "label": "visit_ratio values"}
+    dynamic_bins["path_visits"] = {"bin": DynamicBin(n_bins), "label": "path_visits values"}
 
 
 @cython.cfunc
@@ -836,7 +848,22 @@ class MCTSPlayer:
             sorted_children = sorted(self.root.children, key=comparator, reverse=True)[:30]
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
+            if __debug__:
+                if self.ab_version != 0:
+                    plot_width = 160
+                    plot_height = 30
 
+                    plot_selected_bins(dynamic_bins, plot_width, plot_height)
+                    # Clear bins
+                    print("clearing bins, this takes a while..")
+                    for _, bin_value in dynamic_bins.items():
+                        del bin_value["bin"]
+                        print(f"\rclearing {bin_value['label']}", end=" ")
+                        bin_value["bin"] = DynamicBin(n_bins)
+
+                    print("\rCollecting garbage")
+                    gc.collect()
+                    print("Done\n\n")
         # For tree reuse, make sure that we can access the next action from the root
         self.root = max_node
         return max_node.action, max_value  # return the most visited state
@@ -891,6 +918,27 @@ class MCTSPlayer:
 
                 prev_node = node
                 if self.ab_version != 0:
+                    #     cdef void calculate_bins(self)
+                    #     cdef list get_bins(self)
+                    #     cpdef public void add_data(self, double new_data)
+                    #     cpdef public void print_bins(self)
+                    #     cpdef public void plot_bin_counts(self, str name)
+                    #     cpdef public void clear(self)
+                    #     cpdef public void plot_time_series(self, str name, int plot_width=*, int plot_height=*, bint median=*)
+                    if __debug__:
+                        # Keep track of the data used for each UCT call
+                        if alpha != -INFINITY and beta != INFINITY:
+                            dynamic_bins["alpha"]["bin"].add_data(alpha if node.player == self.player else -beta)
+                            dynamic_bins["beta"]["bin"].add_data(beta if node.player == self.player else -alpha)
+
+                            dynamic_bins["path_score"]["bin"].add_data(
+                                path_score / path_visits if path_visits > 0 else 0
+                            )
+                            dynamic_bins["visit_ratio"]["bin"].add_data(
+                                path_visits / self.root.n_visits if path_visits > 0 else 0
+                            )
+                            dynamic_bins["path_visits"]["bin"].add_data(path_visits)
+
                     node = node.uct(
                         self.c,
                         self.pb_weight,
@@ -1070,42 +1118,6 @@ class ChildComparator:
         return child.n_visits
 
 
-def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
-    while True:
-        print("Available statistics to plot:")
-        for idx, key in enumerate(bins_dict.keys()):
-            print(f"{idx + 1}. {bins_dict[key]['label']}")
-
-        print("0. Continue")
-
-        user_input = input("Enter the number fo the statistics to plot, or 0 to continue, j to just play, q to quit: ")
-
-        if user_input == "0":
-            break
-        elif user_input == "q":
-            quit()
-        elif user_input == "j":
-            global just_play
-            just_play = True
-            break
-        elif user_input.isdigit():
-            selected_idx = int(user_input) - 1
-
-            # Check if the selected index is within the range of available keys
-            if 0 <= selected_idx < len(bins_dict):
-                selected_key = list(bins_dict.keys())[selected_idx]
-                selected_bin_value = bins_dict[selected_key]
-
-                selected_bin_value["bin"].plot_bin_counts(selected_bin_value["label"])
-                selected_bin_value["bin"].plot_time_series(
-                    selected_bin_value["label"], plot_width, plot_height, median=False
-                )
-            else:
-                print("Invalid input. The number is out of range. Please try again.")
-        else:
-            print("Invalid input. Please enter a number or 'q' to quit.")
-
-
 # Define a key function for sorting
 def get_node_visits(node):
     return node.n_visits
@@ -1205,47 +1217,37 @@ def quiescence(
     return stand_pat  # Return the best score found
 
 
-# if self.ab_version == 4:
-#     plot_width = 160
-#     plot_height = 30
-#     if not just_play:
-#         plot_selected_bins(bins_dict, plot_width, plot_height)
-#         # Clear bins
-#         print("clearing bins, this takes a while..")
-#         for _, bin_value in bins_dict.items():
-#             del bin_value["bin"]
-#             print(f"\rclearing {bin_value['label']}", end=" ")
-#             bin_value["bin"] = DynamicBin(n_bins)
+def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
+    while True:
+        print("Available statistics to plot:")
+        for idx, key in enumerate(bins_dict.keys()):
+            print(f"{idx + 1}. {bins_dict[key]['label']}")
 
-#         print("\rCollecting garbage")
-#         gc.collect()
-#         print("Done\n\n")
-#         if not just_play:
-#             second_run = input("Do another run? [y/N]: ")
-#             if second_run.lower() == "y":
-#                 try:
-#                     self.c = float(input(f"Enter new c value (currently: {self.c}): "))
-#                 except ValueError:
-#                     # Just keep the c the same
-#                     pass
-#                 try:
-#                     self.imm_alpha = float(
-#                         input(f"Enter new imm_alpha value (currently: {self.imm_alpha}): ")
-#                     )
-#                 except ValueError:
-#                     # Just keep the imm_alpha the same
-#                     pass
-#                 self.root = None
-#                 return self.best_action(state)
-# else:
-#     # Clear bins
-#     print("clearing bins, this takes a while..")
-#     for _, bin_value in bins_dict.items():
-#         del bin_value["bin"]
-#         print(f"\rclearing {bin_value['label']}", end=" ")
-#         bin_value["bin"] = DynamicBin(n_bins)
-#     print("\rCollecting garbage")
-#     gc.collect()
+        print("0. Continue")
+
+        user_input = input("Enter the number fo the statistics to plot, or 0 to continue, j to just play, q to quit: ")
+
+        if user_input == "0":
+            break
+        elif user_input == "q":
+            quit()
+        elif user_input.isdigit():
+            selected_idx = int(user_input) - 1
+
+            # Check if the selected index is within the range of available keys
+            if 0 <= selected_idx < len(bins_dict):
+                selected_key = list(bins_dict.keys())[selected_idx]
+                selected_bin_value = bins_dict[selected_key]
+
+                selected_bin_value["bin"].plot_bin_counts(selected_bin_value["label"])
+                selected_bin_value["bin"].plot_time_series(
+                    selected_bin_value["label"], plot_width, plot_height, median=False
+                )
+            else:
+                print("Invalid input. The number is out of range. Please try again.")
+        else:
+            print("Invalid input. Please enter a number or 'q' to quit.")
+
 
 # if DEBUG:
 #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
