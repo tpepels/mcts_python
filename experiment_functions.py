@@ -29,10 +29,10 @@ class ColName:
     RANDOM_OPENINGS = "random_openings"
 
 
-def aggregate_csv_results(output_file, base_path):
+def aggregate_csv_results(output_file, base_path, top_n=0):
     files = []
     experiments_path = os.path.join(base_path, "results")
-    stuck_games_list = []
+
     for dir_name in os.listdir(experiments_path):
         # Extract the game name from the directory name
         game_name = dir_name.split("_")[0]
@@ -87,7 +87,6 @@ def aggregate_csv_results(output_file, base_path):
                                 > 600
                             ):
                                 print(f"File {file} is empty and has not received data for the last 10 minutes.")
-                                stuck_games_list.append(file)
                             continue
 
                         # Parse metadata using regular expressions
@@ -198,12 +197,52 @@ def aggregate_csv_results(output_file, base_path):
                 # Write the sorted rows to the output file
                 for row in aggregated_rows:
                     writer.writerow(row)
+
     except Exception as e:
         print(f"Error aggregating results: {e}, skipping {file}")
         # Print the stack trace so we can find the error
         traceback.print_exc()
 
-    return stuck_games_list
+    # TODO Hier was je gebleven, dit is een copy-paste van GPT, dus je moet het nog nakijken.
+    # Identify experiments to cancel
+    if top_n > 0:
+        experiments_to_cancel = identify_experiments_to_cancel(aggregated_rows, top_n)
+    else:
+        experiments_to_cancel = []
+    return experiments_to_cancel
+
+
+# TODO Dit moet je nog testen. Hier was je gebleven.
+def identify_experiments_to_cancel(aggregated_rows, top_n):
+    # Filter experiments based on the number of completed games > 30
+    filtered_rows = [row for row in aggregated_rows if int(row[-1]) > 30]
+
+    # If there are not enough experiments after filtering, or top_n is 0, return an empty list
+    if len(filtered_rows) <= top_n or top_n == 0:
+        return []
+
+    # Extract win rate and CI for the top N experiments
+    top_n_experiments = filtered_rows[:top_n]
+
+    # Calculate the threshold as the win rate of the worst top N performer minus its CI
+    # Assuming CI is ± value, we strip the '±' and convert to float
+    worst_top_n_exp = top_n_experiments[-1]
+    worst_top_n_win_rate = float(worst_top_n_exp[-3])
+    worst_top_n_ci = float(worst_top_n_exp[-2].strip("±"))
+
+    performance_threshold = worst_top_n_win_rate - worst_top_n_ci
+
+    # Identify experiments to cancel
+    experiments_to_cancel = []
+    for exp in filtered_rows[top_n:]:
+        exp_win_rate = float(exp[-3])
+        exp_ci = float(exp[-2].strip("±"))
+
+        # If experiment's win rate + its CI is below the threshold, mark for cancellation
+        if exp_win_rate + exp_ci < performance_threshold:
+            experiments_to_cancel.append(exp[0])  # Assuming exp_name is at index 0
+
+    return experiments_to_cancel
 
 
 def sort_parameters(ai_config):
@@ -336,14 +375,13 @@ def prepare_paths(base_path, exp_name):
     return path_to_result, path_to_log
 
 
-def update_running_experiment_status(tables, base_path, total_games, start_time, n_procs, print_tables=True, top_n=0):
+def update_running_experiment_status(tables, base_path, total_games, start_time, n_procs, print_tables=True):
     exp_directories = os.listdir(os.path.join(base_path, "log"))
 
     # Write a seperator so that we can easily identify the start of a new update
     if print_tables:
         print(f"\n\n\n\n\n\n\n\n{'-' * 20}{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{'-' * 20}\n")
     tot_completed_games = 0
-    experiment_performance = {}
     for exp_name in exp_directories:
         # May be an old experiment that has already been processed
         if exp_name not in tables:
@@ -362,12 +400,6 @@ def update_running_experiment_status(tables, base_path, total_games, start_time,
 
             completed_games, error_games, draws = process_log_files(log_files, ai_stats, writer)
             tot_completed_games += completed_games
-
-            Z = 1.645  # Z-score for 90% confidence interval
-            # Calculate performance metric for each experiment, e.g., win rate
-            win_rate, ci_width = calculate_win_rate_and_ci(ai_stats["wins"], completed_games, Z)
-            if completed_games > 50:  # We need to have at least some number games to make a decision
-                experiment_performance[exp_name] = (win_rate, ci_width)
 
         # Write cumulative table to separate CSV file
         write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games)
@@ -389,25 +421,6 @@ def update_running_experiment_status(tables, base_path, total_games, start_time,
 
             print(f"Average time per game (adjusted for parallelism): {format_time(effective_average_time_per_game)}")
             print(f"Estimated time remaining: {format_time(estimated_time_remaining_seconds)}\n{'- -' * 30}\n")
-
-        # Sort experiments by their win rate in descending order
-        sorted_experiments = sorted(experiment_performance.items(), key=lambda x: x[1][0], reverse=True)
-        # Extract the win rates (and CI for later use) for the top N experiments
-        top_n_win_rates = sorted_experiments[:top_n] if top_n > 0 else []
-        # If there are at least N experiments, determine the lower threshold for cancellation
-        if len(top_n_win_rates) == top_n:
-            # Use the lowest win rate in the top N as the benchmark
-            benchmark_win_rate = top_n_win_rates[-1][1][0]  # The win rate of the Nth experiment
-            # Identify experiments below the top N whose upper CI bound win rate does not exceed the benchmark
-            experiments_to_cancel = [
-                exp_name
-                for exp_name, (win_rate, ci_width) in sorted_experiments[top_n:]
-                if win_rate + ci_width < benchmark_win_rate
-            ]
-        else:
-            experiments_to_cancel = []  # If there are not enough experiments to form a top N, don't cancel any
-
-        return experiments_to_cancel
 
 
 def write_cumulative_table(path_to_result, game_name, tables, exp_name, ai_stats, completed_games):
@@ -481,7 +494,7 @@ def update_stats_and_write(ai_stats, winner_params, loser_params, writer, game_n
     writer.writerow([game_number, winner_params])
 
 
-def print_experiment_stats(tables, exp_name, ai_stats, completed_games, error_games, draws):
+def print_experiment_stats(tables, exp_name, ai_stats: Counter, completed_games, error_games, draws):
 
     # Initialize PrettyTable with headers
     print_stats = PrettyTable([f"({exp_name}) AI Name", "Win %", "95% C.I.", "Wins", "Total Games"])

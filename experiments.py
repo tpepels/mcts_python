@@ -172,12 +172,7 @@ def run_periodic_status_updates(
     while not stop_event.is_set():
         time.sleep(update_interval // 2)
         cancel_list = update_running_experiment_status(
-            tables_dict,
-            base_path=base_path,
-            total_games=total_games,
-            start_time=start_time,
-            n_procs=n_procs,
-            top_n=top_n,
+            tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
         # Update the global cancelled_experiments dictionary based on cancel_list
         for exp_name in cancel_list:
