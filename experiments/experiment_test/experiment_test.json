@@ -1,8 +1,5 @@
 [
   {
-    "top_n": 3
-  },
-  {
     "n_games": 30,
     "game_key": "ninarow",
     "random_openings": 2,
