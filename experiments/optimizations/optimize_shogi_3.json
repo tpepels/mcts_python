@@ -1,8 +1,5 @@
 [
   {
-    "top_n": 3
-  },
-  {
     "n_games": 192,
     "game_key": "minishogi",
     "game_params": {},

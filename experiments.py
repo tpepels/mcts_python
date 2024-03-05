@@ -1,9 +1,11 @@
+from concurrent.futures import CancelledError
 from copy import deepcopy
 import datetime
 import json
+from pprint import pprint
 
 import sys
-from pebble import ProcessPool, ProcessExpired
+from pebble import ProcessFuture, ProcessPool, ProcessExpired
 import threading
 import time
 
@@ -60,17 +62,20 @@ def run_single_experiment(
 
 # This has the form "exp_name": False/True
 # True means the experiment is running and should be cancelled, False means it has been cancelled
-cancel_experiments = {}
+experiments_to_cancel = {}
 
 
 def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=30 * 60):
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 
+    print(f"Running using {n_procs} processes.")
+
     # Check if the first element contains the 'top_n' configuration
     top_n = 0  # Default value indicating no top_n filtering
     if "top_n" in data[0]:
         top_n = data[0]["top_n"]
+        print("Top_n filtering enabled: ", top_n)
         expanded_experiment_configs = expand_rows(data[1:])  # Exclude the top_n configuration
     else:
         expanded_experiment_configs = expand_rows(data)
@@ -79,8 +84,8 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     if count_only:
         return
 
-    # Interval for status updates (e.g., every 60 seconds)
-    update_interval = 300
+    # Interval for status updates
+    update_interval = 240
     stop_event = threading.Event()
 
     # Process experiments
@@ -93,48 +98,74 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     )
     status_thread.start()
     random.shuffle(all_experiments)
-
+    total_cancelled = 0
     with ProcessPool(max_workers=n_procs) as pool:
         print(f"Starting {len(all_experiments)} experiments with {n_procs} processes.")
         future_tasks = {}
+        futures_list = []
         for exp in all_experiments:
-            exp_name = exp["exp_name"]
+            exp_name = exp[-3]
             if exp_name not in future_tasks:
                 future_tasks[exp_name] = []
+
             # Schedule the task and store the future with the exp_name
-            future = pool.schedule(run_single_experiment, args=(exp,))
+            future = pool.schedule(run_single_experiment, args=exp)
             future_tasks[exp_name].append(future)
+            futures_list.append(future)
+
         print(f"All {len(all_experiments)} experiments pooled.")
-
-        for future in future_tasks:
+        future: ProcessFuture
+        for future in futures_list:
             try:
-                # Blocks until the task completes or raises TimeoutError if it times out
-                future.result(timeout=timeout)
+                if not future.done():
+                    # Blocks until the task completes or raises TimeoutError if it times out
+                    future.result(timeout=timeout)
+            except CancelledError:
+                print("A task was cancelled and did not complete.")
             except TimeoutError as e:
-                print(f"Task timed out: {e}", sys.stderr)
+                print(f"Experiment timed out: {e}", sys.stderr)
             except ProcessExpired as e:
-                print(f"Task process expired: {e}", sys.stderr)
+                print(f"Experiment process expired: {e}", sys.stderr)
             except Exception as e:
-                print(f"Task raised an exception: {e}", sys.stderr)
+                print(f"Experiment raised an exception: {e}", sys.stderr)
+                # Print the traceback
+                traceback.print_exc(file=sys.stderr)
 
-        # Check for and cancel any experiments marked for cancellation
-        exp_names_to_cancel = [exp_name for exp_name, should_cancel in cancel_experiments.items() if should_cancel]
-        cancel_experiments(future_tasks, exp_names_to_cancel)
-        # Print the cancelled experiments
-        cancel_str = "Cancelled (outside bounds) experiments: " + "\n".join(exp_names_to_cancel)
-        print(cancel_str)
+            # Everytime we finish a task, check if some experiments should be cancelled
+            exp_names_to_cancel = [
+                exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel
+            ]
 
-        # Update cancelled_experiments to False for those that were cancelled
-        for exp_name in exp_names_to_cancel:
-            cancel_experiments[exp_name] = False
+            if len(exp_names_to_cancel) > 0:
+                print("Experiments to cancel:")
+                pprint(experiments_to_cancel)
+                total_cancelled += cancel_list_of_experiments(future_tasks, exp_names_to_cancel)
+
+            if total_cancelled > 0:
+                print(f"Cancelled {total_cancelled} tasks so far.")
+                print("Cancelled experiments:")
+                cancelled_list_of_experiments = [
+                    exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
+                ]
+                print(cancelled_list_of_experiments)
+
+            # Check if all futures are done or cancelled
+            if all((future.done() or future.cancelled()) for future in futures_list):
+                print("All futures completed.")
+                break
+
+        print("--" * 60)
+        print("All futures completed.")
+        print("--" * 60)
 
     if agg_loc is not None:
-        print("aggregating results..")
+        print("Aggregating final results..")
         aggregate_csv_results(agg_loc, base_path)
 
     # Experiments are done, signal the status update thread to stop and wait for it to finish
     stop_event.set()
-    status_thread.join()
+    print("Waiting for status update thread to finish..")
+    status_thread.join(timeout=10)
 
     # perform any final status update after all experiments are complete
     update_running_experiment_status(
@@ -147,12 +178,20 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     print("Completed all experiments and updates.")
 
 
-def cancel_experiments(future_tasks, exp_names_to_cancel):
-    for exp_name in exp_names_to_cancel:
+def cancel_list_of_experiments(future_tasks, experiment_names_to_cancel):
+    total_cancelled = 0
+    for exp_name in experiment_names_to_cancel:
         if exp_name in future_tasks:
+            count = 0
             for future in future_tasks[exp_name]:
                 if not future.done():
                     future.cancel()
+                    count += 1
+            total_cancelled += count
+            print(f"Cancelled {count} tasks for {exp_name}.")
+            # Mark the experiment as cancelled
+            experiments_to_cancel[exp_name] = False
+    return total_cancelled
 
 
 def run_periodic_status_updates(
@@ -171,25 +210,32 @@ def run_periodic_status_updates(
     counter = 0
     while not stop_event.is_set():
         time.sleep(update_interval // 2)
-        cancel_list = update_running_experiment_status(
+        print("Updating status..")
+        update_running_experiment_status(
             tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
-        # Update the global cancelled_experiments dictionary based on cancel_list
-        for exp_name in cancel_list:
-            if exp_name not in cancel_experiments:
-                # Mark for cancellation if not already cancelled
-                cancel_experiments[exp_name] = True
-
         time.sleep(update_interval // 2)
         counter += 1
-        # Every 5 updates, aggregate the results
-        if counter % 5 == 0 and agg_loc is not None:
+        # print(f"Status update {counter} complete, {datetime.datetime.now()}.")
+        print("agg_loc:", agg_loc)
+        # Every n updates, aggregate the results and print them
+        if counter % 2 == 0 and agg_loc is not None:
             print("aggregating results..")
             try:
-                aggregate_csv_results(agg_loc, base_path)
+                cancel_list = aggregate_csv_results(agg_loc, base_path, top_n=top_n)
+
+                # Update the global cancelled_experiments dictionary based on cancel_list
+                for exp_name in cancel_list:
+                    # Mark for cancellation if not already cancelled
+                    if exp_name not in experiments_to_cancel:
+                        experiments_to_cancel[exp_name] = True
+                        print(f"Marked {exp_name} for cancellation.")
+
             except Exception as e:
                 # This is probably because the file is still being written to or some such reason
                 print(f"Error aggregating results: {e}", sys.stderr)
+                # print Traceback
+                traceback.print_exc(file=sys.stderr)
 
 
 exp_names = []

@@ -406,6 +406,7 @@ def run_game_experiment(
         sum(even_moves) / len(even_moves),
     )
 
+    # ! Do not change this order!
     if result == win:
         result = 1
         print(f"Game Over. Loser: P2 [{p2_params}]")
