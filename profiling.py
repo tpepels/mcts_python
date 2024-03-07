@@ -37,6 +37,13 @@ parser.add_argument(
     default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus, gomoku, minishogi).",
 )
+# New argument for the number of random openings
+parser.add_argument(
+    "--random_openings",
+    type=int,
+    default=0,  # Assuming a default of 0 means no random openings are played by default
+    help="Number of random openings to be played.",
+)
 
 
 def get_default_params(func):
@@ -130,9 +137,10 @@ else:
     eval_params_2 = {}
 
     ai_1_params = {
-        "num_simulations": 100000,
+        "num_simulations": 200000,
         "debug": args.debug,
-        "ab_version": 10,
+        "ab_p1": 1,
+        "ab_p2": 1,
     }
     ai_2_params = {
         "max_time": 5,
@@ -165,6 +173,7 @@ def run_game_code():
         pause=args.pause,
         debug=args.debug,
         boot_randomizer=False,
+        random_openings=args.random_openings,
     )
 
 

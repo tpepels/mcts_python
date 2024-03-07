@@ -32,6 +32,8 @@ dynamic_bins: cython.dict = {}
 if __debug__:
     dynamic_bins["alpha"] = {"bin": DynamicBin(n_bins), "label": "alpha values"}
     dynamic_bins["beta"] = {"bin": DynamicBin(n_bins), "label": "beta values"}
+    dynamic_bins["alpha_bounds"] = {"bin": DynamicBin(n_bins), "label": "alpha bounds"}
+    dynamic_bins["beta_bounds"] = {"bin": DynamicBin(n_bins), "label": "beta bounds"}
     dynamic_bins["path_score"] = {"bin": DynamicBin(n_bins), "label": "path_score values"}
     dynamic_bins["visit_ratio"] = {"bin": DynamicBin(n_bins), "label": "visit_ratio values"}
     dynamic_bins["path_visits"] = {"bin": DynamicBin(n_bins), "label": "path_visits values"}
@@ -93,17 +95,20 @@ class Node:
         c: cython.double,
         pb_weight: cython.double = 0.0,
         imm_alpha: cython.double = 0.0,
-        ab_version: cython.int = 0,
+        ab_p1: cython.int = 0,
+        ab_p2: cython.int = 0,
         alpha: cython.double = -INFINITY,
         beta: cython.double = INFINITY,
+        alpha_bounds: cython.double = 0.0,
+        beta_bounds: cython.double = 0.0,
         path_score: cython.double = 0.0,
-        visit_ratio: cython.double = 0.0,
+        root_visits: cython.double = 0.0,
         c_adjust: cython.double = 1.0,
         k_factor: cython.double = 0.0,
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        global ab_bound, ucb_bound
+        global ucb_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
@@ -111,10 +116,6 @@ class Node:
         children_lost: cython.int = 0
         children_draw: cython.int = 0
         ci: cython.int
-
-        val_adj: cython.int = ab_version // 10  # Decimal [ 10 ... 90 ]
-
-        ci_adj: cython.int = ab_version % 10  # Remainder [ 1... 9 ]
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
@@ -145,23 +146,26 @@ class Node:
 
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
-            confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
 
-            if ab_version != 0 and alpha != -INFINITY and beta != INFINITY:
+            if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
                 uct_val = self.uct_prime(
-                    child_value,
-                    confidence_i,
-                    c,
-                    val_adj,
-                    ci_adj,
-                    alpha,
-                    beta,
-                    path_score,
-                    visit_ratio,
-                    c_adjust,
-                    k_factor,
+                    child_value=child_value,
+                    N=N,
+                    rand_fact=rand_fact,
+                    c=c,
+                    ab_p1=ab_p1,
+                    ab_p2=ab_p2,
+                    alpha=alpha,
+                    beta=beta,
+                    alpha_bounds=alpha_bounds,
+                    beta_bounds=beta_bounds,
+                    path_score=path_score,
+                    root_visits=root_visits,
+                    c_adjust=c_adjust,
+                    k_factor=k_factor,
                 )
             else:
+                confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
 
@@ -201,69 +205,132 @@ class Node:
         )
 
     @cython.cfunc
+    @cython.inline
     @cython.locals(cv_adj=cython.double, k=cython.double)
     def uct_prime(
         self,
         child_value: cython.double,
-        confidence_i: cython.double,
+        N: cython.double,
+        rand_fact: cython.double,
         c: cython.double,
-        val_adj: cython.int,
-        ci_adj: cython.int,
+        ab_p1: cython.int,
+        ab_p2: cython.int,
         alpha: cython.double,
         beta: cython.double,
+        alpha_bounds: cython.double,
+        beta_bounds: cython.double,
         path_score: cython.double = 0.0,
-        visit_ratio: cython.double = 0.0,
+        root_visits: cython.double = 0.0,
         c_adjust: cython.double = 1.0,
         k_factor: cython.double = 1.0,
     ):
-        # val_adj --> // 10 (decimal)
-        # ci_adj -> % 10 (remainder)
+        """
 
-        if val_adj == 1:
-            cv_adj = beta
-        elif val_adj == 2:
-            cv_adj = path_score + visit_ratio
-        elif val_adj == 3:
-            cv_adj = path_score
-        elif val_adj == 4:
-            cv_adj = visit_ratio
-        elif val_adj == 5:
-            cv_adj = beta - alpha
-        elif val_adj == 6:
-            cv_adj = abs(child_value - path_score)
-        elif val_adj == 7:
-            cv_adj = 1 - visit_ratio
-        elif val_adj == 8:
-            cv_adj = 1 - path_score
-        elif val_adj == 9:
-            cv_adj = path_score * visit_ratio
+        Given an alpha and beta, we can identify 3 situations / objectives:
 
-        if ci_adj == 1:
-            k = beta - alpha
-        elif ci_adj == 2:
-            k = path_score
-        elif ci_adj == 3:
-            k = visit_ratio
-        elif ci_adj == 4:
-            k = 1 - visit_ratio
-        elif ci_adj == 5:
-            k = 1 - path_score
-        elif ci_adj == 6:
-            k = path_score * visit_ratio
+        - child_value is in bounds i.e. alpha < child_value < beta
+          This means we are either proving or disproving alpha and beta.
+        - child_value is below alpha i.e. child_value < alpha
+          This means we are either proving or disproving alpha.
+        - child_value is above beta i.e. child_value > beta
+          This means we are either proving or disproving beta.
+
+        We should take care to split these situations when selecting a child to explore.
+
+        """
+        global ab_bound
+        confidence_i: cython.double = sqrt(log(N) / self.n_visits) + rand_fact
+
+        cv_adj_bounds: cython.double = 0.0
+        cv_adj_alpha: cython.double = 0.0
+        cv_adj_beta: cython.double = 0.0
+
+        # Define the possible values for each parameter
+        cv_adj_bounds_options: cython.tuple[cython.double, cython.double, cython.double] = (
+            beta - alpha,
+            0,
+            path_score,
+        )
+        cv_adj_alpha_options: cython.tuple[cython.double, cython.double, cython.double] = (
+            alpha_bounds,
+            0,
+            -alpha_bounds,
+        )
+        cv_adj_beta_options: cython.tuple[cython.double, cython.double, cython.double] = (
+            beta_bounds,
+            0,
+            -beta_bounds,
+        )
+
+        if ab_p1 == 1:
+            # Tight exploration: Narrow down on highly promising paths with tight bounds and alpha-beta
+            cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
+            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
+            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
+        elif ab_p1 == 2:
+            # Neutral bounds, tight alpha-beta
+            cv_adj_bounds = cv_adj_bounds_options[1]
+            cv_adj_alpha = cv_adj_alpha_options[0]
+            cv_adj_beta = cv_adj_beta_options[0]
+        elif ab_p1 == 3:
+            # Focus search using path score, with aggressive alpha-beta tightening
+            cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
+            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment
+            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment
+        elif ab_p1 == 4:
+            # Neutral bounds, loosening alpha with tight beta
+            cv_adj_bounds = cv_adj_bounds_options[1]  # No adjustment to bounds
+            cv_adj_alpha = cv_adj_alpha_options[2]  # Loosen alpha bounds adjustment
+            cv_adj_beta = cv_adj_beta_options[0]  # Tighten beta bounds adjustment
+        elif ab_p1 == 5:
+            # Aggressive expansion: Increase bounds to encourage exploration
+            cv_adj_bounds = cv_adj_bounds_options[2]  # Use path_score to potentially increase search space
+            cv_adj_alpha = cv_adj_alpha_options[1]  # No alpha adjustment
+            cv_adj_beta = cv_adj_beta_options[1]  # No beta adjustment
+        elif ab_p1 == 6:
+            # Conservative tightening: Decrease bounds to focus on promising paths
+            cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
+            cv_adj_alpha = cv_adj_alpha_options[2]  # Loosen alpha adjustment
+            cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta adjustment
+        elif ab_p1 == 7:
+            # Path score emphasis with beta adjustment: Focus on paths with good scores, adjust beta to narrow search
+            cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
+            cv_adj_alpha = cv_adj_alpha_options[1]  # No alpha adjustment
+            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment
+        elif ab_p1 == 8:
+            # Balanced approach: Use path score for bounds with balanced alpha-beta loosening
+            cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
+            cv_adj_alpha = cv_adj_alpha_options[2]  # Loosen alpha adjustment
+            cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta adjustment
+        elif ab_p1 == 9:
+            # Exploration with no bounds adjustment: Keep bounds neutral, explore more with alpha-beta adjustments
+            cv_adj_bounds = cv_adj_bounds_options[1]  # No adjustment to bounds
+            cv_adj_alpha = cv_adj_alpha_options[0]  # Tighten alpha for exploration
+            cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta to allow more exploration beyond current beta
 
         new_cv: cython.double = child_value
-        # * Boost a child that is in bounds
-        if child_value > alpha and child_value < beta:
-            new_cv += cv_adj
 
-        new_ci: cython.double = confidence_i
+        # * 3 Bounds options
+        if ab_p2 == 1:
+            if child_value >= alpha and child_value <= beta:
+                new_cv += cv_adj_bounds
+            elif child_value < alpha:
+                new_cv += cv_adj_alpha
+            elif child_value > beta:
+                new_cv += cv_adj_beta
+        elif ab_p2 == 2:
+            # Include the compare the uct value to the bounds
+            uct_val: cython.double = child_value + (c * confidence_i)
+            if uct_val >= alpha and uct_val <= beta:
+                new_cv += cv_adj_bounds
+            elif uct_val < alpha:
+                new_cv += cv_adj_alpha
+            elif uct_val > beta:
+                new_cv += cv_adj_beta
+
         new_c: cython.double = c * c_adjust
-
-        # * If k is 0, then we are dividing by 0 (if k_factor < 0)
-        if k != 0:
-            new_ci *= pow(log(1 + k), k_factor)
-
-        return new_cv + (new_c * new_ci)
+        ab_bound += 1
+        return new_cv + (new_c * confidence_i)
 
     @cython.cfunc
     def expand(
@@ -582,7 +649,8 @@ class MCTSPlayer:
     # Research additions
     imm_version: cython.int
     ex_imm_D: cython.int  # The extra depth that will be searched
-    ab_version: cython.int
+    ab_p1: cython.int
+    ab_p2: cython.int
     ab_uct_ver: cython.int
     reuse_tree: cython.bint
     ab_style: cython.int
@@ -606,7 +674,8 @@ class MCTSPlayer:
         roulette_epsilon: float = 0.0,
         imm_alpha: float = 0.0,
         imm_version: int = 0,
-        ab_version: int = 0,
+        ab_p1: int = 0,
+        ab_p2: int = 0,
         k_factor: float = 0.0,
         c_adjust: float = 0.0,
         ab_uct_ver: int = 0,
@@ -663,7 +732,8 @@ class MCTSPlayer:
         # Research parameters
         self.imm_version = imm_version
         self.ex_imm_D = ex_imm_D
-        self.ab_version = ab_version
+        self.ab_p1 = ab_p1
+        self.ab_p2 = ab_p2
         self.ab_uct_ver = ab_uct_ver
         self.ab_style = ab_style
         self.c_adjust = c_adjust
@@ -855,9 +925,9 @@ class MCTSPlayer:
             print("\n".join([str(child) for child in sorted_children]))
             print("--*--" * 20)
             if __debug__:
-                if self.ab_version != 0:
-                    plot_width = 110
-                    plot_height = 20
+                if self.ab_p1 != 0:
+                    plot_width = 120
+                    plot_height = 26
 
                     plot_selected_bins(dynamic_bins, plot_width, plot_height)
                     # Clear bins
@@ -899,11 +969,13 @@ class MCTSPlayer:
 
         alpha: cython.double = -INFINITY
         beta: cython.double = INFINITY
+        alpha_bounds: cython.double = -INFINITY
+        beta_bounds: cython.double = -INFINITY
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
                 # A branch can only be pruned once.
-                if self.ab_version != 0 and node.n_visits > 0 and prev_node is not None:
+                if self.ab_p1 != 0 and node.n_visits > 0 and prev_node is not None:
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
                         player=self.player,
@@ -913,10 +985,17 @@ class MCTSPlayer:
 
                     if val - bound >= alpha and val + bound <= beta:
                         if prev_node.player == self.player:
+                            old_alpha: cython.double = alpha  # Store the old value of alpha
                             alpha = max(alpha, val - bound)
+                            # Check if alpha was actually updated by comparing old and new values
+                            if alpha > old_alpha:
+                                alpha_bounds = -bound
                         else:
+                            old_beta: cython.double = beta  # Store the old value of beta
                             beta = min(beta, val + bound)
-                    # TODO For some reason almost no beta's are selected (may be because we're at the start of the game)
+                            # Check if beta was actually updated by comparing old and new values
+                            if beta < old_beta:
+                                beta_bounds = bound
 
                     elif alpha != -INFINITY and beta != INFINITY:
                         prunes += 1
@@ -925,12 +1004,14 @@ class MCTSPlayer:
                         non_prunes += 1
 
                 prev_node = node
-                if self.ab_version != 0:
+                if self.ab_p1 != 0:
                     if __debug__:
                         # Keep track of the data used for each UCT call
                         if alpha != -INFINITY and beta != INFINITY:
-                            dynamic_bins["alpha"]["bin"].add_data(alpha if node.player == self.player else -beta)
-                            dynamic_bins["beta"]["bin"].add_data(beta if node.player == self.player else -alpha)
+                            dynamic_bins["alpha"]["bin"].add_data(alpha)
+                            dynamic_bins["beta"]["bin"].add_data(beta)
+                            dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)
+                            dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
 
                             dynamic_bins["path_score"]["bin"].add_data(
                                 path_score / path_visits if path_visits > 0 else 0
@@ -940,15 +1021,22 @@ class MCTSPlayer:
                             )
                             dynamic_bins["path_visits"]["bin"].add_data(path_visits)
 
+                    path_score_rate: cython.double = path_score / path_visits if path_visits > 0 else 0
+                    if path_score_rate != 0:
+                        path_score_rate = path_score_rate if node.player == self.player else 1 - path_score_rate
+
                     node = node.uct(
                         self.c,
                         self.pb_weight,
                         self.imm_alpha,
-                        ab_version=self.ab_version,
-                        alpha=alpha if node.player == self.player else -beta,
-                        beta=beta if node.player == self.player else -alpha,
-                        path_score=path_score / path_visits if path_visits > 0 else 0,
-                        visit_ratio=path_visits / self.root.n_visits if path_visits > 0 else 0,
+                        ab_p1=self.ab_p1,
+                        ab_p2=self.ab_p2,
+                        alpha=alpha if node.player == self.player else 1 - beta,
+                        beta=beta if node.player == self.player else 1 - alpha,
+                        alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
+                        beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
+                        path_score=path_score_rate,
+                        root_visits=self.root.n_visits,
                         c_adjust=self.c_adjust,
                         k_factor=self.k_factor,
                     )
@@ -981,7 +1069,6 @@ class MCTSPlayer:
                 # TODO This makes no sense because it's just the value of all the nodes along the path
                 # Keep track of the visits and "total" score of the path
                 path_score += node.v[self.player - 1]
-
                 path_visits += node.n_visits  # * Later we can normalize with this value
 
                 next_state = next_state.apply_action(node.action)
@@ -1115,7 +1202,7 @@ class MCTSPlayer:
             f"early_term_turns={self.early_term_turns}, e_greedy={self.e_greedy}, "
             f"e_g_subset={self.e_g_subset}, roulette={self.roulette}, epsilon={self.epsilon}, "
             f"prog_bias={self.prog_bias}, imm={self.imm}, imm_alpha={self.imm_alpha}, imm_version={self.imm_version}, "
-            f"ab_version={self.ab_version}, ex_imm_D={self.ex_imm_D})"
+            f"ab_p1/2={self.ab_p1}/{self.ab_p2}, ex_imm_D={self.ex_imm_D})"
         )
 
 

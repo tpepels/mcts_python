@@ -308,6 +308,7 @@ def run_game(
     pause=False,
     debug=False,
     boot_randomizer=True,
+    random_openings=0,
 ) -> float:
     """Run the game with two AI players.
 
@@ -349,6 +350,13 @@ def run_game(
     print(game.visualize(full_debug=debug))
 
     try:
+        if random_openings > 0:
+            seed_bytes = os.urandom(8)  # Generate 8 random bytes
+            seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
+            random.seed(seed)
+            fastrand.pcg32_seed(seed + 1)
+            game = play_n_random_moves(game, game_key, random_openings)
+
         reward = play_game_until_terminal(game, p1, p2, callback=callback, boot_randomizer=boot_randomizer)
         return reward
     finally:
