@@ -52,6 +52,11 @@ game_dict = {
 player_dict = {"alphabeta": AlphaBetaPlayer, "mcts": MCTSPlayer}
 
 
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
+from collections import OrderedDict
+
+
 @dataclass
 class AIParams:
     """Class for holding AI parameters.
@@ -59,15 +64,17 @@ class AIParams:
     Attributes:
         ai_key (str): The key for the AI algorithm.
         max_player: (int): The ai's player.
-        ai_params (Dict[str, Any]): The parameters for the AI algorithm.
-        eval_params (Dict[str, Any]): The parameters for the evaluation function.
+        game_name (str): The name of the game.
+        eval_params (OrderedDict[str, Any]): The parameters for the evaluation function.
+        ai_params (Optional[OrderedDict[str, Any]]): The parameters for the AI algorithm.
+        transposition_table_size (int): The size of the transposition table.
     """
 
     ai_key: str
     max_player: int
     game_name: str
-    eval_params: Dict[str, Any]
-    ai_params: Optional[Dict[str, Any]]
+    eval_params: OrderedDict[str, Any] = field(default_factory=OrderedDict)
+    ai_params: Optional[OrderedDict[str, Any]] = field(default_factory=OrderedDict)
     transposition_table_size: int = 2**16
 
     def __post_init__(self):
@@ -75,27 +82,19 @@ class AIParams:
         if game_algorithm_combo in DEFAULT_SETTINGS:
             defaults = DEFAULT_SETTINGS[game_algorithm_combo]
 
-            if self.ai_params.get("no_defaults", False):
-                # print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
+            if self.ai_params and self.ai_params.get("no_defaults", False):
                 self.ai_params.pop("no_defaults")
             else:
                 # Apply defaults for ai_params
                 for key, default_value in defaults.get("ai_params", {}).items():
                     if key not in self.ai_params:
-                        # print(
-                        #     f"Using default ai value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
-                        # )
                         self.ai_params[key] = default_value
-            if self.eval_params is not None and self.eval_params.get("no_defaults", False):
-                # print(f"Using no defaults for player {self.max_player}/{self.ai_key}")
+            if self.eval_params and self.eval_params.get("no_defaults", False):
                 self.eval_params.pop("no_defaults")
             else:
                 # Apply defaults for eval_params
                 for key, default_value in defaults.get("eval_params", {}).items():
                     if key not in self.eval_params:
-                        # print(
-                        #     f"Using default eval value {default_value} for {key} for player {self.max_player}/{self.ai_key}"
-                        # )
                         self.eval_params[key] = default_value
 
     def __str__(self):
@@ -109,7 +108,8 @@ class AIParams:
 
 
 def d_to_s(d):
-    return ", ".join([str(k) + ":" + str(v) for k, v in d.items()])
+    ordered_d = OrderedDict(sorted(d.items()))
+    return ", ".join([str(k) + ":" + str(v) for k, v in ordered_d.items()])
 
 
 def init_game_and_players(

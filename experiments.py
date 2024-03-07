@@ -214,10 +214,9 @@ def run_periodic_status_updates(
         update_running_experiment_status(
             tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
+        print(f"Status update complete, {datetime.datetime.now()}.\n")
         time.sleep(update_interval // 2)
         counter += 1
-        # print(f"Status update {counter} complete, {datetime.datetime.now()}.")
-        print("agg_loc:", agg_loc)
         # Every n updates, aggregate the results and print them
         if counter % 2 == 0 and agg_loc is not None:
             print("aggregating results..")
@@ -231,6 +230,7 @@ def run_periodic_status_updates(
                         experiments_to_cancel[exp_name] = True
                         print(f"Marked {exp_name} for cancellation.")
 
+                print(f"Aggregation complete, {datetime.datetime.now()}.\n")
             except Exception as e:
                 # This is probably because the file is still being written to or some such reason
                 print(f"Error aggregating results: {e}", sys.stderr)

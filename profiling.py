@@ -130,13 +130,12 @@ else:
     eval_params_2 = {}
 
     ai_1_params = {
-        "num_simulations": 200000,
+        "num_simulations": 100000,
         "debug": args.debug,
-        "imm_alpha": 0.2,
-        "early_term_turns": 10,
+        "ab_version": 10,
     }
     ai_2_params = {
-        "max_time": 10,
+        "max_time": 5,
         "debug": args.debug,
     }
 

@@ -5,6 +5,7 @@ from hmac import new
 from os import path
 import random
 from random import random as rand_float
+from typing import Optional
 from click import pass_context
 from colorama import Back, Fore, init
 from numpy import c_
@@ -24,6 +25,7 @@ prunes: cython.int = 0
 non_prunes: cython.int = 0
 ab_bound: cython.int = 0
 ucb_bound: cython.int = 0
+playout_draws: cython.int = 0
 # This is just for debuging purposes
 n_bins: cython.int = 15
 dynamic_bins: cython.dict = {}
@@ -103,15 +105,16 @@ class Node:
         assert self.expanded, "Trying to uct a node that is not expanded"
         global ab_bound, ucb_bound
 
-        selected_child: Node = None
+        selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
         child_value: cython.double
         children_lost: cython.int = 0
         children_draw: cython.int = 0
         ci: cython.int
 
-        val_adj: cython.int = ab_version // 10
-        ci_adj: cython.int = ab_version % 10
+        val_adj: cython.int = ab_version // 10  # Decimal [ 10 ... 90 ]
+
+        ci_adj: cython.int = ab_version % 10  # Remainder [ 1... 9 ]
 
         N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
@@ -538,7 +541,7 @@ class Node:
             f"{Fore.CYAN}EXP: {'True' if self.expanded else 'False':<3} "
             f"{Fore.MAGENTA}SOLVP: {self.solved_player:<3} "
             f"{Fore.MAGENTA}DRW: {self.draw:<3} "
-            f"{Fore.WHITE}VAL: {value:2.2f} "
+            f"{Fore.WHITE}VAL: {value:2.3f} "
             f"{Back.YELLOW + Fore.BLACK}NVIS: {self.n_visits:,}{Back.RESET + Fore.RESET}"
         )
 
@@ -829,7 +832,10 @@ class MCTSPlayer:
             evaluation: cython.double = next_state.evaluate(params=self.eval_params, player=self.player, norm=False)
             norm_eval: cython.double = next_state.evaluate(params=self.eval_params, player=self.player, norm=True)
             self.max_eval = max(evaluation, self.max_eval)
-            print(f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f}")
+            global playout_draws
+            print(
+                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {playout_draws}"
+            )
             print(
                 f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
@@ -838,9 +844,9 @@ class MCTSPlayer:
             print(
                 f"prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}% | alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
             )
-            ucb_bound = ab_bound = 0
-            prunes = q_searches = non_prunes = 0
-            self.max_depth = self.avg_depth = 0
+            ucb_bound = ab_bound = playout_draws = prunes = q_searches = non_prunes = self.max_depth = (
+                self.avg_depth
+            ) = 0
             print("--*--" * 20)
             print(f":: {self.root} :: ")
             print(":: Children ::")
@@ -850,8 +856,8 @@ class MCTSPlayer:
             print("--*--" * 20)
             if __debug__:
                 if self.ab_version != 0:
-                    plot_width = 160
-                    plot_height = 30
+                    plot_width = 110
+                    plot_height = 20
 
                     plot_selected_bins(dynamic_bins, plot_width, plot_height)
                     # Clear bins
@@ -883,6 +889,7 @@ class MCTSPlayer:
         node: Node = self.root
         prev_node: Node = None
         prune: cython.bint = 0
+
         child: Node
         i: cython.int
         path_score: cython.double = 0.0
@@ -909,6 +916,7 @@ class MCTSPlayer:
                             alpha = max(alpha, val - bound)
                         else:
                             beta = min(beta, val + bound)
+                    # TODO For some reason almost no beta's are selected (may be because we're at the start of the game)
 
                     elif alpha != -INFINITY and beta != INFINITY:
                         prunes += 1
@@ -918,13 +926,6 @@ class MCTSPlayer:
 
                 prev_node = node
                 if self.ab_version != 0:
-                    #     cdef void calculate_bins(self)
-                    #     cdef list get_bins(self)
-                    #     cpdef public void add_data(self, double new_data)
-                    #     cpdef public void print_bins(self)
-                    #     cpdef public void plot_bin_counts(self, str name)
-                    #     cpdef public void clear(self)
-                    #     cpdef public void plot_time_series(self, str name, int plot_width=*, int plot_height=*, bint median=*)
                     if __debug__:
                         # Keep track of the data used for each UCT call
                         if alpha != -INFINITY and beta != INFINITY:
@@ -977,8 +978,10 @@ class MCTSPlayer:
                 break
 
             if node is not None:
+                # TODO This makes no sense because it's just the value of all the nodes along the path
                 # Keep track of the visits and "total" score of the path
-                path_score += node.v[self.player - 1] * node.n_visits
+                path_score += node.v[self.player - 1]
+
                 path_visits += node.n_visits  # * Later we can normalize with this value
 
                 next_state = next_state.apply_action(node.action)
@@ -996,6 +999,10 @@ class MCTSPlayer:
         if not is_terminal and node.solved_player == 0:
             # Do a random playout and collect the result
             result = self.play_out(next_state)
+            if __debug__:
+                if result == (0.5, 0.5):
+                    global playout_draws
+                    playout_draws += 1
         else:
             if node.solved_player == 0 and is_terminal:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
@@ -1036,13 +1043,12 @@ class MCTSPlayer:
     @cython.cfunc
     def play_out(self, state: GameState) -> cython.tuple[cython.double, cython.double]:
         turns: cython.int = 0
-
         while not state.is_terminal():
             turns += 1
             # Early termination condition with a fixed number of turns
             if self.early_term and turns >= self.early_term_turns:
                 # ! This assumes symmetric evaluation functions centered around 0!
-                # TODO Figure out the a (max range) for each evaluation function
+                # * Figure out the a (max range) for each evaluation function
                 evaluation: cython.double = state.evaluate(params=self.eval_params, player=1, norm=True)
                 if evaluation >= self.early_term_cutoff:
                     return (1.0, 0.0)
@@ -1054,7 +1060,7 @@ class MCTSPlayer:
             # Dynamic Early termination condition, check every few turns if the evaluation has a certain value
             elif self.early_term == 0 and self.dyn_early_term == 1 and turns % 6 == 0:
                 # ! This assumes symmetric evaluation functions centered around 0!
-                # TODO Figure out the a (max range) for each evaluation function
+                # * Figure out the a (max range) for each evaluation function
                 evaluation = state.evaluate(params=self.eval_params, player=1, norm=True)
 
                 if evaluation >= self.dyn_early_term_cutoff:

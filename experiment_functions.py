@@ -106,18 +106,18 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             traceback.print_exc()
                             continue
 
+                        draws = 0
                         for line in lines[7:]:
                             _, ai_config = line.strip().split(",", 1)
                             ai_config_cleaned = sort_parameters(ai_config.strip().strip('"'))
-                            if (
-                                ai_config_cleaned == "Draw"
-                                or ai_config_cleaned == "Stuck"
-                                or ai_config_cleaned == "Error"
-                            ):
+                            if ai_config_cleaned == "Stuck" or ai_config_cleaned == "Error":
                                 continue
 
                             total_games += 1
-                            ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
+                            if ai_config_cleaned == "Draw":
+                                draws += 1
+                            else:
+                                ai_stats[ai_config_cleaned] = ai_stats.get(ai_config_cleaned, 0) + 1
 
                         print(f"  The total number of games is {total_games}")
                 except Exception as e:
@@ -129,8 +129,10 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                 ai_results = []
 
                 for ai_config, wins in ai_stats.items():
-                    win_rate = wins / total_games
+                    # Add draws to the wins, which are counted as 0.5 for each player
+                    win_rate = (wins + (0.5 * draws)) / total_games
                     ci_width = Z * math.sqrt((win_rate * (1 - win_rate)) / total_games)
+
                     ai_results.append(
                         (
                             ai_config,
