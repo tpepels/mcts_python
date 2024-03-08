@@ -25,6 +25,7 @@ from experiment_functions import (
 )
 
 from run_games import AIParams, init_game, run_game_experiment
+from split_params import do_split
 from util import redirect_print_to_log
 
 
@@ -337,6 +338,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Start experiments based on JSON config.")
+
+    parser.add_argument(
+        "--split_file", help="The JSON file containing the experiment configurations to split.", default=None, type=str
+    )
+
     parser.add_argument(
         "-n",
         "--n_procs",
@@ -376,6 +382,11 @@ def main():
         action="store_true",
     )
     args = parser.parse_args()
+
+    if args.split_file:
+        print(f"Splitting experiments from {args.split_file}")
+        do_split(args.split_file)
+        return
 
     if not (args.json_file or args.aggregate_results):
         parser.error("Either --json_file should be set OR --aggregate_resultsshould be enabled.")

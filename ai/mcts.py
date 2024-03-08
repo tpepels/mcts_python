@@ -330,6 +330,7 @@ class Node:
 
         new_c: cython.double = c * c_adjust
         ab_bound += 1
+
         return new_cv + (new_c * confidence_i)
 
     @cython.cfunc
