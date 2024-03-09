@@ -139,12 +139,14 @@ else:
     ai_1_params = {
         "num_simulations": 200000,
         "debug": args.debug,
-        "ab_p1": 4,
-        "ab_p2": 2,
+        "ab_p1": 1,
+        "ab_p2": 1,
     }
     ai_2_params = {
-        "max_time": 5,
+        "num_simulations": 200000,
         "debug": args.debug,
+        "ab_p1": 1,
+        "ab_p2": 1,
     }
 
     p1_params = AIParams(
@@ -156,7 +158,7 @@ else:
     )
 
     p2_params = AIParams(
-        ai_key="alphabeta",
+        ai_key="mcts",
         eval_params=eval_params_2,
         max_player=2,
         game_name=game_name,

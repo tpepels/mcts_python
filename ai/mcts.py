@@ -117,7 +117,7 @@ class Node:
         children_draw: cython.int = 0
         ci: cython.int
 
-        N: cython.double = cython.cast(cython.double, max(1, self.n_visits))
+        p_n: cython.double = cython.cast(cython.double, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
         for ci in range(n_children):
             child: Node = self.children[ci]
@@ -126,7 +126,7 @@ class Node:
             if child.n_visits == 0:
                 return child
 
-            n_c: cython.double = cython.cast(cython.double, child.n_visits)
+            c_n: cython.double = cython.cast(cython.double, child.n_visits)
 
             # Check for solved children
             if child.solved_player != 0:
@@ -142,15 +142,15 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            rand_fact: cython.double = uniform(-0.0005, 0.0005)
-
+            rand_fact: cython.double = uniform(-0.001, 0.001)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
-
             if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
-                uct_val = self.uct_prime(
+
+                uct_val: cython.double = self.uct_prime(
                     child_value=child_value,
-                    N=N,
+                    p_n=p_n,
+                    c_n=c_n,
                     rand_fact=rand_fact,
                     c=c,
                     ab_p1=ab_p1,
@@ -164,15 +164,14 @@ class Node:
                     c_adjust=c_adjust,
                     k_factor=k_factor,
                 )
+
             else:
-                confidence_i: cython.double = sqrt(log(N) / n_c) + rand_fact
+                confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
                 uct_val: cython.double = child_value + (c * confidence_i)
                 ucb_bound += 1
 
             if pb_weight > 0.0:
-                uct_val += pb_weight * (
-                    cython.cast(cython.double, child.eval_value) / (1.0 + cython.cast(cython.double, child.n_visits))
-                )
+                uct_val += pb_weight * (cython.cast(cython.double, child.eval_value) / (1.0 + c_n))
 
             assert not isnan(
                 uct_val
@@ -200,9 +199,7 @@ class Node:
         elif children_draw == n_children:
             self.draw = 1
 
-        return (
-            selected_child  # A random child was chosen at the beginning of the method, hence this will never be None
-        )
+        return selected_child
 
     @cython.cfunc
     @cython.inline
@@ -210,7 +207,8 @@ class Node:
     def uct_prime(
         self,
         child_value: cython.double,
-        N: cython.double,
+        p_n: cython.double,
+        c_n: cython.double,
         rand_fact: cython.double,
         c: cython.double,
         ab_p1: cython.int,
@@ -239,7 +237,6 @@ class Node:
 
         """
         global ab_bound
-        confidence_i: cython.double = sqrt(log(N) / self.n_visits) + rand_fact
 
         cv_adj_bounds: cython.double = 0.0
         cv_adj_alpha: cython.double = 0.0
@@ -264,15 +261,16 @@ class Node:
 
         assert beta - alpha > 0, f"Invalid bounds {alpha=} {beta=}"
 
-        if ab_p1 == 1:
-            cv_adj_bounds = cv_adj_bounds_options[1]  # Tighten bounds based on beta - alpha difference
-            cv_adj_alpha = cv_adj_alpha_options[1]  # Apply alpha bounds adjustment for tighter control
-            cv_adj_beta = cv_adj_beta_options[1]  # Apply beta bounds adjustment for tighter control
         # if ab_p1 == 1:
-        #     # Tight exploration: Narrow down on highly promising paths with tight bounds and alpha-beta
-        #     cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
-        #     cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
-        #     cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
+        #     * Sanity check
+        #     cv_adj_bounds = cv_adj_bounds_options[1]
+        #     cv_adj_alpha = cv_adj_alpha_options[1]
+        #     cv_adj_beta = cv_adj_beta_options[1]
+        if ab_p1 == 1:
+            # Tight exploration: Narrow down on highly promising paths with tight bounds and alpha-beta
+            cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
+            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
+            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
         elif ab_p1 == 2:
             # Neutral bounds, tight alpha-beta
             cv_adj_bounds = cv_adj_bounds_options[1]
@@ -313,8 +311,29 @@ class Node:
             cv_adj_bounds = cv_adj_bounds_options[1]  # No adjustment to bounds
             cv_adj_alpha = cv_adj_alpha_options[0]  # Tighten alpha for exploration
             cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta to allow more exploration beyond current beta
-
+        if ab_p1 == 10:
+            # Replace child value by the path score
+            cv_adj_bounds = cv_adj_bounds_options[2] - child_value  # Replace child value with path score
+            cv_adj_alpha = cv_adj_alpha_options[1]  # Don't Apply alpha bounds 
+            cv_adj_beta = cv_adj_beta_options[1]  # Don't Apply beta bounds
+        if ab_p1 == 11:
+            # Replace child value with the path score
+            cv_adj_bounds = cv_adj_bounds_options[2] - child_value  # Replace child value with path score
+            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
+            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
+        if ab_p1 == 12:
+            # Just increase by ab
+            cv_adj_bounds = cv_adj_bounds_options[0] # Just add ab distance
+            cv_adj_alpha = cv_adj_alpha_options[1]  # Dont Apply alpha bounds
+            cv_adj_beta = cv_adj_beta_options[1]  # Dont Apply beta bounds
+        if ab_p1 == 13:
+            # No bonus, only penalty
+            cv_adj_bounds = cv_adj_bounds_options[1] # No bonus
+            cv_adj_alpha = cv_adj_alpha_options[2]  # Penalize out of bounds
+            cv_adj_beta = cv_adj_beta_options[2]
+            
         new_cv: cython.double = child_value
+        confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
 
         # * 3 Bounds options
         if ab_p2 == 1:
@@ -684,7 +703,7 @@ class MCTSPlayer:
         ab_p1: int = 0,
         ab_p2: int = 0,
         k_factor: float = 0.0,
-        c_adjust: float = 0.0,
+        c_adjust: float = 1.0,
         ab_uct_ver: int = 0,
         ab_style: int = 1,
         ex_imm_D: int = 2,
