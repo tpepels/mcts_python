@@ -139,8 +139,8 @@ else:
     ai_1_params = {
         "num_simulations": 200000,
         "debug": args.debug,
-        "ab_p1": 1,
-        "ab_p2": 1,
+        "ab_p1": 4,
+        "ab_p2": 2,
     }
     ai_2_params = {
         "max_time": 5,

@@ -262,11 +262,17 @@ class Node:
             -beta_bounds,
         )
 
+        assert beta - alpha > 0, f"Invalid bounds {alpha=} {beta=}"
+
         if ab_p1 == 1:
-            # Tight exploration: Narrow down on highly promising paths with tight bounds and alpha-beta
-            cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
-            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
-            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
+            cv_adj_bounds = cv_adj_bounds_options[1]  # Tighten bounds based on beta - alpha difference
+            cv_adj_alpha = cv_adj_alpha_options[1]  # Apply alpha bounds adjustment for tighter control
+            cv_adj_beta = cv_adj_beta_options[1]  # Apply beta bounds adjustment for tighter control
+        # if ab_p1 == 1:
+        #     # Tight exploration: Narrow down on highly promising paths with tight bounds and alpha-beta
+        #     cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
+        #     cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
+        #     cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
         elif ab_p1 == 2:
             # Neutral bounds, tight alpha-beta
             cv_adj_bounds = cv_adj_bounds_options[1]
