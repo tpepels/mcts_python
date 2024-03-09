@@ -12,8 +12,8 @@ DIRECTORY="${1%/}"
 # Iterate over .json files and submit each as a separate job
 for json_file in "$DIRECTORY"/*.json; do
     if [ -e "$json_file" ]; then  # Check if json files exist in the directory
-        # sbatch run_experiment.sh "$json_file"
         echo "Submitting job for $json_file"
+        sbatch run_experiment.sh "$json_file"
     else
         echo "No JSON files found in the directory."
         exit 1
