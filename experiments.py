@@ -66,7 +66,7 @@ def run_single_experiment(
 experiments_to_cancel = {}
 
 
-def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=30 * 60):
+def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=20 * 60):
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 

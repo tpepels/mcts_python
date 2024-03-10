@@ -4,23 +4,23 @@
   },
   {
     "n_games": 192,
-    "game_key": "minishogi",
+    "game_key": "breakthrough",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
       "ab_p1": [
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
       ],
       "ab_p2": 2
     },

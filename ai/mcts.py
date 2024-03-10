@@ -202,25 +202,43 @@ class Node:
         return selected_child
 
     @cython.cfunc
+    @cython.locals(
+        child_value=cython.double,
+        p_n=cython.double,
+        c_n=cython.double,
+        rand_fact=cython.double,
+        c=cython.double,
+        ab_p1=cython.int,
+        ab_p2=cython.int,
+        alpha=cython.double,
+        beta=cython.double,
+        alpha_bounds=cython.double,
+        beta_bounds=cython.double,
+        path_score=cython.double,
+        root_visits=cython.double,
+        c_adjust=cython.double,
+        k_factor=cython.double,
+        cv_adj=cython.double,
+        k=cython.double,
+    )
     @cython.inline
-    @cython.locals(cv_adj=cython.double, k=cython.double)
     def uct_prime(
         self,
-        child_value: cython.double,
-        p_n: cython.double,
-        c_n: cython.double,
-        rand_fact: cython.double,
-        c: cython.double,
-        ab_p1: cython.int,
-        ab_p2: cython.int,
-        alpha: cython.double,
-        beta: cython.double,
-        alpha_bounds: cython.double,
-        beta_bounds: cython.double,
-        path_score: cython.double = 0.0,
-        root_visits: cython.double = 0.0,
-        c_adjust: cython.double = 1.0,
-        k_factor: cython.double = 1.0,
+        child_value,
+        p_n,
+        c_n,
+        rand_fact,
+        c,
+        ab_p1,
+        ab_p2,
+        alpha,
+        beta,
+        alpha_bounds,
+        beta_bounds,
+        path_score=0.0,
+        root_visits=0.0,
+        c_adjust=1.0,
+        k_factor=1.0,
     ):
         """
 
@@ -241,97 +259,48 @@ class Node:
         cv_adj_bounds: cython.double = 0.0
         cv_adj_alpha: cython.double = 0.0
         cv_adj_beta: cython.double = 0.0
+        # 3
+        # cv_adj_bounds = cv_adj_bounds_options[2]  # path_score
+        # cv_adj_alpha = cv_adj_alpha_options[0]  # alpha_bounds
+        # cv_adj_beta = cv_adj_beta_options[0]  # beta_bounds
+        # # 4:
+        # cv_adj_bounds = cv_adj_bounds_options[1]  # 0
+        # cv_adj_alpha = cv_adj_alpha_options[2]  # -alpha_bounds
+        # cv_adj_beta = cv_adj_beta_options[0]  # beta_bounds
+        # # 8:
+        # cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
+        # cv_adj_alpha = cv_adj_alpha_options[2]  # - alpha_bounds
+        # cv_adj_beta = cv_adj_beta_options[2]  # - beta_bounds
+        # # 10:
+        # cv_adj_bounds = cv_adj_bounds_options[2] - child_value  # Replace child value with path score
+        # cv_adj_alpha = cv_adj_alpha_options[1]  # 0
+        # cv_adj_beta = cv_adj_beta_options[1]  # 0
 
-        # Define the possible values for each parameter
-        cv_adj_bounds_options: cython.tuple[cython.double, cython.double, cython.double] = (
-            beta - alpha,
-            0,
-            path_score,
-        )
-        cv_adj_alpha_options: cython.tuple[cython.double, cython.double, cython.double] = (
-            alpha_bounds,
-            0,
-            -alpha_bounds,
-        )
-        cv_adj_beta_options: cython.tuple[cython.double, cython.double, cython.double] = (
-            beta_bounds,
-            0,
-            -beta_bounds,
+        tries: cython.tuple = (
+            (path_score, alpha, beta),
+            (path_score, alpha, -beta),
+            (path_score, -alpha, beta),
+            (path_score, -alpha, -beta),
+            (path_score, alpha_bounds, beta_bounds),
+            (path_score, -alpha_bounds, beta_bounds),
+            (path_score, -alpha_bounds, -beta_bounds),
+            (beta, alpha, -beta),
+            (beta, -alpha, beta),
+            (beta, -alpha, -beta),
+            (beta, alpha_bounds, -beta_bounds),
+            (beta, alpha_bounds, beta_bounds),
+            (beta, -alpha_bounds, beta_bounds),
+            (beta, -alpha_bounds, -beta_bounds),
+            (alpha, alpha, -beta),
+            (alpha, -alpha, beta),
+            (alpha, alpha_bounds, -beta_bounds),
+            (alpha, alpha_bounds, beta_bounds),
+            (alpha, -alpha_bounds, beta_bounds),
+            (alpha, -alpha_bounds, -beta_bounds),
         )
 
-        assert beta - alpha > 0, f"Invalid bounds {alpha=} {beta=}"
+        cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[ab_p1]
 
-        # if ab_p1 == 1:
-        #     * Sanity check
-        #     cv_adj_bounds = cv_adj_bounds_options[1]
-        #     cv_adj_alpha = cv_adj_alpha_options[1]
-        #     cv_adj_beta = cv_adj_beta_options[1]
-        if ab_p1 == 1:
-            # Tight exploration: Narrow down on highly promising paths with tight bounds and alpha-beta
-            cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
-            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
-            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
-        elif ab_p1 == 2:
-            # Neutral bounds, tight alpha-beta
-            cv_adj_bounds = cv_adj_bounds_options[1]
-            cv_adj_alpha = cv_adj_alpha_options[0]
-            cv_adj_beta = cv_adj_beta_options[0]
-        elif ab_p1 == 3:
-            # Focus search using path score, with aggressive alpha-beta tightening
-            cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
-            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment
-            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment
-        elif ab_p1 == 4:
-            # Neutral bounds, loosening alpha with tight beta
-            cv_adj_bounds = cv_adj_bounds_options[1]  # No adjustment to bounds
-            cv_adj_alpha = cv_adj_alpha_options[2]  # Loosen alpha bounds adjustment
-            cv_adj_beta = cv_adj_beta_options[0]  # Tighten beta bounds adjustment
-        elif ab_p1 == 5:
-            # Aggressive expansion: Increase bounds to encourage exploration
-            cv_adj_bounds = cv_adj_bounds_options[2]  # Use path_score to potentially increase search space
-            cv_adj_alpha = cv_adj_alpha_options[1]  # No alpha adjustment
-            cv_adj_beta = cv_adj_beta_options[1]  # No beta adjustment
-        elif ab_p1 == 6:
-            # Conservative tightening: Decrease bounds to focus on promising paths
-            cv_adj_bounds = cv_adj_bounds_options[0]  # Tighten bounds based on beta - alpha difference
-            cv_adj_alpha = cv_adj_alpha_options[2]  # Loosen alpha adjustment
-            cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta adjustment
-        elif ab_p1 == 7:
-            # Path score emphasis with beta adjustment: Focus on paths with good scores, adjust beta to narrow search
-            cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
-            cv_adj_alpha = cv_adj_alpha_options[1]  # No alpha adjustment
-            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment
-        elif ab_p1 == 8:
-            # Balanced approach: Use path score for bounds with balanced alpha-beta loosening
-            cv_adj_bounds = cv_adj_bounds_options[2]  # Adjust bounds using path score
-            cv_adj_alpha = cv_adj_alpha_options[2]  # Loosen alpha adjustment
-            cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta adjustment
-        elif ab_p1 == 9:
-            # Exploration with no bounds adjustment: Keep bounds neutral, explore more with alpha-beta adjustments
-            cv_adj_bounds = cv_adj_bounds_options[1]  # No adjustment to bounds
-            cv_adj_alpha = cv_adj_alpha_options[0]  # Tighten alpha for exploration
-            cv_adj_beta = cv_adj_beta_options[2]  # Loosen beta to allow more exploration beyond current beta
-        if ab_p1 == 10:
-            # Replace child value by the path score
-            cv_adj_bounds = cv_adj_bounds_options[2] - child_value  # Replace child value with path score
-            cv_adj_alpha = cv_adj_alpha_options[1]  # Don't Apply alpha bounds 
-            cv_adj_beta = cv_adj_beta_options[1]  # Don't Apply beta bounds
-        if ab_p1 == 11:
-            # Replace child value with the path score
-            cv_adj_bounds = cv_adj_bounds_options[2] - child_value  # Replace child value with path score
-            cv_adj_alpha = cv_adj_alpha_options[0]  # Apply alpha bounds adjustment for tighter control
-            cv_adj_beta = cv_adj_beta_options[0]  # Apply beta bounds adjustment for tighter control
-        if ab_p1 == 12:
-            # Just increase by ab
-            cv_adj_bounds = cv_adj_bounds_options[0] # Just add ab distance
-            cv_adj_alpha = cv_adj_alpha_options[1]  # Dont Apply alpha bounds
-            cv_adj_beta = cv_adj_beta_options[1]  # Dont Apply beta bounds
-        if ab_p1 == 13:
-            # No bonus, only penalty
-            cv_adj_bounds = cv_adj_bounds_options[1] # No bonus
-            cv_adj_alpha = cv_adj_alpha_options[2]  # Penalize out of bounds
-            cv_adj_beta = cv_adj_beta_options[2]
-            
         new_cv: cython.double = child_value
         confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
 
