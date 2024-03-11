@@ -96,6 +96,7 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     status_thread = threading.Thread(
         target=run_periodic_status_updates,
         args=(update_interval, stop_event, tables, base_path, total_games, n_procs, agg_loc, top_n),
+        daemon=True,
     )
     status_thread.start()
     random.shuffle(all_experiments)
@@ -114,59 +115,53 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
             future_tasks[exp_name].append(future)
             futures_list.append(future)
 
-        print(f"All {len(all_experiments)} experiments pooled.")
-        future: ProcessFuture
-        for future in futures_list:
-            try:
-                if not future.done():
-                    # Blocks until the task completes or raises TimeoutError if it times out
-                    future.result(timeout=timeout)
-            except CancelledError:
-                print("A task was cancelled and did not complete.")
-            except TimeoutError as e:
-                print(f"Experiment timed out: {e} after {timeout=}", sys.stderr)
-            except ProcessExpired as e:
-                print(f"Experiment process expired: {e}", sys.stderr)
-            except Exception as e:
-                print(f"Experiment raised an exception: {e}", sys.stderr)
-                # Print the traceback
-                traceback.print_exc(file=sys.stderr)
+    print(f"All {len(all_experiments)} experiments pooled.")
+    future: ProcessFuture
+    for future in futures_list:
+        try:
+            if not future.done():
+                # Blocks until the task completes or raises TimeoutError if it times out
+                future.result(timeout=timeout)
+        except CancelledError:
+            print("A task was cancelled and did not complete.")
+        except TimeoutError as e:
+            print(f"Experiment timed out: {e} after {timeout=}", sys.stderr)
+        except ProcessExpired as e:
+            print(f"Experiment process expired: {e}", sys.stderr)
+        except Exception as e:
+            print(f"Experiment raised an exception: {e}", sys.stderr)
+            # Print the traceback
+            traceback.print_exc(file=sys.stderr)
 
-            # Everytime we finish a task, check if some experiments should be cancelled
-            exp_names_to_cancel = [
-                exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel
+        # Everytime we finish a task, check if some experiments should be cancelled
+        exp_names_to_cancel = [exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel]
+
+        if len(exp_names_to_cancel) > 0:
+            print("Experiments to cancel:")
+            pprint(experiments_to_cancel)
+            total_cancelled += cancel_list_of_experiments(future_tasks, exp_names_to_cancel)
+
+        if total_cancelled > 0:
+            print(f"Cancelled {total_cancelled} tasks so far.")
+            print("Cancelled experiments:")
+            cancelled_list_of_experiments = [
+                exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
             ]
+            print(cancelled_list_of_experiments)
 
-            if len(exp_names_to_cancel) > 0:
-                print("Experiments to cancel:")
-                pprint(experiments_to_cancel)
-                total_cancelled += cancel_list_of_experiments(future_tasks, exp_names_to_cancel)
+        # Check if all futures are done or cancelled
+        if all((future.done() or future.cancelled()) for future in futures_list):
+            print("All futures completed.")
+            break
 
-            if total_cancelled > 0:
-                print(f"Cancelled {total_cancelled} tasks so far.")
-                print("Cancelled experiments:")
-                cancelled_list_of_experiments = [
-                    exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
-                ]
-                print(cancelled_list_of_experiments)
-
-            # Check if all futures are done or cancelled
-            if all((future.done() or future.cancelled()) for future in futures_list):
-                print("All futures completed.")
-                break
-
-        print("--" * 60)
-        print("All futures completed.")
-        print("--" * 60)
-
-    if agg_loc is not None:
-        print("Aggregating final results..")
-        aggregate_csv_results(agg_loc, base_path)
+    print("--" * 60)
+    print("All futures completed.")
+    print("--" * 60)
 
     # Experiments are done, signal the status update thread to stop and wait for it to finish
     stop_event.set()
     print("Waiting for status update thread to finish..")
-    status_thread.join(timeout=10)
+    status_thread.join(timeout=update_interval // 2)
 
     # perform any final status update after all experiments are complete
     update_running_experiment_status(
@@ -176,6 +171,15 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
         start_time=datetime.datetime.now(),
         n_procs=n_procs,
     )
+
+    # If the thread is still alive after the timeout, it's a daemon and will be killed automatically
+    if status_thread.is_alive():
+        print("The status thread is still running and will be terminated as a daemon.")
+
+    if agg_loc is not None:
+        print("Aggregating final results..")
+        aggregate_csv_results(agg_loc, base_path)
+
     print("Completed all experiments and updates.")
 
 
@@ -210,13 +214,20 @@ def run_periodic_status_updates(
     start_time = datetime.datetime.now()
     counter = 0
     while not stop_event.is_set():
-        time.sleep(update_interval // 2)
+        # Replace time.sleep calls with this
+        if stop_event.wait(timeout=update_interval // 2):
+            break  # Exit the loop if stop_event is set
+
         print("Updating status..")
         update_running_experiment_status(
             tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
         print(f"Status update complete, {datetime.datetime.now()}.\n")
-        time.sleep(update_interval // 2)
+
+        # Replace time.sleep calls with this
+        if stop_event.wait(timeout=update_interval // 2):
+            break  # Exit the loop if stop_event is set
+
         counter += 1
         # After n updates, aggregate the results and print them
         if counter > 3 and agg_loc is not None:
