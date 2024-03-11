@@ -277,45 +277,45 @@ class Node:
         # cv_adj_beta = cv_adj_beta_options[1]  # 0
 
         tries: cython.tuple = (
-            # No data
+            # 0 No data
             (path_score, alpha, beta),
-            # Worst Score: 27.87, Game: minishogi; Worst Score: 18.18, Game: breakthrough
+            # 1 Worst Score: 27.87, Game: minishogi; Worst Score: 18.18, Game: breakthrough
             (path_score, alpha, -beta),
-            # Best Score: 56.77, Game: breakthrough; Best Score: 50.79, Game: minishogi
+            # 2 Best Score: 56.77, Game: breakthrough; Best Score: 50.79, Game: minishogi
             (path_score, -alpha, beta),
-            # Worst Score: 49.21, Game: minishogi
+            # 3 Worst Score: 49.21, Game: minishogi
             (path_score, -alpha, -beta),
-            # Worst Score: 32.08, Game: minishogi
+            # 4 Worst Score: 32.08, Game: minishogi
             (path_score, alpha_bounds, beta_bounds),
-            # Worst Score: 49.74, Game: minishogi
+            # 5 Worst Score: 49.74, Game: minishogi
             (path_score, -alpha_bounds, beta_bounds),
-            # Best Score: 59.38, Game: breakthrough; Best Score: 53.44, Game: minishogi
+            # 6 Best Score: 59.38, Game: breakthrough; Best Score: 53.44, Game: minishogi
             (path_score, -alpha_bounds, -beta_bounds),
-            # Worst Score: 26.23, Game: breakthrough
+            # 7 Worst Score: 26.23, Game: breakthrough
             (beta, alpha, -beta),
-            # Worst Score: 23.53, Game: minishogi
+            # 8 Worst Score: 23.53, Game: minishogi
             (beta, -alpha, beta),
-            # Best Score: 54.5, Game: minishogi; Best Score: 51.04, Game: breakthrough
+            # 9 Best Score: 54.5, Game: minishogi; Best Score: 51.04, Game: breakthrough
             (beta, -alpha, -beta),
-            # Best Score: 53.65, Game: minishogi
+            # 10 Best Score: 53.65, Game: minishogi
             (beta, alpha_bounds, -beta_bounds),
-            # Best Score: 48.96, Game: breakthrough; Worst Score: 42.63, Game: minishogi
+            # 11 Best Score: 48.96, Game: breakthrough; Worst Score: 42.63, Game: minishogi
             (beta, alpha_bounds, beta_bounds),
-            # Worst Score: 30.3, Game: minishogi
+            # 12 Worst Score: 30.3, Game: minishogi
             (beta, -alpha_bounds, beta_bounds),
-            # Best Score: 55.5, Game: minishogi
+            # 13 Best Score: 55.5, Game: minishogi
             (beta, -alpha_bounds, -beta_bounds),
-            # Worst Score: 18.75, Game: breakthrough
+            # 14 Worst Score: 18.75, Game: breakthrough
             (alpha, alpha, -beta),
-            # Best Score: 48.96, Game: breakthrough; Worst Score: 38.76, Game: minishogi
+            # 15 Best Score: 48.96, Game: breakthrough; Worst Score: 38.76, Game: minishogi
             (alpha, -alpha, beta),
-            # Best Score: 56.77, Game: breakthrough; Best Score: 52.13, Game: minishogi
+            # 16 Best Score: 56.77, Game: breakthrough; Best Score: 52.13, Game: minishogi
             (alpha, alpha_bounds, -beta_bounds),
-            # Best Score: 54.74, Game: minishogi; Worst Score: 43.23, Game: breakthrough
+            # 17 Best Score: 54.74, Game: minishogi; Worst Score: 43.23, Game: breakthrough
             (alpha, alpha_bounds, beta_bounds),
-            # No data
+            # 18 No data
             (alpha, -alpha_bounds, beta_bounds),
-            # No data
+            # 19 No data
             (alpha, -alpha_bounds, -beta_bounds),
         )
 
