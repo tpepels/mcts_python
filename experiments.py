@@ -66,7 +66,7 @@ def run_single_experiment(
 experiments_to_cancel = {}
 
 
-def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=25 * 60):
+def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=20 * 60):
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 
@@ -218,8 +218,8 @@ def run_periodic_status_updates(
         print(f"Status update complete, {datetime.datetime.now()}.\n")
         time.sleep(update_interval // 2)
         counter += 1
-        # Every n updates, aggregate the results and print them
-        if counter % 2 == 0 and agg_loc is not None:
+        # After n updates, aggregate the results and print them
+        if counter > 3 and agg_loc is not None:
             print("aggregating results..")
             try:
                 cancel_list = aggregate_csv_results(agg_loc, base_path, top_n=top_n)
