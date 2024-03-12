@@ -3,16 +3,16 @@
     "top_n": 2
   },
   {
-    "n_games": 300,
+    "n_games": 400,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_p1": [6, 2, 16],
-      "c": [0.35, 0.4, 0.45, 0.5, 0.55, 0.6],
-      "ab_p2": 2
+      "ab_p1": [0, 1],
+      "c": [0.3, 0.35, 0.4, 0.45],
+      "ab_p2": [1, 2]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

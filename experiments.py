@@ -111,17 +111,24 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
                 future_tasks[exp_name] = []
 
             # Schedule the task and store the future with the exp_name
-            future = pool.schedule(run_single_experiment, args=exp)
+            future = pool.schedule(run_single_experiment, args=exp, timeout=timeout)
             future_tasks[exp_name].append(future)
             futures_list.append(future)
 
     print(f"All {len(all_experiments)} experiments pooled.")
     future: ProcessFuture
     for future in futures_list:
+
+        # Check if all futures are done or cancelled
+        if all(future.done() or future.cancelled() for future in futures_list):
+            print("All futures completed.")
+            break
+
+        if future.done() or future.cancelled():
+            continue
+
         try:
-            if not future.done():
-                # Blocks until the task completes or raises TimeoutError if it times out
-                future.result(timeout=timeout)
+            future.result(timeout=timeout)
         except CancelledError:
             print("A task was cancelled and did not complete.")
         except TimeoutError as e:
@@ -148,11 +155,6 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
                 exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
             ]
             print(cancelled_list_of_experiments)
-
-        # Check if all futures are done or cancelled
-        if all((future.done() or future.cancelled()) for future in futures_list):
-            print("All futures completed.")
-            break
 
     print("--" * 60)
     print("All futures completed.")
