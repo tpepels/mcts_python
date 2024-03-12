@@ -125,6 +125,7 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
 
         try:
             # Wait for a running future to finish
+            print(f"Waiting for {future} to finish..")
             future.result()
         except CancelledError:
             print("A task was cancelled and did not complete.")
