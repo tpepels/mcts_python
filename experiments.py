@@ -107,6 +107,7 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
         futures_list = []
         for exp in all_experiments:
             exp_name = exp[-3]
+
             if exp_name not in future_tasks:
                 future_tasks[exp_name] = []
 
@@ -116,29 +117,10 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
             futures_list.append(future)
 
     print(f"All {len(all_experiments)} experiments pooled.")
-    future: ProcessFuture
-    for future in futures_list:
 
-        if future.done() or future.cancelled() or not future.running():
-            time.sleep(1)
-            continue
-
-        try:
-            # Wait for a running future to finish
-            print(f"Waiting for {future} to finish..")
-            future.result()
-        except CancelledError:
-            print("A task was cancelled and did not complete.")
-        except TimeoutError as e:
-            print(f"Experiment timed out: {e} after {timeout=}", sys.stderr)
-        except ProcessExpired as e:
-            print(f"Experiment process expired: {e}", sys.stderr)
-        except Exception as e:
-            print(f"Experiment raised an exception: {e}", sys.stderr)
-            # Print the traceback
-            traceback.print_exc(file=sys.stderr)
-
-        # Everytime we finish a task, check if some experiments should be cancelled
+    while not all(f.done() or f.cancelled() for f in futures_list):
+        time.sleep(61)
+        # Check for experiments to be cancelled.
         exp_names_to_cancel = [exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel]
 
         if len(exp_names_to_cancel) > 0:
@@ -153,11 +135,6 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
                 exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
             ]
             print(cancelled_list_of_experiments)
-
-        # Check if all futures are done or cancelled
-        if all(future.done() or future.cancelled() for future in futures_list):
-            print("All futures completed.")
-            break
 
     print("--" * 60)
     print("All futures completed.")
