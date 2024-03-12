@@ -4,9 +4,9 @@
   },
   {
     "n_games": 16,
-    "game_key": "ninarow",
+    "game_key": "breakthrough",
     "random_openings": 2,
-    "game_params": { "board_size": 9, "row_length": 5 },
+    "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 5000,
@@ -25,9 +25,9 @@
   },
   {
     "n_games": 16,
-    "game_key": "ninarow",
+    "game_key": "breakthrough",
     "random_openings": 2,
-    "game_params": { "board_size": 9, "row_length": 5 },
+    "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 15000,
