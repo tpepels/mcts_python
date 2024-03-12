@@ -261,7 +261,7 @@ class Node:
         cv_adj_beta: cython.double = 0.0
 
         # Note that alpha_bounds is already a negative bound
-        tries = ((path_score, alpha_bounds, -beta_bounds), (beta, alpha_bounds, -beta_bounds))
+        tries: cython.tuple = ((path_score, alpha_bounds, -beta_bounds), (beta, alpha_bounds, -beta_bounds))
 
         if ab_p1 == 1:
             cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[0]
