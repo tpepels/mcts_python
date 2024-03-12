@@ -189,13 +189,12 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
     rand_ai_params = {
         "num_simulations": 300000,
         "early_term_turns": 10,
-        "early_term_cutoff": 0.3,
+        "early_term_cutoff": 0.2,
         "dyn_early_term_cutoff": 0,
         "c": 1,
         "imm_alpha": 0.01,
         "random_top": 30,
     }
-
     p1_params = AIParams(
         ai_key="mcts",
         eval_params={},
