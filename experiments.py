@@ -1,11 +1,10 @@
-from concurrent.futures import CancelledError
 from copy import deepcopy
 import datetime
 import json
 from pprint import pprint
 
 import sys
-from pebble import ProcessFuture, ProcessPool, ProcessExpired
+from pebble import ProcessFuture, ProcessPool
 import threading
 import time
 
@@ -120,6 +119,24 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
 
     while not all(f.done() or f.cancelled() for f in futures_list):
         time.sleep(61)
+        # Initialize counters
+        running_count = 0
+        cancelled_count = 0
+        done_count = 0
+
+        # Tally the states of the futures
+        for f in futures_list:
+            if f.running():
+                running_count += 1
+            elif f.cancelled():
+                cancelled_count += 1
+            elif f.done():
+                done_count += 1
+
+        print(f"Running experiments: {running_count}")
+        print(f"Cancelled experiments: {cancelled_count}")
+        print(f"Done experiments: {done_count}")
+
         # Check for experiments to be cancelled.
         exp_names_to_cancel = [exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel]
 
