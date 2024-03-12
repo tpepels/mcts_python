@@ -263,7 +263,7 @@ class Node:
         # Note that alpha_bounds is already a negative bound
         tries = ((path_score, alpha_bounds, -beta_bounds), (beta, alpha_bounds, -beta_bounds))
 
-        cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[ab_p1]
+        cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[ab_p1 - 1]
 
         new_cv: cython.double = child_value
         confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
