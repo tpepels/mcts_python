@@ -65,7 +65,7 @@ def run_single_experiment(
 experiments_to_cancel = {}
 
 
-def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=20 * 60):
+def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=30 * 60):
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 
@@ -101,7 +101,7 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     random.shuffle(all_experiments)
     total_cancelled = 0
     with ProcessPool(max_workers=n_procs) as pool:
-        print(f"Starting {len(all_experiments)} experiments with {n_procs} processes.")
+        print(f">> Starting {len(all_experiments)} experiments with {n_procs} processes.")
         future_tasks = {}
         futures_list = []
         for exp in all_experiments:
@@ -115,51 +115,58 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
             future_tasks[exp_name].append(future)
             futures_list.append(future)
 
-    print(f"All {len(all_experiments)} experiments pooled.")
+        print(f">> All {len(all_experiments)} experiments pooled.")
 
-    while not all(f.done() or f.cancelled() for f in futures_list):
-        time.sleep(61)
-        # Initialize counters
-        running_count = 0
-        cancelled_count = 0
-        done_count = 0
+        while not all(f.done() or f.cancelled() for f in futures_list):
+            time.sleep(61)
+            # Initialize counters
+            running_count = 0
+            cancelled_count = 0
+            done_count = 0
+            exception_count = 0
 
-        # Tally the states of the futures
-        for f in futures_list:
-            if f.running():
-                running_count += 1
-            elif f.cancelled():
-                cancelled_count += 1
-            elif f.done():
-                done_count += 1
+            # Tally the states of the futures
+            f: ProcessFuture
+            for f in futures_list:
+                if f.running():
+                    running_count += 1
+                elif f.cancelled():
+                    cancelled_count += 1
+                elif f.done():
+                    done_count += 1
+                elif f.exception() is not None:
+                    exception_count += 1
 
-        print(f"Running experiments: {running_count}")
-        print(f"Cancelled experiments: {cancelled_count}")
-        print(f"Done experiments: {done_count}")
+            print(f">> Running experiments: {running_count}")
+            print(f">> Cancelled experiments: {cancelled_count}")
+            print(f">> Done experiments: {done_count}")
+            print(f">> Experiments with exceptions: {exception_count}")
 
-        # Check for experiments to be cancelled.
-        exp_names_to_cancel = [exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel]
-
-        if len(exp_names_to_cancel) > 0:
-            print("Experiments to cancel:")
-            pprint(experiments_to_cancel)
-            total_cancelled += cancel_list_of_experiments(future_tasks, exp_names_to_cancel)
-
-        if total_cancelled > 0:
-            print(f"Cancelled {total_cancelled} tasks so far.")
-            print("Cancelled experiments:")
-            cancelled_list_of_experiments = [
-                exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
+            # Check for experiments to be cancelled.
+            exp_names_to_cancel = [
+                exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel
             ]
-            print(cancelled_list_of_experiments)
+
+            if len(exp_names_to_cancel) > 0:
+                print("Experiments to cancel:")
+                pprint(experiments_to_cancel)
+                total_cancelled += cancel_list_of_experiments(future_tasks, exp_names_to_cancel)
+
+            if total_cancelled > 0:
+                print(f">> Cancelled {total_cancelled} tasks so far.")
+                print(">> Cancelled experiments:")
+                cancelled_list_of_experiments = [
+                    exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
+                ]
+                print(cancelled_list_of_experiments)
 
     print("--" * 60)
-    print("All futures completed.")
+    print(">> All futures completed.")
     print("--" * 60)
 
     # Experiments are done, signal the status update thread to stop and wait for it to finish
     stop_event.set()
-    print("Waiting for status update thread to finish..")
+    print(">> Waiting for status update thread to finish..")
     status_thread.join(timeout=update_interval // 2)
 
     # perform any final status update after all experiments are complete

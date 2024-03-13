@@ -221,8 +221,14 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
 
     current_player: AIPlayer = p2 if game.player == 2 else p1
     for _ in range(random_openings):
+        # Time the move
+        start_time = time.time()
         # Get the best action for the current player
         action, _ = current_player.best_action(game)
+        end_time = time.time()
+
+        print(f" :: Playing random move for {game.player}, {action}")
+        print(f" :: Random move took {end_time - start_time:.2f}s")
 
         assert action is not None, f"Player {current_player} returned None as best action.."
         assert action != (), f"Player {current_player} returned () as best action.."
@@ -394,7 +400,7 @@ def run_game_experiment(
         nonlocal n_moves
         times.append(time)
         print(
-            f"Player {str(current_player)}, action: {action}, time: {times[len(times) - 1] - times[len(times) - 2]:.1f}"
+            f"Player {str(current_player)}\naction: {action} | time: {times[len(times) - 1] - times[len(times) - 2]:.1f}s. | total time: {times[len(times) - 1] - times[0]:.1f}s."
         )
         print(game.visualize())
         n_moves += 1

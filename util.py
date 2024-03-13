@@ -147,6 +147,7 @@ class PrintLogger:
     def write(self, message):
         if message.rstrip() != "":
             self._log_file.write(message.rstrip() + "\n")
+            self._log_file.flush()
 
     def flush(self):
         self._log_file.flush()
