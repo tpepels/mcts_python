@@ -65,7 +65,7 @@ def run_single_experiment(
 experiments_to_cancel = {}
 
 
-def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=30 * 60):
+def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=60 * 60):
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 
@@ -100,7 +100,8 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     status_thread.start()
     random.shuffle(all_experiments)
     total_cancelled = 0
-    with ProcessPool(max_workers=n_procs) as pool:
+    # Uses the CPU_count as a default parameter
+    with ProcessPool() as pool:
         print(f">> Starting {len(all_experiments)} experiments with {n_procs} processes.")
         future_tasks = {}
         futures_list = []
@@ -118,13 +119,18 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
         print(f">> All {len(all_experiments)} experiments pooled.")
 
         while not all(f.done() or f.cancelled() for f in futures_list):
+
+            print(">>> Waiting for experiments to finish..")
+
             time.sleep(61)
+
             # Initialize counters
             running_count = 0
             cancelled_count = 0
             done_count = 0
             exception_count = 0
 
+            print(">> Checking experiment status..")
             # Tally the states of the futures
             f: ProcessFuture
             for f in futures_list:
