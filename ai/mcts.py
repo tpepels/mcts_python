@@ -142,7 +142,7 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            rand_fact: cython.double = uniform(-0.001, 0.001)
+            rand_fact: cython.double = uniform(-0.0001, 0.0001)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
             if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
