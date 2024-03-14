@@ -7,28 +7,10 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_p1": 2,
-      "c": [0.1, 0.2],
-      "imm_alpha": [0.5, 0.6, 0.7],
-      "ab_p2": 1
-    },
-    "p1_eval_params": {},
-    "p2_ai_key": "mcts",
-    "p2_ai_params": {
-      "num_simulations": 200000
-    },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 600,
-    "game_key": "ninarow",
-    "game_params": { "board_size": 15, "row_length": 5 },
-    "random_openings": 2,
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "num_simulations": 200000,
-      "c": [0.1, 0.2],
-      "imm_alpha": [0.5, 0.6, 0.7]
+      "ab_p1": [1, 2],
+      "c": [0.2, 0.3, 0.4],
+      "imm_alpha": [0.2, 0.3, 0.4],
+      "ab_p2": [1, 2]
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",

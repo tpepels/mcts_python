@@ -1,8 +1,8 @@
 DEFAULT_SETTINGS = {
     ("minishogi", "mcts"): {
         "ai_params": {
-            "c": 0.3,
-            "imm_alpha": 0.9,
+            "c": 0.2,
+            "imm_alpha": 0.8,
             "early_term_turns": 20,
             "early_term_cutoff": 0.3,
             "epsilon": 0.03,
@@ -16,8 +16,8 @@ DEFAULT_SETTINGS = {
         # C_vanilla: 0.3
         # C_ab: 0.3
         "ai_params": {
-            "c": 0.1,
-            "imm_alpha": 0.5,
+            "c": 0.3,
+            "imm_alpha": 0.3,
             "dyn_early_term_cutoff": 0.4,
         },
         "eval_params": {},
@@ -28,8 +28,8 @@ DEFAULT_SETTINGS = {
         # c_vanilla: 0.8
         # c_ab: 0.55
         "ai_params": {
-            "c": 0.3,
-            "imm_alpha": 0.3,
+            "c": 0.5,
+            "imm_alpha": 0.1,
             "early_term_turns": 10,
             # "pb_weight": 0.3,
             "early_term_cutoff": 0.05,
