@@ -254,7 +254,12 @@ PIECE_CHARS = list(PIECES.keys())
 @cython.cclass
 class MiniShogi(GameState):
     zobrist_table = [[[randint(1, 2**61 - 1) for _ in range(21)] for _ in range(5)] for _ in range(5)]
-
+    # Assuming player identifiers are 1 and 2 for simplicity
+    player_to_move_hash = [
+        0,  # Placeholder for 0 index, as player identifiers start from 1
+        randint(1, 2**61 - 1),  # Hash for player 1
+        randint(1, 2**61 - 1),
+    ]  # Hash for player 2
     REUSE = True
 
     board = cython.declare(cython.int[:, :], visibility="public")
@@ -290,13 +295,11 @@ class MiniShogi(GameState):
         self.winner = -1
 
         if board is None:
+            self.player = 1
             self.board = self._init_board()
             self.board_hash = self._init_hash()
-
             # Keep track of the pieces on the board, this keeps evaluation and move generation from recomputing these over and over
             self.last_action = (-1, -1, -1, -1)
-            self.player = 1
-
             self.captured_pieces_1 = []
             self.captured_pieces_2 = []
             self.current_player_moves = []
@@ -349,7 +352,8 @@ class MiniShogi(GameState):
                 piece = self.board[row, col]
                 # Use the piece value directly as the index in the Zobrist table
                 hash_value ^= MiniShogi.zobrist_table[row][col][piece]
-
+        # Before actually switching the player, toggle the hash for the player to move
+        hash_value ^= MiniShogi.player_to_move_hash[self.player]
         return hash_value
 
     @cython.ccall
@@ -540,6 +544,8 @@ class MiniShogi(GameState):
 
         # Switch player after the action
         new_state.player = 3 - new_state.player
+        # Before actually switching the player, toggle the hash for the player to move
+        new_state.board_hash ^= MiniShogi.player_to_move_hash[new_state.player]
         # After each move, determine if I am in check
         new_state.check = new_state.is_king_attacked(new_state.player)
 
@@ -1363,12 +1369,10 @@ class MiniShogi(GameState):
 
                 board_str += colored_char + " "
             board_str += "\n"
+        board_str += f"Board Hash: {self.board_hash} | Occurrences: {self.state_occurrences.get(self.board_hash, 0)}\n"
 
         # Additional debug information
         if full_debug:
-            board_str += (
-                f"Board Hash: {self.board_hash} | Occurrences: {self.state_occurrences.get(self.board_hash, 0)}\n"
-            )
             board_str += f"Check: {'Yes' if self.check else 'No'} | Mate: {'Yes' if self.is_terminal() else 'No'} | Winner: {self.winner}\n\n"
             board_str += f"Player to move: {self.player}\n"
             self.check = True
