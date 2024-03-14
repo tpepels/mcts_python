@@ -449,6 +449,7 @@ class MiniShogi(GameState):
         #         self.winner = -1
 
     @cython.ccall
+    @cython.wraparound(True)
     @cython.locals(
         from_row=cython.int,
         from_col=cython.int,
@@ -542,23 +543,30 @@ class MiniShogi(GameState):
         # After each move, determine if I am in check
         new_state.check = new_state.is_king_attacked(new_state.player)
 
-        # new_state.winner = -2  # Reset the winner
-        if new_state.check:
-            # Increment the count for the current board hash, initializing it to 0 if it doesn't exist.
+        # If the same position (with the same side to move and same pieces in hand) occurs for the fourth time,
+        # the game ends and the final result is a loss for the player that made the very first move in the game
+        # (this is different from regular shogi, where such a scenario would result in a draw).
+        #
+        # The only exception to this rule is when one player perpetually checks the opponent;
+        # in that case the checking side loses the game.
+
+        # If the same game position occurs four times with the same player to move, either player loses if his
+        # or her moves during the repetition are all checks (perpetual check), otherwise "Sente"(Black) loses.
+
+        if new_state.state_occurrences.get(new_state.board_hash, 0) == 3:
+            if new_state.check:
+                # The game has reached a repeated position for the fourth time, and it is a check,
+                # indicating perpetual check by the opponent (since the current player is in check).
+                # The player to move (who is currently in check and not causing the perpetual check) wins.
+                new_state.winner = new_state.player  # The player to move wins.
+            else:
+                # The position repeated four times without checks, Sente (Black) loses by default.
+                new_state.winner = 2  # Gote (White) wins.
+        else:
+            # Increment the count for the current board hash
             new_state.state_occurrences[new_state.board_hash] = (
                 new_state.state_occurrences.get(new_state.board_hash, 0) + 1
             )
-            # Check for repetition loss
-            if new_state.state_occurrences[new_state.board_hash] == 4:
-                # The player repeating check causing a position to repeat 4 times in a row is a loss
-                new_state.winner = 3 - new_state.player
-            # else:
-            # # Check for checkmate
-            # if new_state.is_checkmate(new_state.player):
-            #     new_state.winner = 3 - new_state.player
-            # else:
-            #     # The -1 indicates that the game is not over, it prevents another check for checkmate
-            #     new_state.winner = -1
 
         return new_state
 
@@ -1175,7 +1183,9 @@ class MiniShogi(GameState):
                         1 if (player == 1 and 1 <= piece <= P2_OFFS) or (player == 2 and 11 <= piece <= 20) else -1
                     )
                     material_score += multip * MATERIAL[piece]
-                    self._generate_moves(row, col, self.board[row, col], callback, count_defense=params[5] > 0, randomize=False)
+                    self._generate_moves(
+                        row, col, self.board[row, col], callback, count_defense=params[5] > 0, randomize=False
+                    )
 
         captured_pieces_player: cython.list[cython.int] = (
             self.captured_pieces_1 if player == 1 else self.captured_pieces_2
@@ -1356,11 +1366,11 @@ class MiniShogi(GameState):
 
         # Additional debug information
         if full_debug:
-            board_str += f"Board Hash: {self.board_hash}\n"
-            board_str += f"Mate: {'Yes' if self.is_terminal() else 'No'} \n"
-            board_str += f"Check: {'Yes' if self.check else 'No'}\n"
-            board_str += f"Winner: {self.winner}\n"
-            board_str += f"Player: {self.player}\n"
+            board_str += (
+                f"Board Hash: {self.board_hash} | Occurrences: {self.state_occurrences.get(self.board_hash, 0)}\n"
+            )
+            board_str += f"Check: {'Yes' if self.check else 'No'} | Mate: {'Yes' if self.is_terminal() else 'No'} | Winner: {self.winner}\n\n"
+            board_str += f"Player to move: {self.player}\n"
             self.check = True
             board_str += f"is_checkmate(self.player): {self.is_checkmate(self.player)}\n"
             self.check = False

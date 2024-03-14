@@ -137,13 +137,13 @@ else:
     eval_params_2 = {}
 
     ai_1_params = {
-        "num_simulations": 200000,
+        "num_simulations": 100000,
         "debug": args.debug,
-        "ab_p1": 1,
+        "ab_p1": 2,
         "ab_p2": 1,
     }
     ai_2_params = {
-        "num_simulations": 200000,
+        "num_simulations": 100000,
         "debug": args.debug,
         "ab_p1": 1,
         "ab_p2": 1,

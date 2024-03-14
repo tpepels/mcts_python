@@ -260,22 +260,10 @@ class Node:
         cv_adj_alpha: cython.double = 0.0
         cv_adj_beta: cython.double = 0.0
 
-        # Note that alpha_bounds is already a negative bound
-        tries: cython.tuple = (
-            (path_score, alpha_bounds, -beta_bounds),
-            (beta, alpha_bounds, -beta_bounds),
-            (path_score, alpha, -beta),
-            (beta, alpha, -beta),
-        )
-
         if ab_p1 == 1:
-            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[0]
+            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = path_score, alpha_bounds, -beta_bounds
         elif ab_p1 == 2:
-            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[1]
-        elif ab_p1 == 3:
-            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[2]
-        elif ab_p1 == 4:
-            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = tries[3]
+            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = beta, alpha_bounds, -beta_bounds
 
         new_cv: cython.double = child_value
         confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
