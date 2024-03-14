@@ -267,6 +267,7 @@ def get_experiments(exp_dict):
     game_params = exp_dict[ColName.GAME_PARAMS]
     game_name = exp_dict[ColName.GAME_KEY]
     random_openings = int(exp_dict.get(ColName.RANDOM_OPENINGS, 0))
+
     game = init_game(game_name, game_params=game_params)
 
     p1_params = AIParams(
