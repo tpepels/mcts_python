@@ -26,6 +26,7 @@ parser.add_argument(
     choices=[
         "amazons",
         "amazons8",
+        "amazons6",
         "breakthrough",
         "ninarow59",
         "kalah66",
@@ -92,11 +93,11 @@ elif args.game.startswith("kalah"):
 elif args.game.startswith("gomoku"):
     game_name = "ninarow"
     game_params = {"row_length": 5, "board_size": 15}
-elif args.game.startswith("amazons") and args.game.endswith("8"):
+elif args.game.startswith("amazons") and (args.game.endswith("8") or args.game.endswith("6")):
     game_name = "amazons"
     board_size = int(args.game[-1])
     game_params = {
-        "board_size": 8,
+        "board_size": board_size,
     }
 else:
     game_name = args.game
@@ -137,16 +138,16 @@ else:
     eval_params_2 = {}
 
     ai_1_params = {
-        "num_simulations": 100000,
+        "num_simulations": 200000,
         "debug": args.debug,
         "ab_p1": 2,
-        "ab_p2": 1,
+        "ab_p2": 2,
     }
     ai_2_params = {
-        "num_simulations": 100000,
+        "num_simulations": 200000,
         "debug": args.debug,
-        "ab_p1": 1,
-        "ab_p2": 1,
+        "ab_p1": 2,
+        "ab_p2": 2,
     }
 
     p1_params = AIParams(
