@@ -44,7 +44,7 @@ DEFAULT_SETTINGS = {
         # C_vanilla: 0.5
         # C_ab: 0.4
         "ai_params": {
-            "c": 0.2,
+            "c": 0.1,
             "imm_alpha": 0.8,
             "early_term_turns": 20,
             "early_term_cutoff": 0.3,
