@@ -2,7 +2,7 @@
 #SBATCH -p genoa
 #SBATCH -J mcts
 #SBATCH -o /home/tpepels/out/%J.out
-#SBATCH -e /home/tpepels/out/err_%J.err
+#SBATCH -e /home/tpepels/err/%J.err
 #SBATCH -t 3000
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
