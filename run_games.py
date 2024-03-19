@@ -187,7 +187,7 @@ def init_ai_player(
 
 def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
     rand_ai_params = {
-        "num_simulations": 400000,
+        "num_simulations": 300000,
         "early_term_turns": 10,
         "early_term_cutoff": 0.2,
         "dyn_early_term_cutoff": 0,

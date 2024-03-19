@@ -54,7 +54,7 @@ def curr_time() -> cython.long:
     return time(cython.NULL)
 
 
-@cython.freelist(10000)
+@cython.freelist(1000)
 @cython.cclass
 class Node:
     children = cython.declare(cython.list[Node], visibility="public")

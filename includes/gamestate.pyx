@@ -6,7 +6,7 @@ cdef int win = 9999999
 cdef int loss = -9999999
 cdef int draw = 0
 
-@cython.freelist(100)
+@cython.freelist(50)
 cdef class GameState:
     """
     An abstract base class representing a generic game state.
