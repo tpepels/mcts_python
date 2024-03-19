@@ -17,7 +17,7 @@ import cython
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log, INFINITY, isnan
 from cython.cimports.includes import GameState, win, loss
-from util import abbreviate, format_time
+from util import format_time
 
 DEBUG: cython.bint = 0
 q_searches: cython.int = 0
@@ -1156,10 +1156,12 @@ class MCTSPlayer:
         return ""
 
     def __repr__(self):
-        return f"{self.name} MCTS(name={self.name}, p={self.player}, eval_params={self.eval_params} c={self.c}, 
-            d_early_co={self.dyn_early_term_cutoff}, early_t_t={self.early_term_turns}, eps={self.epsilon} 
-            e_g_s={self.e_g_subset} p_b_w={self.pb_weight}, imm_a={self.imm_alpha}, 
-            ab_p1/2={self.ab_p1}/{self.ab_p2})"
+        return (
+            f"MCTS(name={self.name}, p={self.player}, eval_params={self.eval_params}, c={self.c}, "
+            + f"d_early_co={self.dyn_early_term_cutoff}, early_t_t={self.early_term_turns}, eps={self.epsilon}, "
+            + f"e_g_s={self.e_g_subset}, p_b_w={self.pb_weight}, imm_a={self.imm_alpha}, "
+            + f"ab_p1/2={self.ab_p1}/{self.ab_p2})"
+        )
 
 
 class ChildComparator:

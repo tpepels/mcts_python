@@ -11,7 +11,8 @@
     "p1_ai_params": {
       "num_simulations": 5000,
       "dyn_early_term_cutoff": 0.05,
-      "imm_alpha": 0.7
+      "imm_alpha": 0.7,
+      "name": "omega"
     },
     "p1_eval_params": {
       "a": [100, 200]
@@ -19,7 +20,8 @@
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "imm_alpha": 0.7,
-      "num_simulations": 5000
+      "num_simulations": 5000,
+      "name": "alpha"
     },
     "p2_eval_params": {}
   },
@@ -32,14 +34,16 @@
     "p1_ai_params": {
       "num_simulations": 15000,
       "dyn_early_term_cutoff": [0.01, 0.05],
-      "imm_alpha": 0.4
+      "imm_alpha": 0.4,
+      "name": "omega"
     },
     "p1_eval_params": {
       "a": 100
     },
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 10000
+      "num_simulations": 10000,
+      "name": "alpha"
     },
     "p2_eval_params": {}
   }

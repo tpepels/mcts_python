@@ -2,7 +2,7 @@
 import cython
 import random
 
-from util import pretty_print_dict, abbreviate
+from util import pretty_print_dict
 from operator import itemgetter
 from libc.time cimport time
 from includes cimport GameState, win, loss, draw
