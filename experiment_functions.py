@@ -251,15 +251,6 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
     return experiments_to_cancel
 
 
-from prettytable import PrettyTable
-
-
-from prettytable import PrettyTable
-
-
-from prettytable import PrettyTable
-
-
 def print_last_rows_pretty(aggregated_rows):
     # Add "Experiment Name" to the headers at the beginning
     headers = ["Exp.", "Param1", "Wins (AI1)", "Param2", "Wins (AI2)", "± 95% C.I.", "No. Games"]
