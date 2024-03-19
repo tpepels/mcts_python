@@ -184,11 +184,3 @@ def log_exception_handler(func):
             raise e  # re-throw the exception after logging
 
     return wrapper
-
-
-def abbreviate(word):
-    vowels = "aeiouAEIOU"
-    if word[0] in vowels:
-        return word[0] + "".join([letter for letter in word[1:] if letter not in vowels])
-    else:
-        return "".join([letter for letter in word if letter not in vowels])

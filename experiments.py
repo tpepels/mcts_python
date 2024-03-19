@@ -222,6 +222,7 @@ def run_periodic_status_updates(
         base_path (str): The base path to pass to the update function.
     """
     start_time = datetime.datetime.now()
+
     counter = 0
     while not stop_event.is_set():
         # Replace time.sleep calls with this
@@ -253,7 +254,9 @@ def run_periodic_status_updates(
                         print(f"Marked {exp_name} for cancellation.")
 
                 print(f"Aggregation complete, {datetime.datetime.now()}.\n")
+
             except Exception as e:
+
                 # This is probably because the file is still being written to or some such reason
                 print(f"Error aggregating results: {e}", sys.stderr)
                 # print Traceback

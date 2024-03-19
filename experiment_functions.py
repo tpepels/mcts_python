@@ -31,6 +31,7 @@ class ColName:
 
 
 def aggregate_csv_results(output_file, base_path, top_n=0):
+
     files = []
     experiments_path = os.path.join(base_path, "results")
 
@@ -98,6 +99,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             metadata["game_params"] = re.search(r"game_params\s*=\s*(\{.*?\})", lines[1]).group(1)
                             metadata["p1_params"] = lines[2].split("=", 1)[1].strip()
                             metadata["p2_params"] = lines[3].split("=", 1)[1].strip()
+
                         except (AttributeError, IndexError) as e:
                             print(f"Error parsing metadata for {file}.")
                             print("Lines causing issues:")
@@ -143,7 +145,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                     print(f"  {ai_config}: {win_rate * 100:.2f}% ±{ci_width * 100:.2f}%")
 
                 # Sort ai_results based on ai_config to ensure consistent order
-                ai_results.sort(key=lambda x: (len(x[0]), x[0]))
+                ai_results.sort(key=lambda x: x[0])
 
                 # Construct the row for this file
                 row = [
@@ -347,8 +349,27 @@ def identify_experiments_to_cancel(aggregated_rows, top_n):
 
 
 def sort_parameters(ai_config):
+    # Split the input string into a list of parameters
     params = ai_config.split(", ")
+
+    # Initialize a variable to hold the name parameter if found
+    name_param = None
+
+    # Check for a parameter starting with "name=" and remove it from the list
+    for param in params:
+        if param.startswith("name:"):
+            name_param = param
+            params.remove(param)
+            break
+
+    # Sort the remaining parameters
     params.sort()
+
+    # Prepend the "name=" parameter if it was found
+    if name_param:
+        params.insert(0, name_param)
+
+    # Join the parameters back into a string and return
     return ", ".join(params)
 
 

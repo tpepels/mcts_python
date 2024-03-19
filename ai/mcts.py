@@ -616,6 +616,7 @@ class MCTSPlayer:
     c_adjust: cython.double
     k_factor: cython.double
     random_top: cython.int
+    name: cython.str
 
     def __init__(
         self,
@@ -644,6 +645,7 @@ class MCTSPlayer:
         reuse_tree: bool = True,
         debug: bool = False,
         random_top: int = 0,
+        name: str = "",
     ):
         self.player = player
         self.dyn_early_term = dyn_early_term_cutoff > 0.0
@@ -699,6 +701,7 @@ class MCTSPlayer:
         self.k_factor = k_factor
         self.reuse_tree = reuse_tree
         self.random_top = random_top
+        self.name = name
 
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
@@ -1153,16 +1156,10 @@ class MCTSPlayer:
         return ""
 
     def __repr__(self):
-        return abbreviate(
-            f"MCTS(p={self.player}, eval_params={self.eval_params}, "
-            f"num_simulations={self.num_simulations}, "
-            f"max_time={self.max_time}, c={self.c}, dyn_early_term={self.dyn_early_term}, "
-            f"dyn_early_term_cutoff={self.dyn_early_term_cutoff}, early_term={self.early_term}, "
-            f"early_term_turns={self.early_term_turns}, e_greedy={self.e_greedy}, "
-            f"e_g_subset={self.e_g_subset}, roulette={self.roulette}, epsilon={self.epsilon}, "
-            f"prog_bias={self.prog_bias}, imm={self.imm}, imm_alpha={self.imm_alpha}, imm_version={self.imm_version}, "
-            f"ab_p1/2={self.ab_p1}/{self.ab_p2}, ex_imm_D={self.ex_imm_D})"
-        )
+        return f"{self.name} MCTS(name={self.name}, p={self.player}, eval_params={self.eval_params} c={self.c}, 
+            d_early_co={self.dyn_early_term_cutoff}, early_t_t={self.early_term_turns}, eps={self.epsilon} 
+            e_g_s={self.e_g_subset} p_b_w={self.pb_weight}, imm_a={self.imm_alpha}, 
+            ab_p1/2={self.ab_p1}/{self.ab_p2})"
 
 
 class ChildComparator:
