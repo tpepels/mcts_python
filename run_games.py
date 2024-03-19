@@ -186,8 +186,13 @@ def init_ai_player(
 
 
 def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
+    if game_key == "amazons":
+        num_simulations = 200000
+    else:
+        num_simulations = 400000
+
     rand_ai_params = {
-        "num_simulations": 300000,
+        "num_simulations": num_simulations,
         "early_term_turns": 10,
         "early_term_cutoff": 0.2,
         "dyn_early_term_cutoff": 0,
