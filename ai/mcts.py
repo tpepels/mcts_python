@@ -108,7 +108,7 @@ class Node:
     ) -> Node:
         n_children: cython.int = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        global ucb_bound
+        global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
@@ -145,30 +145,42 @@ class Node:
             rand_fact: cython.double = uniform(-0.0001, 0.0001)
             # if imm_alpha is 0, then this is just the simulation mean
             child_value: cython.double = child.get_value_imm(self.player, imm_alpha)
+            confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
+            uct_val: cython.double = child_value + (c * confidence_i)
+
             if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
 
-                uct_val: cython.double = self.uct_prime(
-                    child_value=child_value,
-                    p_n=p_n,
-                    c_n=c_n,
-                    rand_fact=rand_fact,
-                    c=c,
-                    ab_p1=ab_p1,
-                    ab_p2=ab_p2,
-                    alpha=alpha,
-                    beta=beta,
-                    alpha_bounds=alpha_bounds,
-                    beta_bounds=beta_bounds,
-                    path_score=path_score,
-                    root_visits=root_visits,
-                    c_adjust=c_adjust,
-                    k_factor=k_factor,
-                )
+                if uct_val >= alpha and uct_val <= beta:
+                    uct_val += beta
+                elif uct_val < alpha:
+                    uct_val += alpha_bounds
+                elif uct_val > beta:
+                    uct_val += -beta_bounds
 
-            else:
-                confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
-                uct_val: cython.double = child_value + (c * confidence_i)
-                ucb_bound += 1
+                # ab_bound += 1
+
+                # uct_val: cython.double = self.uct_prime(
+                #     child_value=child_value,
+                #     p_n=p_n,
+                #     c_n=c_n,
+                #     rand_fact=rand_fact,
+                #     c=c,
+                #     ab_p1=ab_p1,
+                #     ab_p2=ab_p2,
+                #     alpha=alpha,
+                #     beta=beta,
+                #     alpha_bounds=alpha_bounds,
+                #     beta_bounds=beta_bounds,
+                #     path_score=path_score,
+                #     root_visits=root_visits,
+                #     c_adjust=c_adjust,
+                #     k_factor=k_factor,
+                # )
+
+            # else:
+            #     confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
+            #     uct_val: cython.double = child_value + (c * confidence_i)
+            #     ucb_bound += 1
 
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.double, child.eval_value) / (1.0 + c_n))
@@ -256,40 +268,39 @@ class Node:
         """
         global ab_bound
 
-        cv_adj_bounds: cython.double = 0.0
-        cv_adj_alpha: cython.double = 0.0
-        cv_adj_beta: cython.double = 0.0
+        # cv_adj_bounds: cython.double = 0.0
+        # cv_adj_alpha: cython.double = 0.0
+        # cv_adj_beta: cython.double = 0.0
 
-        if ab_p1 == 1:
-            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = path_score, alpha_bounds, -beta_bounds
-        elif ab_p1 == 2:
-            cv_adj_bounds, cv_adj_alpha, cv_adj_beta = beta, alpha_bounds, -beta_bounds
-
-        new_cv: cython.double = child_value
+        # if ab_p1 == 1:
+        #     cv_adj_bounds, cv_adj_alpha, cv_adj_beta = path_score, alpha_bounds, -beta_bounds
+        # elif ab_p1 == 2:
+        # cv_adj_bounds, cv_adj_alpha, cv_adj_beta = beta, alpha_bounds, -beta_bounds
+        # new_cv: cython.double = child_value
         confidence_i: cython.double = sqrt(log(p_n) / c_n) + rand_fact
 
-        # * 3 Bounds options
-        if ab_p2 == 1:
-            if child_value >= alpha and child_value <= beta:
-                new_cv += cv_adj_bounds
-            elif child_value < alpha:
-                new_cv += cv_adj_alpha
-            elif child_value > beta:
-                new_cv += cv_adj_beta
-        elif ab_p2 == 2:
-            # Include the compare the uct value to the bounds
-            uct_val: cython.double = child_value + (c * confidence_i)
-            if uct_val >= alpha and uct_val <= beta:
-                new_cv += cv_adj_bounds
-            elif uct_val < alpha:
-                new_cv += cv_adj_alpha
-            elif uct_val > beta:
-                new_cv += cv_adj_beta
+        # if ab_p2 == 1:
+        #     if child_value >= alpha and child_value <= beta:
+        #         new_cv += cv_adj_bounds
+        #     elif child_value < alpha:
+        #         new_cv += cv_adj_alpha
+        #     elif child_value > beta:
+        #         new_cv += cv_adj_beta
+        # elif ab_p2 == 2:
+        # Include the compare the uct value to the bounds
 
-        new_c: cython.double = c * c_adjust
+        uct_val: cython.double = child_value + (c * confidence_i)
+        if uct_val >= alpha and uct_val <= beta:
+            uct_val += beta
+        elif uct_val < alpha:
+            uct_val += alpha_bounds
+        elif uct_val > beta:
+            uct_val += -beta_bounds
+
+        # new_c: cython.double = c * c_adjust
         ab_bound += 1
 
-        return new_cv + (new_c * confidence_i)
+        return uct_val
 
     @cython.cfunc
     def expand(
