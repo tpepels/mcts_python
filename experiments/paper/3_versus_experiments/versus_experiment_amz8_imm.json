@@ -1,8 +1,11 @@
 [
   {
+    "throttle_start": true
+  },
+  {
     "n_games": 2000,
     "game_key": "amazons",
-    "random_openings": 2,
+    "random_openings": 4,
     "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
