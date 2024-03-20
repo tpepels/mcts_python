@@ -147,7 +147,7 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
 
             print(">>> Waiting for experiments to finish..")
 
-            time.sleep(10)  # TODO - replace with 60 for production
+            time.sleep(60)
 
             # Initialize counters
             cancelled_count = 0
@@ -165,7 +165,7 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
             print(f">> Cancelled experiments: {cancelled_count}")
             print(f">> Done experiments: {done_count}")
 
-            print(">> Checking for experiments to cancel..")
+            print(">>> Checking for experiments to cancel..")
             # Check for experiments to be cancelled.
             exp_names_to_cancel = [
                 exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel
