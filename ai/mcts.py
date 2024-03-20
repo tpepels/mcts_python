@@ -34,9 +34,6 @@ if __debug__:
     dynamic_bins["beta"] = {"bin": DynamicBin(n_bins), "label": "beta values"}
     dynamic_bins["alpha_bounds"] = {"bin": DynamicBin(n_bins), "label": "alpha bounds"}
     dynamic_bins["beta_bounds"] = {"bin": DynamicBin(n_bins), "label": "beta bounds"}
-    dynamic_bins["path_score"] = {"bin": DynamicBin(n_bins), "label": "path_score values"}
-    dynamic_bins["visit_ratio"] = {"bin": DynamicBin(n_bins), "label": "visit_ratio values"}
-    dynamic_bins["path_visits"] = {"bin": DynamicBin(n_bins), "label": "path_visits values"}
 
 
 @cython.cfunc
@@ -150,14 +147,14 @@ class Node:
 
             if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
 
-                if uct_val >= alpha and uct_val <= beta:
+                if alpha <= uct_val <= beta:
                     uct_val += beta
                 elif uct_val < alpha:
                     uct_val += alpha_bounds
                 elif uct_val > beta:
                     uct_val += -beta_bounds
 
-                # ab_bound += 1
+                ab_bound += 1
 
                 # uct_val: cython.double = self.uct_prime(
                 #     child_value=child_value,
@@ -931,24 +928,18 @@ class MCTSPlayer:
         # Start at the root
         node: Node = self.root
         prev_node: Node = None
-        prune: cython.bint = 0
 
         child: Node
         i: cython.int
-        path_score: cython.double = 0.0
-        path_visits: cython.double = 0.0
-
-        global prunes, non_prunes
 
         alpha: cython.double = -INFINITY
         beta: cython.double = INFINITY
         alpha_bounds: cython.double = -INFINITY
-        beta_bounds: cython.double = -INFINITY
+        beta_bounds: cython.double = INFINITY
 
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
-                # A branch can only be pruned once.
-                if self.ab_p1 != 0 and node.n_visits > 0 and prev_node is not None:
+                if self.ab_p1 != 0 and node.n_visits > 1 and prev_node is not None:
                     val, bound = node.get_value_with_uct_interval(
                         c=self.c,
                         player=self.player,
@@ -970,14 +961,9 @@ class MCTSPlayer:
                             if beta < old_beta:
                                 beta_bounds = bound
 
-                    elif alpha != -INFINITY and beta != INFINITY:
-                        prunes += 1
-
-                    if not prune:
-                        non_prunes += 1
-
                 prev_node = node
                 if self.ab_p1 != 0:
+
                     if __debug__:
                         # Keep track of the data used for each UCT call
                         if alpha != -INFINITY and beta != INFINITY:
@@ -985,18 +971,12 @@ class MCTSPlayer:
                             dynamic_bins["beta"]["bin"].add_data(beta)
                             dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)
                             dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
-
-                            dynamic_bins["path_score"]["bin"].add_data(
-                                path_score / path_visits if path_visits > 0 else 0
-                            )
-                            dynamic_bins["visit_ratio"]["bin"].add_data(
-                                path_visits / self.root.n_visits if path_visits > 0 else 0
-                            )
-                            dynamic_bins["path_visits"]["bin"].add_data(path_visits)
-
-                    path_score_rate: cython.double = path_score / path_visits if path_visits > 0 else 0
-                    if path_score_rate != 0:
-                        path_score_rate = path_score_rate if node.player == self.player else 1 - path_score_rate
+                        elif alpha != -INFINITY:
+                            dynamic_bins["alpha"]["bin"].add_data(alpha)
+                            dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)
+                        elif beta != INFINITY:
+                            dynamic_bins["beta"]["bin"].add_data(beta)
+                            dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
 
                     node = node.uct(
                         self.c,
@@ -1008,10 +988,6 @@ class MCTSPlayer:
                         beta=beta if node.player == self.player else 1 - alpha,
                         alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                         beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
-                        path_score=path_score_rate,
-                        root_visits=self.root.n_visits,
-                        c_adjust=self.c_adjust,
-                        k_factor=self.k_factor,
                     )
                 else:
                     node = node.uct(self.c, self.pb_weight, self.imm_alpha)
@@ -1039,11 +1015,6 @@ class MCTSPlayer:
                 break
 
             if node is not None:
-                # TODO This makes no sense because it's just the value of all the nodes along the path
-                # Keep track of the visits and "total" score of the path
-                path_score += node.v[self.player - 1]
-                path_visits += node.n_visits  # * Later we can normalize with this value
-
                 next_state = next_state.apply_action(node.action)
                 selected.append(node)
             else:
