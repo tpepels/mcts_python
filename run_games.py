@@ -186,10 +186,7 @@ def init_ai_player(
 
 
 def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
-    if game_key == "amazons":
-        num_simulations = 200000
-    else:
-        num_simulations = 400000
+    num_simulations = 500000
 
     rand_ai_params = {
         "num_simulations": num_simulations,
@@ -197,8 +194,8 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
         "early_term_cutoff": 0.2,
         "dyn_early_term_cutoff": 0,
         "c": 2,
-        "imm_alpha": 0.01,
-        "random_top": 30,
+        "imm_alpha": 0.1,
+        "random_top": 40,
     }
     p1_params = AIParams(
         ai_key="mcts",
@@ -247,13 +244,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
     return game
 
 
-def play_game_until_terminal(
-    game: GameState,
-    player1: AIPlayer,
-    player2: AIPlayer,
-    callback=None,
-    boot_randomizer=True,
-):
+def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlayer, callback=None):
     """
     Play the game with the provided players and return the result.
 
@@ -265,21 +256,6 @@ def play_game_until_terminal(
     Returns:
         int: The result of the game. gamestate.draw for a draw, gamestate.win if player 1 won, and gamestate.loss if player 2 won.
     """
-    # Use os.urandom() to generate a cryptographically secure random seed
-    seed_bytes = os.urandom(8)  # Generate 8 random bytes
-    seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
-    # Set the random seed
-    random.seed(seed)
-    fastrand.pcg32_seed(seed + 1)
-    print(f"Random seed set to: {seed}")
-    if boot_randomizer:
-        # For some seconds, generate random numbers
-        rand_time = int.from_bytes(os.urandom(1), "big") % 20
-        print(f"Generating random numbers for {rand_time} seconds...")
-        start_time = time.time()
-        while time.time() - start_time < rand_time:
-            fastrand.pcg32()
-            random.random()
 
     current_player: AIPlayer = player2 if game.player == 2 else player1
     turns = 1
@@ -360,14 +336,27 @@ def run_game(
     print(game.visualize(full_debug=debug))
 
     try:
+        # Use os.urandom() to generate a cryptographically secure random seed
+        seed_bytes = os.urandom(8)  # Generate 8 random bytes
+        seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
+        # Set the random seed
+        random.seed(seed)
+        fastrand.pcg32_seed(seed + 1)
+        print(f"Random seed set to: {seed}")
+
+        if boot_randomizer:
+            # For some seconds, generate random numbers
+            rand_time = int.from_bytes(os.urandom(1), "big") % 20
+            print(f"Generating random numbers for {rand_time} seconds...")
+            start_time = time.time()
+            while time.time() - start_time < rand_time:
+                fastrand.pcg32()
+                random.random()
+
         if random_openings > 0:
-            seed_bytes = os.urandom(8)  # Generate 8 random bytes
-            seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
-            random.seed(seed)
-            fastrand.pcg32_seed(seed + 1)
             game = play_n_random_moves(game, game_key, random_openings)
 
-        reward = play_game_until_terminal(game, p1, p2, callback=callback, boot_randomizer=boot_randomizer)
+        reward = play_game_until_terminal(game, p1, p2, callback=callback)
         return reward
     finally:
         # Make sure that the statistics are printed even if an exception is raised (i.e. if the game is interrupted)
@@ -386,11 +375,23 @@ def run_game_experiment(
 
     game, p1, p2 = init_game_and_players(game_key, game_params, p1_params, p2_params)
 
+    # Use os.urandom() to generate a cryptographically secure random seed
+    seed_bytes = os.urandom(8)  # Generate 8 random bytes
+    seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
+    # Set the random seed
+    random.seed(seed)
+    fastrand.pcg32_seed(seed + 1)
+    print(f"Random seed set to: {seed}")
+
+    # For some seconds, generate random numbers
+    rand_time = 1 + int.from_bytes(os.urandom(1), "big") % 20
+    print(f"Generating random numbers for {rand_time} seconds...")
+    start_time = time.time()
+    while time.time() - start_time < rand_time:
+        fastrand.pcg32()
+        random.random()
+
     if random_openings > 0:
-        seed_bytes = os.urandom(8)  # Generate 8 random bytes
-        seed = int.from_bytes(seed_bytes, "big")  # Convert bytes to an integer
-        random.seed(seed)
-        fastrand.pcg32_seed(seed + 1)
         game = play_n_random_moves(game, game_key, random_openings)
 
     # Initialize stats

@@ -1,6 +1,7 @@
 from copy import deepcopy
 import datetime
 import json
+import multiprocessing
 from pprint import pprint
 
 import sys
@@ -65,22 +66,38 @@ def run_single_experiment(
 experiments_to_cancel = {}
 
 
-def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg_loc=None, timeout=90 * 60):
+def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg_loc=None, timeout=90 * 60):
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 
-    print(f"Running using {n_procs} processes.")
+    if n_procs == 0:
+        n_cpus = multiprocessing.cpu_count()
+    else:
+        n_cpus = n_procs
 
-    # Check if the first element contains the 'top_n' configuration
-    top_n = 0  # Default value indicating no top_n filtering
+    print(f"Running using {n_cpus} cpus.")
+
+    # Default values indicating no top_n filtering and default behavior for throttle_start
+    top_n = 0
+    throttle_start = False  # Assuming false as default
+
+    # Check if the first element contains the 'top_n' and 'throttle_start' configurations
     if "top_n" in data[0]:
         top_n = data[0]["top_n"]
         print("Top_n filtering enabled: ", top_n)
-        expanded_experiment_configs = expand_rows(data[1:])  # Exclude the top_n configuration
+
+    if "throttle_start" in data[0]:
+        throttle_start = data[0]["throttle_start"]
+        print("Throttle start: ", throttle_start)
+
+    # Check if either 'top_n' or 'throttle_start' is in the first element
+    if "top_n" in data[0] or "throttle_start" in data[0]:
+        expanded_experiment_configs = expand_rows(data[1:])  # Exclude the configuration element
     else:
         expanded_experiment_configs = expand_rows(data)
 
     print(f"{len(expanded_experiment_configs)} experiments.")
+
     if count_only:
         return
 
@@ -94,15 +111,16 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
     total_games = len(all_experiments)
     status_thread = threading.Thread(
         target=run_periodic_status_updates,
-        args=(update_interval, stop_event, tables, base_path, total_games, n_procs, agg_loc, top_n),
+        args=(update_interval, stop_event, tables, base_path, total_games, n_cpus, agg_loc, top_n),
         daemon=True,
     )
     status_thread.start()
     random.shuffle(all_experiments)
     total_cancelled = 0
+    n_throttled = 0
     # Uses the CPU_count as a default parameter
     with ProcessPool() as pool:
-        print(f">> Starting {len(all_experiments)} experiments with {n_procs} processes.")
+        print(f">> Starting {len(all_experiments)} experiments with {n_cpus} cpus.")
         future_tasks = {}
         futures_list = []
         for exp in all_experiments:
@@ -113,8 +131,15 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
 
             # Schedule the task and store the future with the exp_name
             future = pool.schedule(run_single_experiment, args=exp, timeout=timeout)
+
             future_tasks[exp_name].append(future)
             futures_list.append(future)
+
+            # Throttle the start of the next experiment so that the server doesn't get overloaded
+            if throttle_start and n_throttled < n_cpus:
+                print(">> Throttling start of next experiment by 2 seconds.")
+                time.sleep(2)
+                n_throttled += 1
 
         print(f">> All {len(all_experiments)} experiments pooled.")
 
@@ -122,27 +147,23 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
 
             print(">>> Waiting for experiments to finish..")
 
-            time.sleep(61)
+            time.sleep(10)  # TODO - replace with 60 for production
 
-            # # Initialize counters
-            # running_count = 0
-            # cancelled_count = 0
-            # done_count = 0
+            # Initialize counters
+            cancelled_count = 0
+            done_count = 0
 
-            # print(">> Checking experiment status..")
-            # # Tally the states of the futures
-            # f: ProcessFuture
-            # for f in futures_list:
-            #     if f.running():
-            #         running_count += 1
-            #     elif f.cancelled():
-            #         cancelled_count += 1
-            #     elif f.done():
-            #         done_count += 1
+            print(">> Checking experiment status..")
+            # Tally the states of the futures
+            f: ProcessFuture
+            for f in futures_list:
+                if f.cancelled():
+                    cancelled_count += 1
+                elif f.done():
+                    done_count += 1
 
-            # print(f">> Running experiments: {running_count}")
-            # print(f">> Cancelled experiments: {cancelled_count}")
-            # print(f">> Done experiments: {done_count}")
+            print(f">> Cancelled experiments: {cancelled_count}")
+            print(f">> Done experiments: {done_count}")
 
             print(">> Checking for experiments to cancel..")
             # Check for experiments to be cancelled.
@@ -178,7 +199,7 @@ def start_experiments_from_json(json_file_path, n_procs=8, count_only=False, agg
         base_path=base_path,
         total_games=total_games,
         start_time=datetime.datetime.now(),
-        n_procs=n_procs,
+        n_procs=n_cpus,
     )
 
     # If the thread is still alive after the timeout, it's a daemon and will be killed automatically
