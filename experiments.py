@@ -73,6 +73,7 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
     if n_procs == 0:
         n_cpus = multiprocessing.cpu_count()
     else:
+        print(f"Using {n_procs} (out of {multiprocessing.cpu_count()}) cpus.")
         n_cpus = n_procs
 
     print(f"Running using {n_cpus} cpus.")
@@ -136,8 +137,8 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
             futures_list.append(future)
 
             # Throttle the start of the next experiment so that the server doesn't get overloaded
-            if throttle_start and n_throttled < n_cpus:
-                print(">> Throttling start of next experiment by 2 seconds.")
+            if throttle_start and n_throttled <= n_cpus:
+                print(f">> Delaying start of next experiment by 2 seconds. ({n_throttled}/{n_cpus})")
                 time.sleep(2)
                 n_throttled += 1
 
