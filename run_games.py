@@ -222,6 +222,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
     print(f" :: Making {random_openings} random moves to start the game")
 
     current_player: AIPlayer = p2 if game.player == 2 else p1
+
     for _ in range(random_openings):
         # Time the move
         start_time = time.time()
@@ -237,9 +238,12 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
 
         # Apply the action to get the new game state
         game = game.apply_action(action)
+
         gc.collect()
+
         # Switch the current player
         current_player = p2 if game.player == 2 else p1
+        time.sleep(1)
 
     return game
 
@@ -275,6 +279,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
         game.get_legal_actions()
 
         gc.collect()
+
         # Call the callback function if any
         if callback is not None:
             callback(current_player, action, game, time.time())
@@ -282,6 +287,7 @@ def play_game_until_terminal(game: GameState, player1: AIPlayer, player2: AIPlay
         # Switch the current player
         current_player = player2 if game.player == 2 else player1
         turns += 1
+        time.sleep(1)
 
     return game.get_reward(1)
 

@@ -38,33 +38,25 @@ for size in range(MIN_SIZE, MAX_SIZE + 1):
 @cython.cclass
 class TicTacToeGameState(GameState):
     zobrist_tables = {
-        size: [
-            [[randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)]
-            for _ in range(size)
-        ]
+        size: [[[randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
         for size in range(MIN_SIZE, MAX_SIZE + 1)
     }
     REUSE = True
 
     # Public variables
-    # player = cython.declare(cython.int, visibility="public")
-    board = cython.declare(cython.int[:, :], visibility="public")
+    board = cython.declare(cython.short[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
-    last_action = cython.declare(
-        cython.tuple[cython.int, cython.int], visibility="public"
-    )
-    pre_last_action = cython.declare(
-        cython.tuple[cython.int, cython.int], visibility="public"
-    )
+    last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
+    pre_last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
 
     # Private variables
-    n_moves: cython.int
+    n_moves: cython.short
     pie_move_done: cython.bint
-    size: cython.int
-    row_length: cython.int
+    size: cython.short
+    row_length: cython.short
     zobrist_table: cython.list
-    center: cython.int
-    winner: cython.int
+    center: cython.short
+    winner: cython.short
 
     def __init__(
         self,
@@ -104,7 +96,7 @@ class TicTacToeGameState(GameState):
             self._check_win()
 
     @cython.cfunc
-    @cython.locals(x=cython.int, y=cython.int)
+    @cython.locals(x=cython.short, y=cython.short)
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
         x, y = action
         # assert (
@@ -120,7 +112,7 @@ class TicTacToeGameState(GameState):
         self._check_win()
 
     @cython.ccall
-    @cython.locals(x=cython.int, y=cython.int)
+    @cython.locals(x=cython.short, y=cython.short)
     def apply_action(self, action: cython.tuple) -> TicTacToeGameState:
         # assert len(action) == 2, f"Action should be a tuple of length 2, not {action}"
 
@@ -129,9 +121,9 @@ class TicTacToeGameState(GameState):
         #     0 <= x < self.size and 0 <= y < self.size
         # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
 
-        new_board: cython.int[:, :] = self.board.copy()
-        move_increment: cython.int = 1
-        opp: cython.int = 3 - self.player
+        new_board: cython.short[:, :] = self.board.copy()
+        move_increment: cython.short = 1
+        opp: cython.short = 3 - self.player
 
         if self.board[x, y] != 0:
             # assert (
@@ -145,18 +137,14 @@ class TicTacToeGameState(GameState):
             move_increment = 0
             # Update the hash
             board_hash: cython.longlong = (
-                self.board_hash
-                ^ self.zobrist_table[x][y][opp]
-                ^ self.zobrist_table[x][y][self.player]
+                self.board_hash ^ self.zobrist_table[x][y][opp] ^ self.zobrist_table[x][y][self.player]
             )
         else:
             # assert self.board[x, y] == 0, "Illegal move"
             new_board[x, y] = self.player
             # Update the hash
             board_hash: cython.longlong = (
-                self.board_hash
-                ^ self.zobrist_table[x][y][0]
-                ^ self.zobrist_table[x][y][self.player]
+                self.board_hash ^ self.zobrist_table[x][y][0] ^ self.zobrist_table[x][y][self.player]
             )
         # For the pie-rule we still switch the player, because we switched the marks
         return TicTacToeGameState(
@@ -189,14 +177,14 @@ class TicTacToeGameState(GameState):
 
     @cython.cfunc
     @cython.locals(
-        pos=cython.int,
+        pos=cython.short,
         x=cython.long,
         y=cython.long,
-        last_x=cython.int,
-        last_y=cython.int,
-        last_move_int=cython.int,
-        i=cython.int,
-        j=cython.int,
+        last_x=cython.short,
+        last_y=cython.short,
+        last_move_int=cython.short,
+        i=cython.short,
+        j=cython.short,
     )
     def get_random_action(self) -> cython.tuple:
         if self.n_moves > 1 and randint(0, 100) < 30:
@@ -248,20 +236,15 @@ class TicTacToeGameState(GameState):
 
     @cython.ccall
     @cython.locals(
-        i=cython.int,
-        j=cython.int,
+        i=cython.short,
+        j=cython.short,
     )
     def get_legal_actions(self) -> cython.list:
         if self.player == 2 and self.n_moves == 1 and not self.pie_move_done:
             # In the case of a pie move, return all possible moves
             return [(i, j) for i in range(self.size) for j in range(self.size)]
         else:
-            return [
-                (i, j)
-                for i in range(self.size)
-                for j in range(self.size)
-                if self.board[i, j] == 0
-            ]
+            return [(i, j) for i in range(self.size) for j in range(self.size) if self.board[i, j] == 0]
 
     @cython.ccall
     def is_terminal(self) -> cython.bint:
@@ -278,7 +261,7 @@ class TicTacToeGameState(GameState):
 
     @cython.ccall
     @cython.exceptval(-1, check=False)
-    def get_reward(self, player: cython.int) -> cython.int:
+    def get_reward(self, player: cython.short) -> cython.int:
         if self.winner != 0:
             if self.winner == player:
                 return win
@@ -291,18 +274,18 @@ class TicTacToeGameState(GameState):
 
     @cython.ccall
     @cython.locals(
-        player=cython.int,
-        last_move_x=cython.int,
-        last_move_y=cython.int,
-        board=cython.int[:, :],
-        last_player=cython.int,
+        player=cython.short,
+        last_move_x=cython.short,
+        last_move_y=cython.short,
+        board=cython.short[:, :],
+        last_player=cython.short,
         am_i_last_player=cython.bint,
-        dx=cython.int,
-        dy=cython.int,
-        count=cython.int,
-        i=cython.int,
-        x=cython.int,
-        y=cython.int,
+        dx=cython.short,
+        dy=cython.short,
+        count=cython.short,
+        i=cython.short,
+        x=cython.short,
+        y=cython.short,
     )
     def _check_win(self) -> cython.void:
         # We first need enough marks on the board to be able to win
@@ -394,13 +377,13 @@ class TicTacToeGameState(GameState):
     @cython.cfunc
     @cython.exceptval(-1, check=False)
     @cython.locals(
-        x=cython.int,
-        y=cython.int,
-        conn_sc=cython.int,
-        i=cython.int,
-        j=cython.int,
-        n_x=cython.int,
-        n_y=cython.int,
+        x=cython.short,
+        y=cython.short,
+        conn_sc=cython.short,
+        i=cython.short,
+        j=cython.short,
+        n_x=cython.short,
+        n_y=cython.short,
     )
     def evaluate_move(self, move: cython.tuple) -> cython.int:
         """
@@ -422,21 +405,12 @@ class TicTacToeGameState(GameState):
                     n_x = x + i
                     n_y = y + j
                     # If the new position is within the board and is occupied by the current player, increment the connectivity_score
-                    if (
-                        0 <= n_x < self.size
-                        and 0 <= n_y < self.size
-                        and self.board[n_x, n_y] == self.player
-                    ):
+                    if 0 <= n_x < self.size and 0 <= n_y < self.size and self.board[n_x, n_y] == self.player:
                         conn_sc += 2
-        return (
-            10
-            + conn_sc
-            + (self.center - abs(x - self.center))
-            + (self.center - abs(y - self.center))
-        )
+        return 10 + conn_sc + (self.center - abs(x - self.center)) + (self.center - abs(y - self.center))
 
     @cython.ccall
-    @cython.locals(i=cython.int, j=cython.int)
+    @cython.locals(i=cython.short, j=cython.short)
     def visualize(self, full_debug=False):
         MARKS = {
             0: colored(" ", "white"),
@@ -453,9 +427,7 @@ class TicTacToeGameState(GameState):
             visual += str(i) + " "  # Print row numbers
             for j in range(self.size):
                 visual += MARKS[self.board[i, j]] + "  "  # Adding two spaces
-            visual = (
-                visual[: len(visual) - 2] + "\n"
-            )  # Remove extra spaces at the end of the line and reset color
+            visual = visual[: len(visual) - 2] + "\n"  # Remove extra spaces at the end of the line and reset color
 
         visual += f"\nPlayer {self.player} | {self.n_moves} moves made | pie_move_done: {self.pie_move_done} | "
 
@@ -496,28 +468,28 @@ class TicTacToeGameState(GameState):
     @cython.locals(
         score_p1=cython.double,
         score_p2=cython.double,
-        x=cython.int,
-        y=cython.int,
-        dx=cython.int,
-        dy=cython.int,
-        nx=cython.int,
-        ny=cython.int,
-        p=cython.int,
-        o=cython.int,
-        offset=cython.int,
-        posi=cython.int,
-        direct=cython.int,
-        count=cython.int,
-        space_count=cython.int,
+        x=cython.short,
+        y=cython.short,
+        dx=cython.short,
+        dy=cython.short,
+        nx=cython.short,
+        ny=cython.short,
+        p=cython.short,
+        o=cython.short,
+        offset=cython.short,
+        posi=cython.short,
+        direct=cython.short,
+        count=cython.short,
+        space_count=cython.short,
         centrality_score=cython.double,
         positions=cython.list,
-        direction=cython.int,
-        line_broken=cython.int,
-        parts=cython.int,
+        direction=cython.short,
+        line_broken=cython.short,
+        parts=cython.short,
     )
     def evaluate(
         self,
-        player: cython.int,
+        player: cython.short,
         params: cython.double[:],
         norm: cython.bint = 0,
     ) -> cython.double:
@@ -534,9 +506,7 @@ class TicTacToeGameState(GameState):
                 for posi in range(len(positions[p - 1])):
                     x = positions[p - 1][posi][0]
                     y = positions[p - 1][posi][1]
-                    centrality_score = (self.center - abs(x - self.center)) + (
-                        self.center - abs(y - self.center)
-                    )
+                    centrality_score = (self.center - abs(x - self.center)) + (self.center - abs(y - self.center))
                     if p == 1:
                         score_p1 += params[1] * centrality_score
                     else:
@@ -599,10 +569,7 @@ class TicTacToeGameState(GameState):
                                         or self.board[nx, ny] == o
                                     ):
                                         break
-                                    if (
-                                        self.board[nx, ny] == 0
-                                        or self.board[nx, ny] == p
-                                    ):
+                                    if self.board[nx, ny] == 0 or self.board[nx, ny] == p:
                                         space_count += 1
                                         if space_count >= self.row_length:
                                             break
@@ -619,10 +586,7 @@ class TicTacToeGameState(GameState):
                                             or self.board[nx, ny] == o
                                         ):
                                             break
-                                        if (
-                                            self.board[nx, ny] == 0
-                                            or self.board[nx, ny] == p
-                                        ):
+                                        if self.board[nx, ny] == 0 or self.board[nx, ny] == p:
                                             space_count += 1
                                             if space_count >= self.row_length:
                                                 break
@@ -641,16 +605,12 @@ class TicTacToeGameState(GameState):
                                         score_p2 += count**power
 
         if norm:
-            return normalize(
-                score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2]
-            )
+            return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
 
         return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
 
 
-def evaluate_tictactoe(
-    self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0
-) -> float:
+def evaluate_tictactoe(self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0) -> float:
     """
     Evaluate the current self of a TicTacToe game.
 
@@ -672,16 +632,11 @@ def evaluate_tictactoe(
         if opponent not in marks and player in marks:
             return score_factor * ((size - marks.count(0)) * marks.count(player)) ** 2
         elif player not in marks and opponent in marks:
-            return (
-                -score_factor * ((size - marks.count(0)) * marks.count(opponent)) ** 2
-            )
+            return -score_factor * ((size - marks.count(0)) * marks.count(opponent)) ** 2
         return 0
 
     def potential_win(marks):
-        return (
-            marks.count(player if self.player == player else opponent) == size - 1
-            and marks.count(0) == 1
-        )
+        return marks.count(player if self.player == player else opponent) == size - 1 and marks.count(0) == 1
 
     score = 0
     board = self.board
@@ -731,11 +686,7 @@ def generate_masks(length: int, player: int, e=3) -> list:
 
             # Find connected segments by splitting the mask at zeros
             mask_str = "".join(map(str, new_mask.astype(int)))
-            connected_segments = [
-                len(segment)
-                for segment in mask_str.split("0")
-                if str(player) in segment
-            ]
+            connected_segments = [len(segment) for segment in mask_str.split("0") if str(player) in segment]
             penalty = len(connected_segments) if num_marks < length - 1 else 0
             score = num_marks**e - (penalty - 1) * 2 * e
 
@@ -771,9 +722,7 @@ def masks_to_dict(masks):
 
 @cython.ccall
 @cython.infer_types(True)
-def calculate_weights(
-    m_top_k: cython.int, factor: cython.float, scale: cython.int = 10
-):
+def calculate_weights(m_top_k: cython.short, factor: cython.float, scale: cython.short = 10):
     """Calculates weights based on m_top_k and a configurable factor, using integers for intermediate calculations."""
     # Calculate weights proportional to their rank
     weights = [factor]
@@ -800,21 +749,21 @@ def calculate_weights(
 # https://docs.google.com/spreadsheets/d/1cokehgvyvb5yIcfiAjI1v16h63czmYsOMF5dFiCLLn8/edit#gid=0
 def evaluate_ninarow(
     state: cython.object,
-    player: cython.int,
+    player: cython.short,
     m_bonus: cython.float = 9,
     m_decay: cython.float = 1.1,
     m_w_factor: cython.float = 0.95,
-    m_top_k: cython.int = 2,
+    m_top_k: cython.short = 2,
     m_disc: cython.float = 1.1,
     m_pow: cython.float = 7,
     norm: cython.bint = 0,
-    a: cython.int = 100,
+    a: cython.short = 100,
 ) -> cython.float:
     # Create a unique key based on the function parameters and the player
     key = (m_w_factor, m_top_k, m_pow)
-    turns: cython.int = state.n_turns
-    row_length: cython.int = state.row_length
-    size: cython.int = state.size
+    turns: cython.short = state.n_turns
+    row_length: cython.short = state.row_length
+    size: cython.short = state.size
     board: cnp.ndarray = state.board
 
     global cache
@@ -842,8 +791,8 @@ def evaluate_ninarow(
     #     diag for d in range(-size + 1, size) for diag in (board.diagonal(d), np.fliplr(board).diagonal(d))
     # ]
 
-    i: cython.int
-    j: cython.int
+    i: cython.short
+    j: cython.short
     # Create a list to store all the lines
     all_lines: cython.list = []
     # Add all rows to the list
@@ -888,16 +837,16 @@ def evaluate_ninarow(
 
     score_bonus: cython.dict = {1: 0, 2: 0}
     if decay > 0.1:
-        center: cython.int = size // 2
+        center: cython.short = size // 2
         # Returns a tuple of arrays, one for each dimension
         non_zero_indices: np.ndarray = np.nonzero(board)
-        x: cython.int
-        y: cython.int
-        x_: cython.int
-        y_: cython.int
+        x: cython.short
+        y: cython.short
+        x_: cython.short
+        y_: cython.short
         length: cython.int = len(non_zero_indices[0])
-        move: tuple[cython.int, cython.int]
-        element: cython.int
+        move: tuple[cython.short, cython.short]
+        element: cython.short
 
         for k in range(length):
             x = non_zero_indices[0][k]
@@ -905,17 +854,10 @@ def evaluate_ninarow(
             # Go over the elements of the board
             element = board[x, y]
             # Add a bonus for player's marks close to the center
-            score_bonus[element] += (center - abs(x - center)) + (
-                center - abs(y - center)
-            ) / center
+            score_bonus[element] += (center - abs(x - center)) + (center - abs(y - center)) / center
             # Add a bonus for player's marks close to other same player's marks
 
-            adjacent_moves: cython.list = [
-                (x + i, y + j)
-                for i in [-1, 0, 1]
-                for j in [-1, 0, 1]
-                if i != 0 or j != 0
-            ]
+            adjacent_moves: cython.list = [(x + i, y + j) for i in [-1, 0, 1] for j in [-1, 0, 1] if i != 0 or j != 0]
 
             for j in range(len(adjacent_moves)):
                 move = adjacent_moves[j]
@@ -924,9 +866,7 @@ def evaluate_ninarow(
 
                 if 0 <= x_ < state.size and 0 <= y_ < state.size:
                     if board[x_, y_] == element:
-                        score_bonus[
-                            element
-                        ] += 1  # Note that the connection will be counted twice
+                        score_bonus[element] += 1  # Note that the connection will be counted twice
 
     # Sort and take the top k scores, weigh them
     for p in player_scores:
@@ -941,9 +881,7 @@ def evaluate_ninarow(
     p1_score: cython.float = player_scores[1] + (decay * m_bonus * score_bonus[1])
     p2_score: cython.float = player_scores[2] + (decay * m_bonus * score_bonus[2])
     # The score is player 1's score minus player 2's score from the perspective of the provided player
-    score: cython.float = (
-        (p1_score - p2_score) if player == 1 else (p2_score - p1_score)
-    )
+    score: cython.float = (p1_score - p2_score) if player == 1 else (p2_score - p1_score)
 
     if m_disc > 0 and player != state.player:
         score *= m_disc

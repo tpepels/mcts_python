@@ -89,7 +89,7 @@ setup(
             # "profile": True,
             "overflowcheck": False,
             "language_level": "3",
-            "embedsignature": True,
+            # "embedsignature": True,
             "wraparound": False,
             "initializedcheck": False,
             "boundscheck": False,

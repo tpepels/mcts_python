@@ -8,7 +8,7 @@ cdef class GameState:
     """
     An abstract base class representing a generic game state.
     """
-    cdef public int player
+    cdef public short player
 
     cdef public void apply_action_playout(self, tuple action)
 
@@ -22,7 +22,7 @@ cdef class GameState:
 
     cpdef public bint is_terminal(self)
 
-    cpdef public int get_reward(self, int player) except -1
+    cpdef public int get_reward(self, short player) except -1
 
     cpdef public tuple get_result_tuple(self)
 
@@ -34,4 +34,4 @@ cdef class GameState:
 
     cdef public int evaluate_move(self, tuple move) except -1
 
-    cdef public double evaluate(self, int player, double[:] params, bint norm=*) except -9999999
+    cdef public double evaluate(self, short player, double[:] params, bint norm=*) except -9999999

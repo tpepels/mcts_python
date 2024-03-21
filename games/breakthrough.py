@@ -89,7 +89,7 @@ class BreakthroughGameState(GameState):
     REUSE = True
 
     # player = cython.declare(cython.int, visibility="public")
-    board = cython.declare(cython.int[:], visibility="public")
+    board = cython.declare(cython.short[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     positions = cython.declare(cython.tuple[cython.list, cython.list], visibility="public")
     last_action = cython.declare(cython.tuple, visibility="public")
@@ -136,7 +136,7 @@ class BreakthroughGameState(GameState):
             self.last_action = last_action
 
     def _init_board(self):
-        board = np.zeros(64, dtype=np.int32)
+        board = np.zeros(64, dtype=np.int16)
         board[:16] = 2
         board[48:] = 1
         return board
@@ -194,7 +194,7 @@ class BreakthroughGameState(GameState):
         :param action: The action to apply.
         :return: A new game state with the action applied.
         """
-        new_board: cython.int[:] = self.board.copy()
+        new_board: cython.short[:] = self.board.copy()
         move_t: cython.tuple[cython.int, cython.int] = action
         act_from: cython.int = move_t[0]
         act_to: cython.int = move_t[1]
@@ -392,7 +392,7 @@ class BreakthroughGameState(GameState):
 
     @cython.ccall
     @cython.exceptval(-1, check=False)
-    def get_reward(self, player: cython.int) -> cython.int:
+    def get_reward(self, player: cython.short) -> cython.int:
         if self.winner == player:
             return win
 
@@ -440,7 +440,7 @@ class BreakthroughGameState(GameState):
     @cython.exceptval(-9999999, check=False)
     def evaluate(
         self,
-        player: cython.int,
+        player: cython.short,
         params: cython.double[:],
         norm: cython.bint = 0,
     ) -> cython.double:
@@ -741,8 +741,8 @@ def to_chess_notation(index):
 @cython.locals(
     player_1_decisive=cython.int,
     player_2_decisive=cython.int,
-    pos=cython.int,
-    i=cython.int,
+    pos=cython.short,
+    i=cython.short,
 )
 @cython.returns(tuple[cython.int, cython.int])
 def is_decisive(state: BreakthroughGameState):
@@ -774,9 +774,9 @@ WH_DIR = [[-1, 0], [-1, -1], [-1, 1]]
 @cython.cfunc
 @cython.exceptval(-1, check=False)
 @cython.locals(
-    position=cython.int,
-    player=cython.int,
-    board=cython.int[:],
+    position=cython.short,
+    player=cython.short,
+    board=cython.short[:],
     row=cython.int,
     col=cython.int,
     mobility=cython.int,
@@ -828,9 +828,9 @@ def piece_mobility(position, player, board) -> cython.int:
 @cython.wraparound(False)
 @cython.infer_types(True)
 @cython.locals(
-    position=cython.int,
-    player=cython.int,
-    board=cython.int[:],
+    position=cython.short,
+    player=cython.short,
+    board=cython.short[:],
     x=cython.int,
     y=cython.int,
     row_direction=cython.int,
@@ -914,7 +914,7 @@ def is_safe(position, player, board) -> cython.bint:
 @cython.cfunc
 @cython.exceptval(-1, check=False)
 @cython.locals(
-    board=cython.int[:],
+    board=cython.short[:],
     positions=cython.list,
     player=cython.int,
     total_capture_moves=cython.int,
@@ -975,7 +975,7 @@ def count_capture_moves(board, positions, player) -> cython.int:
 @cython.ccall
 def evaluate_breakthrough(
     state: BreakthroughGameState,
-    player: cython.int,
+    player: cython.short,
     m_piece: cython.double = 1.0,
     m_dist: cython.double = 1.0,
     m_near: cython.double = 1.0,
@@ -1008,7 +1008,7 @@ def evaluate_breakthrough(
     opponent_distance: cython.int = 0
     opponent_near_opponent_side: cython.int = 7
     opponent_blocked: cython.int = 0
-    board: cython.int[:] = state.board
+    board: cython.short[:] = state.board
     new_position: cython.int
     new_col: cython.int
     new_row: cython.int

@@ -16,7 +16,7 @@ cdef inline double normalize(double value, double a) except -99999:
     """
     return tanh(value / a)
 
-cdef inline list where_is_k(int[:] board , int k):
+cdef inline list where_is_k(short[:] board , int k):
     cdef int i
     cdef list indices = []
 
@@ -26,7 +26,7 @@ cdef inline list where_is_k(int[:] board , int k):
 
     return indices
 
-cdef inline list where_is_k2d(int[:,:] board , int k):
+cdef inline list where_is_k2d(short[:,:] board , int k):
     cdef int i
     cdef int j
     cdef list indices = []
@@ -39,7 +39,7 @@ cdef inline list where_is_k2d(int[:,:] board , int k):
     return indices
 
 
-cdef inline int f_index(int[:] arr, int value, int n) except -2:
+cdef inline int f_index(short[:] arr, int value, int n) except -2:
     cdef int i
     for i in range(n):  # Assuming the second dimension always has size 4
         if arr[i] == value:

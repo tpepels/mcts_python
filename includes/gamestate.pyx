@@ -29,7 +29,7 @@ cdef class GameState:
     cpdef public bint is_terminal(self):
         pass
 
-    cpdef public int get_reward(self, int player) except -1:
+    cpdef public int get_reward(self, short player) except -1:
         pass
 
     cpdef public tuple get_result_tuple(self):
@@ -47,6 +47,6 @@ cdef class GameState:
     cdef public int evaluate_move(self, tuple move) except -1:
         pass
 
-    cdef double evaluate(self, int player, double[:] params, bint norm=0) except -9999999:
+    cdef double evaluate(self, short player, double[:] params, bint norm=0) except -9999999:
         pass
         
