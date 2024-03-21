@@ -196,6 +196,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
         "c": 2,
         "imm_alpha": 0.1,
         "random_top": 40,
+        "reuse_tree": False,
     }
     p1_params = AIParams(
         ai_key="mcts",
@@ -244,6 +245,10 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
         # Switch the current player
         current_player = p2 if game.player == 2 else p1
         time.sleep(1)
+    # Make sure the memory is freed befor the game starts
+    del p1
+    del p2
+    gc.collect()
 
     return game
 

@@ -706,21 +706,26 @@ class MCTSPlayer:
                     gc.collect()
                     print("Done\n\n")
 
-        # Clean up memory by deleting all nodes except the best one
-        for child in self.root.children:
-            if child != max_node:
-                del child
+        max_action: cython.tuple = max_node.action
 
-        # For tree reuse, make sure that we can access the next action from the root
-        self.root = max_node
+        if state.REUSE and self.reuse_tree:
+            # Clean up memory by deleting all nodes except the best one
+            for child in self.root.children:
+                if child != max_node:
+                    del child
 
-        return max_node.action, max_value  # return the most visited state
+            # For tree reuse, make sure that we can access the next action from the root
+            self.root = max_node
+        else:
+            self.root = None
+
+        return max_action, max_value  # return the most visited state
 
     @cython.cfunc
     @cython.nonecheck(False)
     def simulate(self, init_state: GameState):
         # Keep track of selected nodes
-        selected: cython.list = [self.root]
+        selected: cython.list[Node] = [self.root]
         # Keep track of the state
         next_state: GameState = init_state
         is_terminal: cython.bint = init_state.is_terminal()

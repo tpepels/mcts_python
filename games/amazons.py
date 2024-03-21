@@ -27,7 +27,7 @@ class AmazonsGameState(GameState):
         size: [[randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size**2)]
         for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
     }
-    REUSE = True
+    REUSE = False
     # Public fields
     board = cython.declare(cython.short[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
