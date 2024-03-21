@@ -85,7 +85,7 @@ class TicTacToeGameState(GameState):
         self.zobrist_table = self.zobrist_tables[self.size]
 
         if self.board is None:
-            self.board = np.zeros((self.size, self.size), dtype=np.int32)
+            self.board = np.zeros((self.size, self.size), dtype=np.int16)
             self.board_hash = 0
             for i in range(self.size):
                 for j in range(self.size):
