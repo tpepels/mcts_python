@@ -186,7 +186,11 @@ def init_ai_player(
 
 
 def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
-    num_simulations = 500000
+    # For some reason, snellius nodes crash for amazons...
+    if game_key != "amazons":
+        num_simulations = 500000
+    else:
+        num_simulations = 200000
 
     rand_ai_params = {
         "num_simulations": num_simulations,
@@ -198,6 +202,7 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
         "random_top": 40,
         "reuse_tree": False,
     }
+
     p1_params = AIParams(
         ai_key="mcts",
         eval_params={},

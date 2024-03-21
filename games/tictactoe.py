@@ -482,7 +482,7 @@ class TicTacToeGameState(GameState):
         count=cython.short,
         space_count=cython.short,
         centrality_score=cython.double,
-        positions=cython.list,
+        positions=cython.list[cython.short],
         direction=cython.short,
         line_broken=cython.short,
         parts=cython.short,
@@ -497,7 +497,7 @@ class TicTacToeGameState(GameState):
         score_p1 = 0
         score_p2 = 0
 
-        positions = [None] * 2
+        positions = [-1] * 2
         for p in range(1, 3):
             positions[p - 1] = where_is_k2d(self.board, p)
 
@@ -844,7 +844,7 @@ def evaluate_ninarow(
         y: cython.short
         x_: cython.short
         y_: cython.short
-        length: cython.int = len(non_zero_indices[0])
+        length: cython.Py_ssize_t = len(non_zero_indices[0])
         move: tuple[cython.short, cython.short]
         element: cython.short
 

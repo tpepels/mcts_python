@@ -775,7 +775,7 @@ class MCTSPlayer:
                                 N=prev_node.n_visits,
                             )
 
-                            if val - bound >= alpha and val + bound <= beta:
+                            if val - bound > alpha and val + bound < beta:
                                 if prev_node.player == self.player:
                                     old_alpha: cython.float = alpha  # Store the old value of alpha
                                     alpha = max(alpha, val - bound)
@@ -792,12 +792,14 @@ class MCTSPlayer:
                                     if beta < old_beta:
                                         beta_bounds = bound
                     elif self.ab_p1 == 1:
-                        # Use the imm values to update the bounds
-                        if node.im_value >= alpha and node.im_value <= beta:
-                            if prev_node.player == self.player:
-                                alpha = max(alpha, node.im_value)
-                            else:
-                                beta = min(beta, node.im_value)
+                        # Check for new a/b bounds
+                        if node.n_visits > 0 and prev_node is not None:
+                            # Use the imm values to update the bounds
+                            if node.im_value > alpha and node.im_value < beta:
+                                if prev_node.player == self.player:
+                                    alpha = max(alpha, node.im_value)
+                                else:
+                                    beta = min(beta, node.im_value)
 
                     prev_node = node
                     if __debug__:
@@ -813,19 +815,30 @@ class MCTSPlayer:
                         elif beta != INFINITY:
                             dynamic_bins["beta"]["bin"].add_data(beta)
                             dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
-
-                    node = node.uct(
-                        self.c,
-                        self.player,
-                        self.pb_weight,
-                        self.imm_alpha,
-                        ab_p1=self.ab_p1,
-                        ab_p2=self.ab_p2,
-                        alpha=alpha if node.player == self.player else 1 - beta,
-                        beta=beta if node.player == self.player else 1 - alpha,
-                        alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
-                        beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
-                    )
+                    if self.ab_p1 == 2:
+                        node = node.uct(
+                            self.c,
+                            self.player,
+                            self.pb_weight,
+                            self.imm_alpha,
+                            ab_p1=self.ab_p1,
+                            ab_p2=self.ab_p2,
+                            alpha=alpha if node.player == self.player else 1 - beta,
+                            beta=beta if node.player == self.player else 1 - alpha,
+                            alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
+                            beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
+                        )
+                    elif self.ab_p1 == 1:
+                        node = node.uct(
+                            self.c,
+                            self.player,
+                            self.pb_weight,
+                            self.imm_alpha,
+                            ab_p1=self.ab_p1,
+                            ab_p2=self.ab_p2,
+                            alpha=alpha if node.player == self.player else -beta,
+                            beta=beta if node.player == self.player else -alpha,
+                        )
                 else:
                     node = node.uct(self.c, self.player, self.pb_weight, self.imm_alpha)
 
