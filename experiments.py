@@ -154,7 +154,9 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
             cancelled_count = 0
             done_count = 0
 
-            print(">> Checking experiment status..")
+            print("\n\n")
+            print("------ Checking experiment status ------")
+            print("\n\n")
             # Tally the states of the futures
             f: ProcessFuture
             for f in futures_list:
@@ -163,23 +165,23 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
                 elif f.done():
                     done_count += 1
 
-            print(f">> Cancelled experiments: {cancelled_count}")
-            print(f">> Done experiments: {done_count}")
+            print(f" >> Cancelled experiments: {cancelled_count}")
+            print(f" >> Done experiments: {done_count}")
 
-            print(">>> Checking for experiments to cancel..")
+            print(" >>> Checking for experiments to cancel..")
             # Check for experiments to be cancelled.
             exp_names_to_cancel = [
                 exp_name for exp_name, should_cancel in experiments_to_cancel.items() if should_cancel
             ]
 
             if len(exp_names_to_cancel) > 0:
-                print("Experiments to cancel:")
+                print(" >> Experiments to cancel:")
                 pprint(experiments_to_cancel)
                 total_cancelled += cancel_list_of_experiments(future_tasks, exp_names_to_cancel)
 
             if total_cancelled > 0:
-                print(f">> Cancelled {total_cancelled} tasks so far.")
-                print(">> Cancelled experiments:")
+                print(f" >> Cancelled {total_cancelled} tasks so far.")
+                print(" >> Cancelled experiments:")
                 cancelled_list_of_experiments = [
                     exp_name for exp_name, should_cancel in experiments_to_cancel.items() if not should_cancel
                 ]
