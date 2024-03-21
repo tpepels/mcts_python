@@ -25,11 +25,12 @@ playout_draws: cython.int = 0
 
 if __debug__:
     dynamic_bins: cython.dict = {}
-    n_bins: cython.short = 15
+    n_bins: cython.short = 30
     dynamic_bins["alpha"] = {"bin": DynamicBin(n_bins), "label": "alpha values"}
     dynamic_bins["beta"] = {"bin": DynamicBin(n_bins), "label": "beta values"}
     dynamic_bins["alpha_bounds"] = {"bin": DynamicBin(n_bins), "label": "alpha bounds"}
     dynamic_bins["beta_bounds"] = {"bin": DynamicBin(n_bins), "label": "beta bounds"}
+    dynamic_bins["k"] = {"bin": DynamicBin(n_bins), "label": "k"}
 
 
 @cython.cfunc
@@ -154,17 +155,17 @@ class Node:
                 elif ab_p1 == 1:
                     # Imm values are between -1 and 1, they need to be scaled to 0 - 1
                     k: cython.float = beta - alpha
-                    imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
-                    if ab_p2 == 1:
+                    if k > 0:
+                        imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
                         # A higher reward for wide bounds
-                        if alpha <= imm_val <= beta:
+                        if alpha < imm_val < beta:
                             uct_val += k
                             ab_bound += 1
-                    elif ab_p2 == 2:
-                        # A higher reward for narrow bounds
-                        if alpha <= imm_val <= beta:
-                            uct_val += 2 - k
+                        else:
+                            uct_val -= k
                             ab_bound += 1
+                    else:
+                        ucb_bound += 1
             else:
                 ucb_bound += 1
 
@@ -763,11 +764,9 @@ class MCTSPlayer:
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
                 if self.ab_p1 != 0:
-                    if node.n_visits > 0 and prev_node is not None:
-
-                        # Check for new a/b bounds
-                        if self.ab_p1 == 2:
-
+                    # Check for new a/b bounds
+                    if self.ab_p1 == 2:
+                        if node.n_visits > 0 and prev_node is not None:
                             val, bound = node.get_value_with_uct_interval(
                                 c=self.c,
                                 player=self.player,
@@ -791,13 +790,16 @@ class MCTSPlayer:
                                     if beta < old_beta:
                                         beta_bounds = bound
 
-                        elif self.ab_p1 == 1:
+                    elif self.ab_p1 == 1:
+                        # Check siblings for new ab bounds
+                        for i in range(len(node.children)):
+                            ab_child: Node = node.children[i]
                             # Use the imm values to update the bounds
-                            if node.im_value > alpha and node.im_value < beta:
-                                if prev_node.player == self.player:
-                                    alpha = max(alpha, node.im_value)
+                            if ab_child.im_value > alpha and ab_child.im_value < beta:
+                                if node.player == self.player:
+                                    alpha = max(alpha, ab_child.im_value)
                                 else:
-                                    beta = min(beta, node.im_value)
+                                    beta = min(beta, ab_child.im_value)
 
                     prev_node = node
                     if __debug__:
@@ -807,6 +809,7 @@ class MCTSPlayer:
                             dynamic_bins["beta"]["bin"].add_data(beta)
                             dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)
                             dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
+                            dynamic_bins["k"]["bin"].add_data(beta - alpha)
                         elif alpha != -INFINITY:
                             dynamic_bins["alpha"]["bin"].add_data(alpha)
                             dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)

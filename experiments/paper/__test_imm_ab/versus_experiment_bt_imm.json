@@ -1,9 +1,10 @@
 [
   {
-    "throttle_start": true
+    "throttle_start": true,
+    "top_n": 2
   },
   {
-    "n_games": 500,
+    "n_games": 400,
     "game_key": "breakthrough",
     "random_openings": 4,
     "game_params": {},
@@ -11,9 +12,8 @@
     "p1_ai_params": {
       "num_simulations": 200000,
       "ab_p1": 1,
-      "ab_p2": [1, 2],
-      "c": 0.5,
-      "imm_alpha": 0.1,
+      "c": [0.4, 0.5, 0.6],
+      "imm_alpha": [0.2, 0.3, 0.4],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},

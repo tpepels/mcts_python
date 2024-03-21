@@ -1,9 +1,10 @@
 [
   {
-    "throttle_start": true
+    "throttle_start": true,
+    "top_n": 2
   },
   {
-    "n_games": 500,
+    "n_games": 400,
     "game_key": "amazons",
     "random_openings": 4,
     "game_params": { "board_size": 6 },
@@ -11,9 +12,8 @@
     "p1_ai_params": {
       "num_simulations": 200000,
       "ab_p1": 1,
-      "ab_p2": [1, 2],
-      "c": 0.05,
-      "imm_alpha": 0.6,
+      "c": [0.05, 0.1],
+      "imm_alpha": [0.5, 0.6, 0.7],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
