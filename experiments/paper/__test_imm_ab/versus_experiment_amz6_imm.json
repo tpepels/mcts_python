@@ -1,0 +1,29 @@
+[
+  {
+    "throttle_start": true
+  },
+  {
+    "n_games": 500,
+    "game_key": "amazons",
+    "random_openings": 4,
+    "game_params": { "board_size": 6 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 200000,
+      "ab_p1": 2,
+      "ab_p2": [1, 2],
+      "c": 0.05,
+      "imm_alpha": 0.6,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 200000,
+      "name": "a_plain_uct",
+      "c": 0.05,
+      "imm_alpha": 0.6
+    },
+    "p2_eval_params": {}
+  }
+]

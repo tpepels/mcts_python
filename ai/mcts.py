@@ -150,19 +150,21 @@ class Node:
                             uct_val += alpha_bounds
                         elif uct_val > beta:
                             uct_val += -beta_bounds
+                    ab_bound += 1
                 elif ab_p1 == 1:
                     # Imm values are between -1 and 1, they need to be scaled to 0 - 1
-                    beta = (beta + 1) / 2
-                    alpha = (alpha + 1) / 2
-                    # Use imm values for alpha/beta bounds
-                    if alpha <= child_value <= beta:
-                        uct_val += beta
-                    elif child_value < alpha:
-                        uct_val += alpha_bounds
-                    elif child_value > beta:
-                        uct_val += -beta_bounds
-
-                ab_bound += 1
+                    k: cython.float = beta - alpha
+                    imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
+                    if ab_p2 == 1:
+                        # A higher reward for wide bounds
+                        if alpha <= imm_val <= beta:
+                            uct_val += k
+                            ab_bound += 1
+                    elif ab_p2 == 2:
+                        # A higher reward for narrow bounds
+                        if alpha <= imm_val <= beta:
+                            uct_val += 2 - k
+                            ab_bound += 1
             else:
                 ucb_bound += 1
 
