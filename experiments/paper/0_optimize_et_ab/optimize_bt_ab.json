@@ -13,7 +13,7 @@
       "ab_p1": 2,
       "ab_p2": [1, 2],
       "c": [0.4, 0.5, 0.6],
-      "imm_alpha": [0.1, 0.2, 0.3],
+      "imm_alpha": [0.1, 0.2],
       "early_term_turns": [5, 10, 15],
       "early_term_cutoff": [0.05, 0.1, 0.15],
       "name": "base_uct"

@@ -763,9 +763,10 @@ class MCTSPlayer:
         while not is_terminal and node.solved_player == 0:
             if node.expanded:
                 if self.ab_p1 != 0:
-                    if self.ab_p1 == 2:
+                    if node.n_visits > 0 and prev_node is not None:
+
                         # Check for new a/b bounds
-                        if node.n_visits > 1 and prev_node is not None:
+                        if self.ab_p1 == 2:
 
                             val, bound = node.get_value_with_uct_interval(
                                 c=self.c,
@@ -779,7 +780,6 @@ class MCTSPlayer:
                                 if prev_node.player == self.player:
                                     old_alpha: cython.float = alpha  # Store the old value of alpha
                                     alpha = max(alpha, val - bound)
-
                                     # Check if alpha was actually updated by comparing old and new values
                                     if alpha > old_alpha:
                                         alpha_bounds = -bound
@@ -787,13 +787,11 @@ class MCTSPlayer:
                                 else:
                                     old_beta: cython.float = beta  # Store the old value of beta
                                     beta = min(beta, val + bound)
-
                                     # Check if beta was actually updated by comparing old and new values
                                     if beta < old_beta:
                                         beta_bounds = bound
-                    elif self.ab_p1 == 1:
-                        # Check for new a/b bounds
-                        if node.n_visits > 0 and prev_node is not None:
+
+                        elif self.ab_p1 == 1:
                             # Use the imm values to update the bounds
                             if node.im_value > alpha and node.im_value < beta:
                                 if prev_node.player == self.player:
@@ -815,6 +813,7 @@ class MCTSPlayer:
                         elif beta != INFINITY:
                             dynamic_bins["beta"]["bin"].add_data(beta)
                             dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
+
                     if self.ab_p1 == 2:
                         node = node.uct(
                             self.c,
