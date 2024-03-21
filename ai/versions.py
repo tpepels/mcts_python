@@ -242,3 +242,62 @@ if val_adj == 8:
 #     # 19 No data
 #     (alpha, -alpha_bounds, -beta_bounds),
 # )
+if imm_version == 0 or imm_version == 3:  # Plain old vanilla imm, just set the evaluation score
+    # TODO If prog_bias is enabled, then we are computing the same thing twice
+    child.im_value = new_state.evaluate(
+        player=self.max_player,
+        norm=True,
+        params=eval_params,
+    ) + uniform(-0.001, 0.001)
+elif imm_version == 1 or imm_version == 13:  # n-ply-imm, set the evaluation score
+    child.im_value = alpha_beta(
+        state=new_state,
+        eval_params=eval_params,
+        max_player=self.max_player,
+        depth=imm_ex_D,  # This is the depth that we will search
+        alpha=-INFINITY,  # ? Can we set these to some meaningful values?
+        beta=INFINITY,  # ? Can we set these to some more meaningful values?
+    )
+
+elif imm_version == 2 or imm_version == 23:  # q-imm, set the evaluation score to the quiescence score
+    # TODO If prog_bias is enabled, then we are computing the same thing twice
+    eval_value: cython.double = new_state.evaluate(
+        player=self.max_player,
+        norm=True,
+        params=eval_params,
+    ) + uniform(-0.001, 0.001)
+    # Play out capture sequences
+    if init_state.is_capture(action):
+        child.im_value = quiescence(
+            state=new_state,
+            stand_pat=eval_value,
+            eval_params=eval_params,
+            max_player=self.max_player,
+        )
+    else:
+        child.im_value = eval_value
+
+elif imm_version == 12:  # n-ply-imm with quiescence
+    # Play out capture sequences
+    if init_state.is_capture(action):
+        # TODO If prog_bias is enabled, then we are computing the same thing twice
+        eval_value: cython.double = new_state.evaluate(
+            player=self.max_player,
+            norm=True,
+            params=eval_params,
+        ) + uniform(-0.001, 0.001)
+        child.im_value = quiescence(
+            state=new_state,
+            stand_pat=eval_value,
+            eval_params=eval_params,
+            max_player=self.max_player,
+        )
+    else:
+        child.im_value = alpha_beta(
+            state=new_state,
+            eval_params=eval_params,
+            max_player=self.max_player,
+            depth=imm_ex_D,  # This is the depth that we will search
+            alpha=-INFINITY,  # ? Can we set these to some meaningful values?
+            beta=INFINITY,  # ? Can we set these to some more meaningful values?
+        )

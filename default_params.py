@@ -12,8 +12,8 @@ DEFAULT_SETTINGS = {
     },
     ("ninarow", "mcts"): {
         "ai_params": {
-            "c": 0.3,
-            "imm_alpha": 0.3,
+            "c": 0.2,
+            "imm_alpha": 0.4,
             "dyn_early_term_cutoff": 0.4,
         },
         "eval_params": {},
@@ -32,7 +32,7 @@ DEFAULT_SETTINGS = {
     ("amazons", "mcts"): {
         "ai_params": {
             "c": 0.05,
-            "imm_alpha": 0.9,
+            "imm_alpha": 0.65,
             "early_term_turns": 20,
             "early_term_cutoff": 0.3,
         },

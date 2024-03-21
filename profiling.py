@@ -141,7 +141,7 @@ else:
         "num_simulations": 200000,
         "debug": args.debug,
         "ab_p1": 2,
-        "ab_p2": 2,
+        "ab_p2": 1,
     }
     ai_2_params = {
         "num_simulations": 200000,
