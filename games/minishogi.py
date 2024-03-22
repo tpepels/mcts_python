@@ -627,12 +627,18 @@ class MiniShogi(GameState):
                             if piece >= 11:
                                 base_piece += P2_OFFS
 
-                                move_count: cython.int = (move_indices[base_piece + 1] - move_indices[base_piece]) // 2
+                                move_count: cython.int = (
+                                    move_indices[cython.cast(cython.short, base_piece + 1)]
+                                    - move_indices[cython.cast(cython.short, base_piece)]
+                                ) // 2
                                 start_random_idx: cython.int = randint(0, move_count - 1)
 
                                 for i in range(move_count):
                                     # Circular iteration using modulo
-                                    idx = move_indices[base_piece] + ((start_random_idx + i) % move_count) * 2
+                                    idx = (
+                                        move_indices[cython.cast(cython.short, base_piece)]
+                                        + ((start_random_idx + i) % move_count) * 2
+                                    )
                                     new_row, new_col = row, col
 
                                     while 1:
@@ -664,11 +670,17 @@ class MiniShogi(GameState):
                             if piece != 7 and piece != 9 and piece != 17 and piece != 19:
                                 # Logic for standard and limited one-square moves
 
-                                move_count: cython.int = (move_indices[piece + 1] - move_indices[piece]) // 2
+                                move_count: cython.int = (
+                                    move_indices[cython.cast(cython.short, piece + 1)]
+                                    - move_indices[cython.cast(cython.short, piece)]
+                                ) // 2
                                 start_random_idx: cython.int = randint(0, move_count - 1)
 
                                 for i in range(move_count):
-                                    idx = move_indices[piece] + ((start_random_idx + i) % move_count) * 2
+                                    idx = (
+                                        move_indices[cython.cast(cython.short, piece)]
+                                        + ((start_random_idx + i) % move_count) * 2
+                                    )
                                     new_row = row + flat_moves[idx]
                                     new_col = col + flat_moves[idx + 1]
 
@@ -927,12 +939,15 @@ class MiniShogi(GameState):
             if piece >= 11:
                 base_piece += P2_OFFS
 
-            move_count: cython.short = (move_indices[base_piece + 1] - move_indices[base_piece]) // 2
+            move_count: cython.short = (
+                move_indices[cython.cast(cython.short, base_piece + 1)]
+                - move_indices[cython.cast(cython.short, base_piece)]
+            ) // 2
             start_random_idx: cython.int = randint(0, move_count - 1) if randomize else 0
 
             for i in range(move_count):
                 # Circular iteration using modulo
-                idx = move_indices[base_piece] + ((start_random_idx + i) % move_count) * 2
+                idx = move_indices[cython.cast(cython.short, base_piece)] + ((start_random_idx + i) % move_count) * 2
                 new_row, new_col = row, col
 
                 while 1:
@@ -960,11 +975,13 @@ class MiniShogi(GameState):
 
         if piece != 7 and piece != 9 and piece != 17 and piece != 19:
             # Logic for standard and limited one-square moves
-            move_count: cython.int = (move_indices[piece + 1] - move_indices[piece]) // 2
+            move_count: cython.int = (
+                move_indices[cython.cast(cython.short, piece + 1)] - move_indices[cython.cast(cython.short, piece)]
+            ) // 2
             start_random_idx: cython.int = randint(0, move_count - 1) if randomize else 0
 
             for i in range(move_count):
-                idx = move_indices[piece] + ((start_random_idx + i) % move_count) * 2
+                idx = move_indices[cython.cast(cython.short, piece)] + ((start_random_idx + i) % move_count) * 2
                 new_row = row + flat_moves[idx]
                 new_col = col + flat_moves[idx + 1]
 
@@ -1181,10 +1198,10 @@ class MiniShogi(GameState):
 
             if self.board[to_row, to_col] != 0:
                 if not is_defense:
-                    attacks += multip * MATERIAL[self.board[to_row, to_col]]
+                    attacks += multip * MATERIAL[cython.cast(cython.short, self.board[to_row, to_col])]
                 else:
                     # print(f"{piece} is defending {self.board[to_row, to_col]} at {to_row},{to_col}")
-                    defenses += multip * MATERIAL[self.board[to_row, to_col]]
+                    defenses += multip * MATERIAL[cython.cast(cython.short, self.board[to_row, to_col])]
 
             elif not is_defense:
                 board_control += multip
@@ -1198,7 +1215,7 @@ class MiniShogi(GameState):
                     multip: cython.short = (
                         1 if (player == 1 and 1 <= piece <= P2_OFFS) or (player == 2 and 11 <= piece <= 20) else -1
                     )
-                    material_score += multip * MATERIAL[piece]
+                    material_score += multip * MATERIAL[cython.cast(cython.short, piece)]
                     self._generate_moves(
                         row, col, self.board[row, col], callback, count_defense=params[5] > 0, randomize=False
                     )
@@ -1212,11 +1229,11 @@ class MiniShogi(GameState):
 
         # Accumulate captures for the current player
         for i in range(len(captured_pieces_player)):
-            captures += MATERIAL[captured_pieces_player[i]]
+            captures += MATERIAL[cython.cast(cython.short, captured_pieces_player[i])]
 
         # Subtract captures for the opponent
         for i in range(len(captured_pieces_opponent)):
-            captures -= MATERIAL[captured_pieces_opponent[i]]
+            captures -= MATERIAL[cython.cast(cython.short, captured_pieces_opponent[i])]
 
         if self.check and player == self.player:
             score = -params[0]
@@ -1230,9 +1247,6 @@ class MiniShogi(GameState):
             + board_control * params[4]
             + defenses * params[5]
         )
-        # print(
-        #     f"Final Score Components - Attacks: {attacks}, Captures: {captures}, Material Score: {material_score}, Board Control: {board_control}, Defenses: {defenses}, Score: {score}"
-        # )
 
         if norm:
             normalized_score = normalize(score, params[6])
@@ -1296,24 +1310,29 @@ class MiniShogi(GameState):
 
         # Check for capture and use MATERIAL value for the captured piece
         if self.board[to_row, to_col] != 0:
-            score += MATERIAL[self.board[to_row, to_col]]
+            score += MATERIAL[cython.cast(cython.short, self.board[to_row, to_col])]
 
         # Promotions generally gain material advantage
         if from_row == to_row and from_col == to_col:
-            score += MATERIAL[self.get_promoted_piece(to_row, to_col)]  # Promotion value
+            score += MATERIAL[cython.cast(cython.short, self.get_promoted_piece(to_row, to_col))]  # Promotion value
 
         # Drops (from_row == -1) are generally strong moves in MiniShogi
         if from_row == -1:
-            score += MATERIAL[moving_piece]
+            score += MATERIAL[cython.cast(cython.short, moving_piece)]
 
         # Evaluate defensive or offensive nature of the move
         # * This is not perfect for rooks and bishops and promoting pieces, but it's good enough for now
-        move_count: cython.short = (move_indices[moving_piece + 1] - move_indices[moving_piece]) // 2
+        move_count: cython.short = (
+            move_indices[cython.cast(cython.short, moving_piece + 1)]
+            - move_indices[cython.cast(cython.short, moving_piece)]
+        ) // 2
 
         # Assuming there's no randomness needed here, so we'll iterate in order
         for i in range(move_count):
             # Calculate the index into flat_moves
-            idx = move_indices[moving_piece] + i * 2  # Skipping by 2 because moves are in (dx, dy) pairs
+            idx = (
+                move_indices[cython.cast(cython.short, moving_piece)] + i * 2
+            )  # Skipping by 2 because moves are in (dx, dy) pairs
 
             # Apply the move deltas to the to_row and to_col
             def_row = to_row + flat_moves[idx]
@@ -1322,9 +1341,11 @@ class MiniShogi(GameState):
             if 0 <= def_row < 5 and 0 <= def_col < 5:
                 if self.board[def_row, def_col] != 0:
                     if self.is_same_player_piece(moving_piece, self.board[def_row, def_col]):
-                        score += MATERIAL[self.board[def_row, def_col]] / 2  # Defensive move
+                        score += (
+                            MATERIAL[cython.cast(cython.short, self.board[def_row, def_col])] / 2
+                        )  # Defensive move
                     else:
-                        score += MATERIAL[self.board[def_row, def_col]]  # Offensive move
+                        score += MATERIAL[cython.cast(cython.short, self.board[def_row, def_col])]  # Offensive move
                 else:
                     score += 1  # The moves adds board dominance
 
