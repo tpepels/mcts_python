@@ -44,7 +44,7 @@ class TicTacToeGameState(GameState):
     REUSE = True
 
     # Public variables
-    board = cython.declare(cython.short[:, :], visibility="public")
+    board = cython.declare(cython.char[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
     pre_last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
@@ -85,7 +85,7 @@ class TicTacToeGameState(GameState):
         self.zobrist_table = self.zobrist_tables[self.size]
 
         if self.board is None:
-            self.board = np.zeros((self.size, self.size), dtype=np.int16)
+            self.board = np.zeros((self.size, self.size), dtype=np.int8)
             self.board_hash = 0
             for i in range(self.size):
                 for j in range(self.size):
@@ -121,7 +121,7 @@ class TicTacToeGameState(GameState):
         #     0 <= x < self.size and 0 <= y < self.size
         # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
 
-        new_board: cython.short[:, :] = self.board.copy()
+        new_board: cython.char[:, :] = self.board.copy()
         move_increment: cython.short = 1
         opp: cython.short = 3 - self.player
 
@@ -274,11 +274,11 @@ class TicTacToeGameState(GameState):
 
     @cython.ccall
     @cython.locals(
-        player=cython.short,
+        player=cython.char,
         last_move_x=cython.short,
         last_move_y=cython.short,
-        board=cython.short[:, :],
-        last_player=cython.short,
+        board=cython.char[:, :],
+        last_player=cython.char,
         am_i_last_player=cython.bint,
         dx=cython.short,
         dy=cython.short,
@@ -466,10 +466,10 @@ class TicTacToeGameState(GameState):
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
     @cython.locals(
-        score_p1=cython.double,
-        score_p2=cython.double,
-        x=cython.short,
-        y=cython.short,
+        score_p1=cython.float,
+        score_p2=cython.float,
+        x=cython.char,
+        y=cython.char,
         dx=cython.short,
         dy=cython.short,
         nx=cython.short,
@@ -482,7 +482,7 @@ class TicTacToeGameState(GameState):
         count=cython.short,
         space_count=cython.short,
         centrality_score=cython.double,
-        positions=cython.list[cython.short],
+        positions=cython.list[cython.char],
         direction=cython.short,
         line_broken=cython.short,
         parts=cython.short,

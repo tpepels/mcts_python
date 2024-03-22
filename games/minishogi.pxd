@@ -1,7 +1,7 @@
 cdef list MOVES
-cdef dict PIECES
-cdef list PIECE_CHARS
-cdef short P2_OFFS
-cdef short[21] MATERIAL
-cdef short[192] flat_moves
+cdef dict[str, char] PIECES
+cdef list[char] PIECE_CHARS
+cdef char P2_OFFS
+cdef char[21] MATERIAL
+cdef char[192] flat_moves
 cdef short[22] move_indices

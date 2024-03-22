@@ -207,9 +207,9 @@ flat_moves = [
 move_indices = [0, 0, 16, 28, 30, 42, 52, 64, 72, 80, 88, 96, 112, 124, 126, 138, 148, 160, 168, 176, 184, 192]
 
 
-P2_OFFS = 10
+P2_OFFS: cython.char = 10
 
-PIECES = {
+PIECES: cython.dict[cython.str, cython.char] = {
     "K": 1,
     "G": 2,  # Regular gold general (cannot be promoted)
     "P": 3,
@@ -262,13 +262,13 @@ class MiniShogi(GameState):
     ]  # Hash for player 2
     REUSE = True
 
-    board = cython.declare(cython.short[:, :], visibility="public")
+    board = cython.declare(cython.char[:, :], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.int, cython.int, cython.int, cython.int], visibility="public")
     current_player_moves = cython.declare(cython.list, visibility="public")
 
-    captured_pieces_1 = cython.declare(cython.list[cython.short], visibility="public")
-    captured_pieces_2 = cython.declare(cython.list[cython.short], visibility="public")
+    captured_pieces_1 = cython.declare(cython.list[cython.char], visibility="public")
+    captured_pieces_2 = cython.declare(cython.list[cython.char], visibility="public")
 
     king_1 = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
     king_2 = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
@@ -316,8 +316,8 @@ class MiniShogi(GameState):
             self.state_occurrences = state_occurences
 
     @cython.ccall
-    def _init_board(self) -> cython.short[:, :]:
-        board: cython.short[:, :] = np.zeros((5, 5), dtype=np.int16)
+    def _init_board(self) -> cython.char[:, :]:
+        board: cython.char[:, :] = np.zeros((5, 5), dtype=np.int8)
 
         # Set up the pieces for White (Player 2, top of the board)
         board[0, 0] = PIECES["K"] + P2_OFFS  # King
@@ -379,8 +379,8 @@ class MiniShogi(GameState):
         to_row=cython.short,
         to_col=cython.short,
         piece=cython.short,
-        captured_piece=cython.short,
-        promoted_piece=cython.short,
+        captured_piece=cython.char,
+        promoted_piece=cython.char,
     )
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
         if action is None:
@@ -459,9 +459,9 @@ class MiniShogi(GameState):
         from_col=cython.short,
         to_row=cython.short,
         to_col=cython.short,
-        piece=cython.short,
-        captured_piece=cython.short,
-        promoted_piece=cython.short,
+        piece=cython.char,
+        captured_piece=cython.char,
+        promoted_piece=cython.char,
         new_state=MiniShogi,
     )
     def apply_action(self, action: cython.tuple) -> MiniShogi:
@@ -530,9 +530,9 @@ class MiniShogi(GameState):
                     new_state.captured_pieces_2.append(captured_piece + P2_OFFS)
 
             # Update the king's position if a king is moved
-            if piece == PIECES["K"]:  # Check if player 1's king is moved
+            if piece == 1:  # Check if player 1's king is moved
                 new_state.king_1 = (to_row, to_col)
-            elif piece == PIECES["K"] + P2_OFFS:  # Check if player 2's king is moved
+            elif piece == 11:  # Check if player 2's king is moved
                 new_state.king_2 = (to_row, to_col)
 
             # This will be the promoted piece if the move is a promotion, otherwise it will be the original piece
@@ -592,7 +592,7 @@ class MiniShogi(GameState):
         dx=cython.short,
         dy=cython.short,
         idx=cython.short,
-        base_piece=cython.short,
+        base_piece=cython.char,
         new_row=cython.short,
         new_col=cython.short,
         start_index=cython.short,
@@ -692,7 +692,7 @@ class MiniShogi(GameState):
                                             moves.append(move)
 
         # Handle drop actions
-        captured_pieces: cython.list[cython.short] = (
+        captured_pieces: cython.list[cython.char] = (
             self.captured_pieces_1 if self.player == 1 else self.captured_pieces_2
         )
         for i in range(len(captured_pieces)):
@@ -731,7 +731,7 @@ class MiniShogi(GameState):
     @cython.locals(
         row=cython.short,
         col=cython.short,
-        piece=cython.short,
+        piece=cython.char,
         player_piece_start=cython.short,
         player_piece_end=cython.short,
     )
@@ -780,9 +780,7 @@ class MiniShogi(GameState):
         return legal_actions
 
     @cython.cfunc
-    @cython.locals(
-        is_drop=cython.bint, original_piece=cython.short, moving_piece=cython.short, exposes_king=cython.bint
-    )
+    @cython.locals(is_drop=cython.bint, original_piece=cython.char, moving_piece=cython.char, exposes_king=cython.bint)
     def simulate_move_exposes_king(
         self, from_row: cython.short, from_col: cython.short, to_row: cython.short, to_col: cython.short
     ) -> cython.bint:
@@ -835,7 +833,7 @@ class MiniShogi(GameState):
 
     @cython.cfunc
     def is_legal_drop(
-        self, row: cython.short, col: cython.short, piece: cython.short, player: cython.short
+        self, row: cython.short, col: cython.short, piece: cython.char, player: cython.short
     ) -> cython.bint:
         # Check if the target square is empty
         if self.board[row, col] != 0:
@@ -862,7 +860,7 @@ class MiniShogi(GameState):
         return True
 
     @cython.cfunc
-    @cython.locals(row=cython.short, col=cython.short, piece=cython.short, i=cython.short)
+    @cython.locals(row=cython.short, col=cython.short, piece=cython.char, i=cython.short)
     def is_checkmate(self, player: cython.short) -> cython.bint:
         """
         Check if the given player is in checkmate. This means that the player to move, cannot make any move.
@@ -886,7 +884,7 @@ class MiniShogi(GameState):
                         return 0  # Found a legal move
 
         # Check for any legal drop that can resolve the check
-        captured_pieces: cython.list[cython.short] = self.captured_pieces_1 if player == 1 else self.captured_pieces_2
+        captured_pieces: cython.list[cython.char] = self.captured_pieces_1 if player == 1 else self.captured_pieces_2
         for i in range(len(captured_pieces)):
             piece = captured_pieces[i]
             for row in range(5):
@@ -904,10 +902,10 @@ class MiniShogi(GameState):
         dx=cython.short,
         dy=cython.short,
         idx=cython.short,
-        piece=cython.short,
+        piece=cython.char,
         player_piece_start=cython.short,
         player_piece_end=cython.short,
-        base_piece=cython.short,
+        base_piece=cython.char,
         new_row=cython.short,
         new_col=cython.short,
         i=cython.short,
@@ -915,9 +913,9 @@ class MiniShogi(GameState):
     )
     def _generate_moves(
         self,
-        row: cython.short,
-        col: cython.short,
-        piece: cython.short,
+        row,
+        col,
+        piece,
         callback,
         randomize: cython.bint = 0,
         count_defense: cython.bint = 0,
@@ -990,13 +988,15 @@ class MiniShogi(GameState):
         return 0  # No valid move processed or no need to stop extending
 
     @cython.cfunc
-    def get_moves(self, row: cython.short, col: cython.short, moves: cython.list) -> cython.list:
+    def get_moves(
+        self, row: cython.short, col: cython.short, moves: cython.list[cython.tuple]
+    ) -> cython.list[cython.tuple]:
         def move_callback(
             from_row: cython.short,
             from_col: cython.short,
             to_row: cython.short,
             to_col: cython.short,
-            piece: cython.short,
+            piece: cython.char,
             is_defense: cython.bint,
         ):
             if not self.simulate_move_exposes_king(from_row, from_col, to_row, to_col):
@@ -1019,7 +1019,7 @@ class MiniShogi(GameState):
         opposing_player_piece_end=cython.short,
         row=cython.short,
         col=cython.short,
-        piece=cython.short,
+        piece=cython.char,
     )
     def is_king_attacked(self, player: cython.short) -> cython.bint:
         king_pos: cython.tuple[cython.short, cython.short] = self.king_1 if player == 1 else self.king_2
@@ -1029,7 +1029,7 @@ class MiniShogi(GameState):
             from_col: cython.short,
             to_row: cython.short,
             to_col: cython.short,
-            piece: cython.short,
+            piece: cython.char,
             is_defense: cython.bint,
         ):
             return (to_row, to_col) == king_pos  # Return True if king is attacked, this stops _generate_moves
@@ -1145,7 +1145,7 @@ class MiniShogi(GameState):
         from_col=cython.short,
         to_row=cython.short,
         to_col=cython.short,
-        piece=cython.short,
+        piece=cython.char,
         is_defense=cython.bint,
         multip=cython.int,
         row=cython.short,

@@ -16,8 +16,8 @@ cdef inline double normalize(double value, double a) except -99999:
     """
     return tanh(value / a)
 
-cdef inline list where_is_k(short[:] board , int k):
-    cdef int i
+cdef inline list[char] where_is_k(char[:] board , char k):
+    cdef short i
     cdef list indices = []
 
     for i in range(board.shape[0]):
@@ -26,9 +26,10 @@ cdef inline list where_is_k(short[:] board , int k):
 
     return indices
 
-cdef inline list where_is_k2d(short[:,:] board , int k):
-    cdef int i
-    cdef int j
+
+cdef inline list[char] where_is_k2d(char[:,:] board , char k):
+    cdef short i
+    cdef short j
     cdef list indices = []
 
     for i in range(board.shape[0]):
@@ -38,9 +39,8 @@ cdef inline list where_is_k2d(short[:,:] board , int k):
 
     return indices
 
-
-cdef inline int f_index(short[:] arr, int value, int n) except -2:
-    cdef int i
+cdef inline short f_index(char[:] arr, char value, int n) except -2:
+    cdef short i
     for i in range(n):  # Assuming the second dimension always has size 4
         if arr[i] == value:
             return i
@@ -49,8 +49,8 @@ cdef inline int f_index(short[:] arr, int value, int n) except -2:
 cpdef list generate_spiral(int size)
 
 
-cdef inline int find_2d_index(int[:, :] arr, int x, int y)  except -2:
-    cdef int i
+cdef inline short find_2d_index(char[:, :] arr, short x, short y)  except -2:
+    cdef short i
 
     # Iterate through the positions for the given size
     for i in range(arr.shape[0] * arr.shape[0]):

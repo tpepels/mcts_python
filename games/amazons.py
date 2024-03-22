@@ -29,12 +29,12 @@ class AmazonsGameState(GameState):
     }
     REUSE = False
     # Public fields
-    board = cython.declare(cython.short[:], visibility="public")
+    board = cython.declare(cython.char[:], visibility="public")
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.int, cython.int, cython.int], visibility="public")
-    queens = cython.declare(cython.short[:, :], visibility="public")
+    queens = cython.declare(cython.char[:, :], visibility="public")
     # Private fields
-    n_moves_per_queen: cython.short[:]
+    n_moves_per_queen: cython.char[:]
 
     player_has_legal_moves: cython.bint
     board_size: cython.short
@@ -65,7 +65,7 @@ class AmazonsGameState(GameState):
         self.n_moves = n_moves
         # We can update these whenever we generate moves. When we apply an action then the lists are invalid
         self.zobrist_table = self.zobrist_tables[self.board_size]
-        self.n_moves_per_queen = np.zeros(board_size**2, dtype=np.int16)
+        self.n_moves_per_queen = np.zeros(board_size**2, dtype=np.int8)
 
         if board is not None:
             self.board_hash = board_hash
@@ -88,13 +88,13 @@ class AmazonsGameState(GameState):
         Empty spaces are represented by 0, and blocked spaces are represented by -1.
         """
         # Use numpy arrays for the board
-        board: cython.short[:] = np.zeros(self.board_size**2, dtype=np.int16)
-        self.queens = np.zeros((2, 4), dtype=np.int16)
-        s: cython.short = self.board_size
-        mid: cython.short = s // 2
+        board: cython.char[:] = np.zeros(self.board_size**2, dtype=np.int8)
+        self.queens = np.zeros((2, 4), dtype=np.int8)
+        s: cython.char = self.board_size
+        mid: cython.char = s // 2
 
         # Place the black queens
-        index: cython.short = (0 * s) + (mid - 2)
+        index: cython.char = (0 * s) + (mid - 2)
         board[index] = 2
         self.queens[1][0] = index
 
@@ -141,7 +141,7 @@ class AmazonsGameState(GameState):
         self.board[t_a] = -1  # Block the position where the arrow was shot
 
         # Get the index of the moving queen in the list
-        queen_index: cython.short = f_index(self.queens[self.player - 1], f_p, 4)
+        queen_index: cython.char = f_index(self.queens[self.player - 1], f_p, 4)
         # Update the position of the queen in the array
         self.queens[self.player - 1][queen_index] = t_p
 
@@ -161,8 +161,8 @@ class AmazonsGameState(GameState):
         f_p, t_p, t_a = move_t
 
         # Copy the lists of queen positions, and update the position of the moving queen
-        new_queens: cython.short[:, :] = self.queens.copy()
-        new_board: cython.short[:] = self.board.copy()
+        new_queens: cython.char[:, :] = self.queens.copy()
+        new_board: cython.char[:] = self.board.copy()
 
         new_board[t_p] = new_board[f_p]  # Move the piece to the new position
         new_board[f_p] = 0  # Remove the piece from its old position
@@ -176,7 +176,7 @@ class AmazonsGameState(GameState):
             ^ self.zobrist_table[t_a][3]  # 3 is the arrow (to prevent wraparaound)
         )
         # Get the index of the moving queen in the list
-        queen_index: cython.short = f_index(new_queens[self.player - 1], f_p, 4)
+        queen_index: cython.char = f_index(new_queens[self.player - 1], f_p, 4)
         # Update the position of the queen in the array
         new_queens[self.player - 1][queen_index] = t_p
 
@@ -228,7 +228,7 @@ class AmazonsGameState(GameState):
         for q_i in range(4):
             # Chose a random queen to start with
             q_index: cython.short = (s_q + q_i) % 4
-            q_pos: cython.short = self.queens[self.player - 1][q_index]
+            q_pos: cython.char = self.queens[self.player - 1][q_index]
             # Find a direction to move in
             m_pos: cython.short = self.find_direction(x=q_pos // s, y=q_pos % s, s=s)
             if m_pos != -1:
@@ -297,7 +297,7 @@ class AmazonsGameState(GameState):
         legal_actions: cython.list = []
         i: cython.short
         for i in range(4):  # There are always 4 queens on the board
-            q_p: cython.short = self.queens[self.player - 1][i]
+            q_p: cython.char = self.queens[self.player - 1][i]
             queen_moves: cython.list = self.get_legal_moves_for_amazon(q_p)
             legal_actions.extend(queen_moves)
             self.n_moves_per_queen[q_p] = len(queen_moves)  # Update with the actual value
@@ -387,8 +387,8 @@ class AmazonsGameState(GameState):
         size: cython.short = self.board_size
 
         for i in range(4):
-            x: cython.short = self.queens[self.player - 1][i] // size
-            y: cython.short = self.queens[self.player - 1][i] % size
+            x: cython.char = self.queens[self.player - 1][i] // size
+            y: cython.char = self.queens[self.player - 1][i] % size
             if can_move(x, y, self.board, size):
                 return 1
         return 0
@@ -717,13 +717,13 @@ def get_random_distance(
     i=cython.short,
     dx=cython.short,
     dy=cython.short,
-    x=cython.short,
-    y=cython.short,
+    x=cython.char,
+    y=cython.char,
     s=cython.short,
     nx=cython.short,
     ny=cython.short,
 )
-def can_move(x, y, board: cython.short[:], s) -> cython.bint:
+def can_move(x, y, board: cython.char[:], s) -> cython.bint:
     for i in range(N_DIRECTIONS):
         dx, dy = DIRECTIONS[i]
         nx, ny = x + dx, y + dy
@@ -794,7 +794,7 @@ def evaluate_amazons(
     new_idx=cython.short,
 )
 @cython.exceptval(-2, check=False)
-def flood_fill(board: cython.short[:], pos: cython.short, s: cython.short) -> cython.short:
+def flood_fill(board: cython.char[:], pos: cython.short, s: cython.short) -> cython.short:
     fstack: stack[cython.short]
     visited: cset[cython.short]
 
@@ -822,7 +822,7 @@ def flood_fill(board: cython.short[:], pos: cython.short, s: cython.short) -> cy
 
 @cython.cfunc
 @cython.exceptval(-1, check=False)
-def count_reachable_squares(board: cython.short[:], pos: cython.short) -> cython.short:
+def count_reachable_squares(board: cython.char[:], pos: cython.short) -> cython.short:
     """
     Count the number of squares reachable by the piece at the given position in the game state.
 
