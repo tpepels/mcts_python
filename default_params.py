@@ -1,8 +1,9 @@
 DEFAULT_SETTINGS = {
+    # Optimized values for plain mcts with imm. Optimized on 22-3-2024
     # AMAZONS
     ("amazons", "mcts"): {
         "ai_params": {
-            "c": 0.05,
+            "c": 0.1,
             "imm_alpha": 0.6,
             "early_term_turns": 20,
             "early_term_cutoff": 0.1,
@@ -12,7 +13,7 @@ DEFAULT_SETTINGS = {
     # BREAKTHROUGH
     ("breakthrough", "mcts"): {
         "ai_params": {
-            "c": 0.5,
+            "c": 0.4,
             "imm_alpha": 0.2,
             "early_term_turns": 5,
             "early_term_cutoff": 0.15,
