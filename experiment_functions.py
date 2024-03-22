@@ -567,9 +567,12 @@ def update_running_experiment_status(tables, base_path, total_games, start_time,
     if tot_completed_games > 0:
         games_remaining = total_games - tot_completed_games
         sets_remaining = math.ceil(games_remaining / n_procs)
+
+        elapsed_sets = tot_completed_games / n_procs
         elapsed_time_seconds = (datetime.datetime.now() - start_time).seconds
+        effective_average_time_per_game = elapsed_time_seconds / elapsed_sets
+
         # Adjusting the average time per game calculation to account for parallel execution
-        effective_average_time_per_game = elapsed_time_seconds / (tot_completed_games / n_procs)
         estimated_time_remaining_seconds = effective_average_time_per_game * sets_remaining
 
         print(f"Average time per game (adjusted for parallelism): {format_time(effective_average_time_per_game)}")

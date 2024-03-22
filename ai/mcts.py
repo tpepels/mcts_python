@@ -103,9 +103,10 @@ class Node:
         children_lost: cython.short = 0
         children_draw: cython.short = 0
         ci: cython.short
-        my_value: cython.float = self.get_value_imm(self.player, imm_alpha, max_player)
 
+        my_value: cython.float = self.get_value_imm(self.player, imm_alpha, max_player)
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
+
         # Move through the children to find the one with the highest UCT value
         for ci in range(n_children):
             child: Node = self.children[ci]
@@ -150,18 +151,20 @@ class Node:
                     elif ab_p2 == 2:
 
                         if alpha <= uct_val <= beta:
-                            uct_val += my_value
+                            uct_val += my_value  # * Add the value of the node to the uct value
                         elif uct_val < alpha:
                             uct_val += alpha_bounds
                         elif uct_val > beta:
                             uct_val += -beta_bounds
 
                     ab_bound += 1
-                elif ab_p1 == 1:
-                    k: cython.float = beta - alpha
 
-                    imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
+                elif ab_p1 == 1:
+
+                    k: cython.float = beta - alpha
+                    imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
                     c_v: cython.float = child.v[self.player - 1] / child.n_visits
+
                     if ab_p2 == 1 and k > 0:
                         # A higher reward for wide bounds
                         if alpha < imm_val < beta:
@@ -175,8 +178,10 @@ class Node:
                     elif ab_p2 == 2:
                         # A higher reward for wide bounds
                         if alpha < imm_val < beta:
-                            child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * imm_val)
-                            ab_bound += 1
+                            # Use the regular imm value combined with the simulation mean
+                            # child_value already has this value
+                            # * child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * imm_val)
+                            pass
                         else:
                             # The imm value is not reliable, so use the simulation mean only
                             child_value = c_v
