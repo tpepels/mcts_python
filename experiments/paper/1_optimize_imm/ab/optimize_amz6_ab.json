@@ -11,7 +11,7 @@
       "ab_p1": [1, 2],
       "ab_p2": [1, 2],
       "c": 0.05,
-      "imm_alpha": [0.7, 0.8],
+      "imm_alpha": [0.6, 0.7, 0.8],
       "name": "exp_uct"
     },
     "p1_eval_params": {},
