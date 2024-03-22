@@ -3,15 +3,15 @@
     "top_n": 2
   },
   {
-    "n_games": 300,
+    "n_games": 400,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "c": [0.1, 0.2, 0.3, 0.4, 0.5],
-      "imm_alpha": [0.1, 0.2, 0.3, 0.4, 0.5],
+      "c": [0.1, 0.2, 0.3],
+      "imm_alpha": [0.3, 0.4, 0.5],
       "name": "exp_uct"
     },
     "p1_eval_params": {},

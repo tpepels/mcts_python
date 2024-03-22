@@ -182,7 +182,7 @@ class Node:
                                 child_value = c_v
                                 ab_bound += 1
 
-                            uct_val = child_value + (c * confidence_i)
+                        uct_val = child_value + (c * confidence_i)
                     else:
                         ucb_bound += 1
             else:

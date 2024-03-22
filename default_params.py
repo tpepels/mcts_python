@@ -7,7 +7,7 @@ DEFAULT_SETTINGS = {
             "early_term_turns": 20,
             "early_term_cutoff": 0.1,
         },
-        "eval_params": {},
+        "eval_params": {"a": 60},
     },
     # BREAKTHROUGH
     ("breakthrough", "mcts"): {
