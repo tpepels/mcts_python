@@ -161,8 +161,8 @@ class Node:
                     k: cython.float = beta - alpha
                     if k > 0:
                         imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
+                        c_v: cython.float = child.v[self.player - 1] / child.n_visits
                         if ab_p2 == 1:
-                            c_v: cython.float = child.v[self.player - 1] / child.n_visits
                             # A higher reward for wide bounds
                             if alpha < imm_val < beta:
                                 # Give imm a higher value
@@ -181,6 +181,7 @@ class Node:
                                 # The imm value is not reliable, so use the simulation mean only
                                 child_value = c_v
                                 ab_bound += 1
+
                             uct_val = child_value + (c * confidence_i)
                     else:
                         ucb_bound += 1
