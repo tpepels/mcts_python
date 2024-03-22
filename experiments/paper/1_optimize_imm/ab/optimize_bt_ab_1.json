@@ -1,8 +1,5 @@
 [
   {
-    "top_n": 3
-  },
-  {
     "n_games": 300,
     "game_key": "breakthrough",
     "random_openings": 2,
@@ -10,7 +7,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_p1": [1, 2],
+      "ab_p1": [1],
       "ab_p2": [1, 2],
       "c": 0.6,
       "imm_alpha": [0.1, 0.2, 0.3],

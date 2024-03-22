@@ -785,6 +785,7 @@ class MCTSPlayer:
                 if self.ab_p1 != 0:
                     # Check for new a/b bounds
                     if self.ab_p1 == 2:
+
                         if node.n_visits > 0 and prev_node is not None:
 
                             val, bound = node.get_value_with_uct_interval(
