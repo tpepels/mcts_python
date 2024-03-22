@@ -290,7 +290,7 @@ class Node:
                         player=max_player,
                         norm=True,
                         params=eval_params,
-                    ) + uniform(-0.001, 0.001)
+                    ) + uniform(-0.0001, 0.0001)
                     child.eval_value = eval_value
 
                 if imm:
@@ -299,7 +299,7 @@ class Node:
                         player=max_player,
                         norm=True,
                         params=eval_params,
-                    ) + uniform(-0.0001, 0.0001)
+                    ) + uniform(-0.00001, 0.00001)
                     child.n_visits += 1
                     # This means that player 2 is minimizing the evaluated value and player 1 is maximizing it
                     if (self.player != max_player and child.im_value < self.im_value) or (
@@ -962,7 +962,7 @@ class MCTSPlayer:
                 evaluation: cython.float = state.evaluate(params=self.eval_params, player=1, norm=True)
                 if evaluation >= self.early_term_cutoff:
                     return (1.0, 0.0)
-                elif evaluation <= -self.early_term_cutoff:
+                elif evaluation < -self.early_term_cutoff:
                     return (0.0, 1.0)
                 else:
                     return (0.5, 0.5)
@@ -975,7 +975,7 @@ class MCTSPlayer:
 
                 if evaluation >= self.dyn_early_term_cutoff:
                     return (1.0, 0.0)
-                elif evaluation <= -self.dyn_early_term_cutoff:
+                elif evaluation < -self.dyn_early_term_cutoff:
                     return (0.0, 1.0)
 
             best_action: cython.tuple = ()
@@ -1060,7 +1060,7 @@ def alpha_beta(
         return state.get_reward(max_player)
 
     if depth == 0:
-        return state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(-0.001, 0.001)
+        return state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(-0.0001, 0.0001)
 
     is_max_player = state.player == max_player
     # Move ordering
@@ -1119,7 +1119,7 @@ def quiescence(
         if state.is_capture(move):
             new_state = state.apply_action(move)
             new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(
-                -0.001, 0.001
+                -0.0001, 0.0001
             )
             score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
             stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
