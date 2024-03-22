@@ -5,7 +5,7 @@
   {
     "n_games": 300,
     "game_key": "minishogi",
-    "random_openings": 4,
+    "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {

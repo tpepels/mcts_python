@@ -103,6 +103,7 @@ class Node:
         children_lost: cython.short = 0
         children_draw: cython.short = 0
         ci: cython.short
+        my_value: cython.float = self.get_value_imm(self.player, imm_alpha, max_player)
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         # Move through the children to find the one with the highest UCT value
@@ -138,23 +139,25 @@ class Node:
                 if ab_p1 == 2:
                     # Use uct values for alpha/beta bounds
                     if ab_p2 != 1:
-                        if alpha <= child_value <= beta:
-                            uct_val += beta
-                        elif child_value < alpha:
-                            uct_val += alpha_bounds
-                        elif child_value > beta:
-                            uct_val += -beta_bounds
-                    elif ab_p2 != 2:
                         if alpha <= uct_val <= beta:
                             uct_val += beta
                         elif uct_val < alpha:
                             uct_val += alpha_bounds
                         elif uct_val > beta:
                             uct_val += -beta_bounds
+                    elif ab_p2 != 2:
+                        if alpha <= uct_val <= beta:
+                            uct_val += my_value
+                        elif uct_val < alpha:
+                            uct_val += alpha_bounds
+                        elif uct_val > beta:
+                            uct_val += -beta_bounds
                     ab_bound += 1
                 elif ab_p1 == 1:
+
                     # Imm values are between -1 and 1, they need to be scaled to 0 - 1
                     k: cython.float = beta - alpha
+
                     if k > 0:
                         imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
                         # A higher reward for wide bounds
