@@ -159,32 +159,33 @@ class Node:
                     ab_bound += 1
                 elif ab_p1 == 1:
                     k: cython.float = beta - alpha
-                    if k > 0:
-                        imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
-                        c_v: cython.float = child.v[self.player - 1] / child.n_visits
-                        if ab_p2 == 1:
-                            # A higher reward for wide bounds
-                            if alpha < imm_val < beta:
-                                # Give imm a higher value
-                                child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val + k))
-                                ab_bound += 1
-                            else:
-                                # Give imm a lower value
-                                child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val - k))
-                                ab_bound += 1
-                        elif ab_p2 == 2:
-                            # A higher reward for wide bounds
-                            if alpha < imm_val < beta:
-                                child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * imm_val)
-                                ab_bound += 1
-                            else:
-                                # The imm value is not reliable, so use the simulation mean only
-                                child_value = c_v
-                                ab_bound += 1
 
-                        uct_val = child_value + (c * confidence_i)
+                    imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
+                    c_v: cython.float = child.v[self.player - 1] / child.n_visits
+                    if ab_p2 == 1 and k > 0:
+                        # A higher reward for wide bounds
+                        if alpha < imm_val < beta:
+                            # Give imm a higher value
+                            child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val + k))
+                            ab_bound += 1
+                        else:
+                            # Give imm a lower value
+                            child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val - k))
+                            ab_bound += 1
+                    elif ab_p2 == 2:
+                        # A higher reward for wide bounds
+                        if alpha < imm_val < beta:
+                            child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * imm_val)
+                            ab_bound += 1
+                        else:
+                            # The imm value is not reliable, so use the simulation mean only
+                            child_value = c_v
+                            ab_bound += 1
                     else:
                         ucb_bound += 1
+
+                    # In case child_value has changed, recalculate the uct value
+                    uct_val = child_value + (c * confidence_i)
             else:
                 ucb_bound += 1
 
