@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 300,
+    "n_games": 400,
     "game_key": "amazons",
     "random_openings": 2,
     "game_params": {
@@ -9,17 +9,19 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_p1": [2],
-      "ab_p2": [1, 2],
-      "c": 0.05,
-      "imm_alpha": [0.6, 0.7, 0.8],
+      "ab_p1": 1,
+      "ab_p2": 1,
+      "c": [0.1, 0.2, 0.3],
+      "imm_alpha": [0.4, 0.5, 0.6, 0.7],
       "name": "exp_uct"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 200000,
-      "name": "base_uct"
+      "name": "base_uct",
+      "ab_p1": 1,
+      "ab_p2": 1
     },
     "p2_eval_params": {}
   }
