@@ -138,35 +138,50 @@ class Node:
             if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
                 if ab_p1 == 2:
                     # Use uct values for alpha/beta bounds
-                    if ab_p2 != 1:
+                    if ab_p2 == 1:
+
                         if alpha <= uct_val <= beta:
                             uct_val += beta
                         elif uct_val < alpha:
                             uct_val += alpha_bounds
                         elif uct_val > beta:
                             uct_val += -beta_bounds
-                    elif ab_p2 != 2:
+
+                    elif ab_p2 == 2:
+
                         if alpha <= uct_val <= beta:
                             uct_val += my_value
                         elif uct_val < alpha:
                             uct_val += alpha_bounds
                         elif uct_val > beta:
                             uct_val += -beta_bounds
+
                     ab_bound += 1
                 elif ab_p1 == 1:
-
-                    # Imm values are between -1 and 1, they need to be scaled to 0 - 1
                     k: cython.float = beta - alpha
-
                     if k > 0:
                         imm_val: cython.float = self.im_value if self.player == max_player else -self.im_value
-                        # A higher reward for wide bounds
-                        if alpha < imm_val < beta:
-                            uct_val += k
-                            ab_bound += 1
-                        else:
-                            uct_val -= k
-                            ab_bound += 1
+                        if ab_p2 == 1:
+                            c_v: cython.float = child.v[self.player - 1] / child.n_visits
+                            # A higher reward for wide bounds
+                            if alpha < imm_val < beta:
+                                # Give imm a higher value
+                                child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val + k))
+                                ab_bound += 1
+                            else:
+                                # Give imm a lower value
+                                child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val - k))
+                                ab_bound += 1
+                        elif ab_p2 == 2:
+                            # A higher reward for wide bounds
+                            if alpha < imm_val < beta:
+                                child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * imm_val)
+                                ab_bound += 1
+                            else:
+                                # The imm value is not reliable, so use the simulation mean only
+                                child_value = c_v
+                                ab_bound += 1
+                            uct_val = child_value + (c * confidence_i)
                     else:
                         ucb_bound += 1
             else:
@@ -181,7 +196,7 @@ class Node:
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
             # Find the highest UCT value
-            if uct_val + rand_fact >= best_val:
+            if (uct_val + rand_fact) >= best_val:
                 selected_child = child
                 best_val = uct_val
 
@@ -198,6 +213,7 @@ class Node:
             if self.solved_player == 0 or self.solved_player == self.player:
                 # There's only one move that does not lead to a loss. This is an anti-decisive move.
                 self.anti_decisive = 1
+
         # Proven draw
         elif children_draw == n_children:
             self.draw = 1
@@ -770,6 +786,7 @@ class MCTSPlayer:
                     # Check for new a/b bounds
                     if self.ab_p1 == 2:
                         if node.n_visits > 0 and prev_node is not None:
+
                             val, bound = node.get_value_with_uct_interval(
                                 c=self.c,
                                 player=self.player,
