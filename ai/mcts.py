@@ -169,11 +169,11 @@ class Node:
                         # A higher reward for wide bounds
                         if alpha < imm_val < beta:
                             # Give imm a higher value
-                            child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val + k))
+                            child_value += k
                             ab_bound += 1
                         else:
                             # Give imm a lower value
-                            child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * (imm_val - k))
+                            child_value -= k
                             ab_bound += 1
                     elif ab_p2 == 2:
                         # A higher reward for wide bounds
@@ -792,9 +792,7 @@ class MCTSPlayer:
                 if self.ab_p1 != 0:
                     # Check for new a/b bounds
                     if self.ab_p1 == 2:
-
                         if node.n_visits > 0 and prev_node is not None:
-
                             val, bound = node.get_value_with_uct_interval(
                                 c=self.c,
                                 player=self.player,
@@ -824,6 +822,7 @@ class MCTSPlayer:
                             ab_child: Node = node.children[i]
                             # Use the imm values to update the bounds
                             if ab_child.im_value > alpha and ab_child.im_value < beta:
+
                                 if node.player == self.player:
                                     alpha = max(alpha, ab_child.im_value)
                                 else:
