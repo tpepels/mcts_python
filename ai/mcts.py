@@ -107,13 +107,18 @@ class Node:
 
         if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
             k: cython.float = beta - alpha
-            
-            # Special case for ab_p1 = 1 and ab_p2 = 2
+            # TODO For some reason with ab_p1 beta is always smaller than alpha
+
+            # Special case for ab_p1 = 1 / ab_p2 = 2
             if ab_p1 == 1 and ab_p2 == 2:
                 k *= 1 - (beta_bounds - alpha_bounds)
 
-            k = k * k_factor
-            c *= k
+            if k != 0:
+                # TODO Hier was je gebleven...
+                k = k_factor * sqrt(log((1 + k) * p_n))
+                # if p_n < 10:
+                #     print(f"{(beta - alpha)} -> k: {k}")
+                c *= k
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short
@@ -146,10 +151,10 @@ class Node:
             child_value: cython.float = child.get_value_imm(self.player, imm_alpha, max_player)
 
             # change the influence of imm based on the k factor
-            if ab_p1 == 1 and ab_p2 == 2 and alpha != -INFINITY and beta != INFINITY:
-                imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
-                # let the k factor determine the imm_alpha
-                child_value = (1.0 - (k * imm_alpha)) * (child.v[self.player - 1] / c_n) + ((k * imm_alpha) * imm_val)
+            # if ab_p1 == 1 and ab_p2 == 2 and alpha != -INFINITY and beta != INFINITY:
+            #     imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
+            #     # let the k factor determine the imm_alpha
+            #     child_value = (1.0 - (k * imm_alpha)) * (child.v[self.player - 1] / c_n) + ((k * imm_alpha) * imm_val)
 
             uct_val = child_value + (c * confidence_i)
 

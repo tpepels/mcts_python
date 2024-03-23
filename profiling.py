@@ -140,16 +140,16 @@ else:
     ai_1_params = {
         "num_simulations": 100000,
         "debug": args.debug,
-        "ab_p1": 1,
+        "ab_p1": 2,
         "ab_p2": 1,
-        "k_factor": -15,
+        "k_factor": 1,
     }
     ai_2_params = {
         "num_simulations": 100000,
         "debug": args.debug,
-        "ab_p1": 1,
-        "ab_p2": 2,
-        "k_factor": -30,
+        "ab_p1": 2,
+        "ab_p2": 1,
+        "k_factor": 0.5,
     }
 
     p1_params = AIParams(

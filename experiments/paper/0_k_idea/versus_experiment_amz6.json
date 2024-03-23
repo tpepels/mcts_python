@@ -12,9 +12,9 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_p1": [1],
+      "ab_p1": 2,
       "ab_p2": [1, 2],
-      "k_factor": [-40, -35, -30, -20, -15],
+      "k_factor": [0.5, 1, 1.5],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
