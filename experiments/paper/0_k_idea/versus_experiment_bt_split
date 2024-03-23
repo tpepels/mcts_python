@@ -1,0 +1,26 @@
+[
+  {
+    "top_n": 3
+  },
+  {
+    "n_games": 500,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 200000,
+      "ab_p1": [1, 2],
+      "ab_p2": [1, 2],
+      "k_factor": [-40, -35, -30, -20, -15],
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 200000,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  }
+]

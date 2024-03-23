@@ -99,16 +99,24 @@ class Node:
         global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
-        best_val: cython.float = -INFINITY
+        best_val: cython.double = -INFINITY
         child_value: cython.float
         children_lost: cython.short = 0
         children_draw: cython.short = 0
-        ci: cython.short
-
-        my_value: cython.float = self.get_value_imm(self.player, imm_alpha, max_player)
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
 
+        if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
+            k: cython.float = beta - alpha
+            
+            # Special case for ab_p1 = 1 and ab_p2 = 2
+            if ab_p1 == 1 and ab_p2 == 2:
+                k *= 1 - (beta_bounds - alpha_bounds)
+
+            k = k * k_factor
+            c *= k
+
         # Move through the children to find the one with the highest UCT value
+        ci: cython.short
         for ci in range(n_children):
             child: Node = self.children[ci]
             # ! A none exception could happen in case there's a mistake in how the children are added to the list in expand
@@ -133,44 +141,19 @@ class Node:
                 children_draw += 1
 
             # if imm_alpha is 0, then this is just the simulation mean
+            uct_val: cython.double
+            confidence_i: cython.double = sqrt(log(p_n) / c_n)
             child_value: cython.float = child.get_value_imm(self.player, imm_alpha, max_player)
-            confidence_i: cython.float = sqrt(log(p_n) / c_n)
-            uct_val: cython.float = child_value + (c * confidence_i)
 
-            if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
-                k: cython.float = beta - alpha
-                # there are two possibilities.
-                # 1. K > 0 -> we are on the principle variation
-                # 2. K <= 0 we are not on the principle variation
-                if ab_p1 == 2:
-                    # Use uct values for alpha/beta bounds
-                    if ab_p2 == 1:
-                        k *= k_factor
-                        uct_val = child_value + (k * c * confidence_i)
-                        ab_bound += 1
-                    elif ab_p2 == 2:
-                        # Modify k based on the uncertainty of alpha and beta (alpha and beta bounds)
-                        k *= k_factor * (1 - (beta_bounds - alpha_bounds))
-                        uct_val = child_value + (k * c * confidence_i)
-                        ab_bound += 1
+            # change the influence of imm based on the k factor
+            if ab_p1 == 1 and ab_p2 == 2 and alpha != -INFINITY and beta != INFINITY:
+                imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
+                # let the k factor determine the imm_alpha
+                child_value = (1.0 - (k * imm_alpha)) * (child.v[self.player - 1] / c_n) + ((k * imm_alpha) * imm_val)
 
-                elif ab_p1 == 1:
+            uct_val = child_value + (c * confidence_i)
 
-                    if ab_p2 == 1:
-                        k *= k_factor
-                        uct_val = child_value + (k * c * confidence_i)
-                        ab_bound += 1
-                    if ab_p2 == 2:
-                        imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
-                        c_v: cython.float = child.v[self.player - 1] / c_n
-
-                        k *= k_factor
-                        # let the k factor determine the imm_alpha
-                        child_value = (1.0 - (k * imm_alpha)) * c_v + ((k * imm_alpha) * imm_val)
-                        uct_val = child_value + (c * confidence_i)
-                        ab_bound += 1
-            else:
-                ucb_bound += 1
+            # print("UCT value: ", uct_val)
 
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
@@ -180,6 +163,7 @@ class Node:
             ), f"UCT value is NaN! {child_value=} {confidence_i=}.\nNode: {str(self)}\nChild: {str(child)}"
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
+
             # Find the highest UCT value
             if (uct_val + rand_fact) >= best_val:
                 selected_child = child
@@ -202,7 +186,7 @@ class Node:
         # Proven draw
         elif children_draw == n_children:
             self.draw = 1
-
+        assert selected_child is not None, f"No child selected in UCT! {str(self)}"
         return selected_child
 
     @cython.cfunc
@@ -833,9 +817,9 @@ class MCTSPlayer:
                             ab_p2=self.ab_p2,
                             alpha=alpha if node.player == self.player else 1 - beta,
                             beta=beta if node.player == self.player else 1 - alpha,
+                            k_factor=self.k_factor,
                             alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                             beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
-                            k_factor=self.k_factor,
                         )
 
                     elif self.ab_p1 == 1:
