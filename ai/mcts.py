@@ -90,6 +90,7 @@ class Node:
         ab_p2: cython.short = 0,
         alpha: cython.float = -INFINITY,
         beta: cython.float = INFINITY,
+        k_factor: cython.float = 1.0,
         alpha_bounds: cython.float = 0.0,
         beta_bounds: cython.float = 0.0,
     ) -> Node:
@@ -137,86 +138,37 @@ class Node:
             uct_val: cython.float = child_value + (c * confidence_i)
 
             if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
+                k: cython.float = beta - alpha
+                # there are two possibilities.
+                # 1. K > 0 -> we are on the principle variation
+                # 2. K <= 0 we are not on the principle variation
                 if ab_p1 == 2:
                     # Use uct values for alpha/beta bounds
                     if ab_p2 == 1:
-
-                        if alpha <= uct_val <= beta:
-                            uct_val += beta
-                        elif uct_val < alpha:
-                            uct_val += alpha_bounds
-                        elif uct_val > beta:
-                            uct_val += -beta_bounds
-
+                        k *= k_factor
+                        uct_val = child_value + (k * c * confidence_i)
+                        ab_bound += 1
                     elif ab_p2 == 2:
-
-                        if alpha <= uct_val <= beta:
-                            uct_val += my_value  # * Add the value of the node to the uct value
-                        elif uct_val < alpha:
-                            uct_val += alpha_bounds
-                        elif uct_val > beta:
-                            uct_val += -beta_bounds
-
-                    ab_bound += 1
+                        # Modify k based on the uncertainty of alpha and beta (alpha and beta bounds)
+                        k *= k_factor * (1 - (beta_bounds - alpha_bounds))
+                        uct_val = child_value + (k * c * confidence_i)
+                        ab_bound += 1
 
                 elif ab_p1 == 1:
 
-                    k: cython.float = beta - alpha
-                    imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
-                    # c_v: cython.float =
+                    if ab_p2 == 1:
+                        k *= k_factor
+                        uct_val = child_value + (k * c * confidence_i)
+                        ab_bound += 1
+                    if ab_p2 == 2:
+                        imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
+                        c_v: cython.float = child.v[self.player - 1] / c_n
 
-                    if ab_p2 == 1 and k > 0:
-                        # A higher reward for wide bounds
-                        if alpha < imm_val < beta:
-                            # Give imm a higher value
-                            child_value += k
-                            ab_bound += 1
-                        else:
-                            # Give imm a lower value
-                            child_value -= k
-                            ab_bound += 1
-
-                    elif ab_p2 == 2:
-                        # A higher reward for wide bounds
-                        if alpha < imm_val < beta:
-                            child_value += k
-                        elif imm_val < alpha:
-                            child_value -= alpha - imm_val
-                            ab_bound += 1
-                        elif imm_val > beta:
-                            child_value -= imm_val - beta
-                            ab_bound += 1
-
-                    elif ab_p2 == 3:
-                        # A higher reward for wide bounds
-                        if alpha <= imm_val <= beta:
-                            child_value += imm_alpha * k
-                        elif imm_val < alpha:
-                            child_value -= imm_alpha * (alpha - imm_val)
-                            ab_bound += 1
-                        elif imm_val > beta:
-                            child_value -= imm_alpha * (imm_val - beta)
-                            ab_bound += 1
-
-                    elif ab_p2 == 4:
-                        # A higher reward for wide bounds
-                        if alpha <= imm_val <= beta:
-                            imm_val += k
-                        elif imm_val < alpha:
-                            imm_val -= abs(alpha - imm_val)
-                            ab_bound += 1
-                        elif imm_val > beta:
-                            imm_val -= abs(imm_val - beta)
-                            ab_bound += 1
-
-                        child_value = ((1 - imm_alpha) * (child.v[self.player - 1] / child.n_visits)) + (
-                            imm_alpha * imm_val
-                        )
-                    else:
-                        ucb_bound += 1
-
-                    # In case child_value has changed, recalculate the uct value
-                    uct_val = child_value + (c * confidence_i)
+                        k *= k_factor
+                        # let the k factor determine the imm_alpha
+                        child_value = (1.0 - (k * imm_alpha)) * c_v + ((k * imm_alpha) * imm_val)
+                        uct_val = child_value + (c * confidence_i)
+                        ab_bound += 1
             else:
                 ucb_bound += 1
 
@@ -505,6 +457,7 @@ class MCTSPlayer:
     # Research additions
     ab_p1: cython.short
     ab_p2: cython.short
+    k_factor: cython.float
 
     def __init__(
         self,
@@ -523,6 +476,7 @@ class MCTSPlayer:
         imm_alpha: float = 0.0,
         ab_p1: int = 0,
         ab_p2: int = 0,
+        k_factor: float = 1.0,
         pb_weight: float = 0.0,
         reuse_tree: bool = True,
         debug: bool = False,
@@ -576,6 +530,7 @@ class MCTSPlayer:
 
         self.ab_p1 = ab_p1
         self.ab_p2 = ab_p2
+        self.k_factor = k_factor
 
         self.reuse_tree = reuse_tree
         self.random_top = random_top
@@ -828,32 +783,28 @@ class MCTSPlayer:
                                 N=prev_node.n_visits,
                             )
 
-                            if val - bound > alpha and val + bound < beta:
-                                if prev_node.player == self.player:
-                                    old_alpha: cython.float = alpha  # Store the old value of alpha
-                                    alpha = max(alpha, val - bound)
-                                    # Check if alpha was actually updated by comparing old and new values
-                                    if alpha > old_alpha:
-                                        alpha_bounds = -bound
-
-                                else:
-                                    old_beta: cython.float = beta  # Store the old value of beta
-                                    beta = min(beta, val + bound)
-                                    # Check if beta was actually updated by comparing old and new values
-                                    if beta < old_beta:
-                                        beta_bounds = bound
+                            if prev_node.player == self.player:
+                                old_alpha: cython.float = alpha  # Store the old value of alpha
+                                alpha = max(alpha, val - bound)
+                                # Check if alpha was actually updated by comparing old and new values
+                                if alpha > old_alpha:
+                                    alpha_bounds = -bound
+                            else:
+                                old_beta: cython.float = beta  # Store the old value of beta
+                                beta = min(beta, val + bound)
+                                # Check if beta was actually updated by comparing old and new values
+                                if beta < old_beta:
+                                    beta_bounds = bound
 
                     elif self.ab_p1 == 1:
                         # Check siblings for new ab bounds
                         for i in range(len(node.children)):
                             ab_child: Node = node.children[i]
                             # Use the imm values to update the bounds
-                            if ab_child.im_value > alpha and ab_child.im_value < beta:
-
-                                if node.player == self.player:
-                                    alpha = max(alpha, ab_child.im_value)
-                                else:
-                                    beta = min(beta, ab_child.im_value)
+                            if node.player == self.player:
+                                alpha = max(alpha, ab_child.im_value)
+                            else:
+                                beta = min(beta, ab_child.im_value)
 
                     prev_node = node
                     if __debug__:
@@ -884,6 +835,7 @@ class MCTSPlayer:
                             beta=beta if node.player == self.player else 1 - alpha,
                             alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                             beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
+                            k_factor=self.k_factor,
                         )
 
                     elif self.ab_p1 == 1:
@@ -897,6 +849,7 @@ class MCTSPlayer:
                             ab_p2=self.ab_p2,
                             alpha=alpha if node.player == self.player else -beta,
                             beta=beta if node.player == self.player else -alpha,
+                            k_factor=self.k_factor,
                         )
 
                 else:
