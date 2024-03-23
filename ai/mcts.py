@@ -163,7 +163,7 @@ class Node:
 
                     k: cython.float = beta - alpha
                     imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
-                    # c_v: cython.float = child.v[self.player - 1] / child.n_visits
+                    # c_v: cython.float =
 
                     if ab_p2 == 1 and k > 0:
                         # A higher reward for wide bounds
@@ -189,7 +189,7 @@ class Node:
 
                     elif ab_p2 == 3:
                         # A higher reward for wide bounds
-                        if alpha < imm_val < beta:
+                        if alpha <= imm_val <= beta:
                             child_value += imm_alpha * k
                         elif imm_val < alpha:
                             child_value -= imm_alpha * (alpha - imm_val)
@@ -197,6 +197,21 @@ class Node:
                         elif imm_val > beta:
                             child_value -= imm_alpha * (imm_val - beta)
                             ab_bound += 1
+
+                    elif ab_p2 == 4:
+                        # A higher reward for wide bounds
+                        if alpha <= imm_val <= beta:
+                            imm_val += k
+                        elif imm_val < alpha:
+                            imm_val -= abs(alpha - imm_val)
+                            ab_bound += 1
+                        elif imm_val > beta:
+                            imm_val -= abs(imm_val - beta)
+                            ab_bound += 1
+
+                        child_value = ((1 - imm_alpha) * (child.v[self.player - 1] / child.n_visits)) + (
+                            imm_alpha * imm_val
+                        )
                     else:
                         ucb_bound += 1
 
