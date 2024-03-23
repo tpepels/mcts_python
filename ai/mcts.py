@@ -163,7 +163,7 @@ class Node:
 
                     k: cython.float = beta - alpha
                     imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
-                    c_v: cython.float = child.v[self.player - 1] / child.n_visits
+                    # c_v: cython.float = child.v[self.player - 1] / child.n_visits
 
                     if ab_p2 == 1 and k > 0:
                         # A higher reward for wide bounds
@@ -175,16 +175,27 @@ class Node:
                             # Give imm a lower value
                             child_value -= k
                             ab_bound += 1
+
                     elif ab_p2 == 2:
                         # A higher reward for wide bounds
                         if alpha < imm_val < beta:
-                            # Use the regular imm value combined with the simulation mean
-                            # child_value already has this value
-                            # * child_value = ((1.0 - imm_alpha) * c_v) + (imm_alpha * imm_val)
-                            pass
-                        else:
-                            # The imm value is not reliable, so use the simulation mean only
-                            child_value = c_v
+                            child_value += k
+                        elif imm_val < alpha:
+                            child_value -= alpha - imm_val
+                            ab_bound += 1
+                        elif imm_val > beta:
+                            child_value -= imm_val - beta
+                            ab_bound += 1
+
+                    elif ab_p2 == 3:
+                        # A higher reward for wide bounds
+                        if alpha < imm_val < beta:
+                            child_value += imm_alpha * k
+                        elif imm_val < alpha:
+                            child_value -= imm_alpha * (alpha - imm_val)
+                            ab_bound += 1
+                        elif imm_val > beta:
+                            child_value -= imm_alpha * (imm_val - beta)
                             ab_bound += 1
                     else:
                         ucb_bound += 1
@@ -793,6 +804,7 @@ class MCTSPlayer:
                     # Check for new a/b bounds
                     if self.ab_p1 == 2:
                         if node.n_visits > 0 and prev_node is not None:
+
                             val, bound = node.get_value_with_uct_interval(
                                 c=self.c,
                                 player=self.player,
@@ -845,6 +857,7 @@ class MCTSPlayer:
                             dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
 
                     if self.ab_p1 == 2:
+
                         node = node.uct(
                             self.c,
                             self.player,
@@ -857,7 +870,9 @@ class MCTSPlayer:
                             alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                             beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
                         )
+
                     elif self.ab_p1 == 1:
+
                         node = node.uct(
                             self.c,
                             self.player,
@@ -868,7 +883,9 @@ class MCTSPlayer:
                             alpha=alpha if node.player == self.player else -beta,
                             beta=beta if node.player == self.player else -alpha,
                         )
+
                 else:
+
                     node = node.uct(self.c, self.player, self.pb_weight, self.imm_alpha)
 
                 assert node is not None, f"Node is None after UCT {prev_node}"
