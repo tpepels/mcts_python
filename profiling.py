@@ -141,14 +141,14 @@ else:
         "num_simulations": 100000,
         "debug": args.debug,
         "ab_p1": 2,
-        "ab_p2": 1,
+        "ab_p2": 3,
         "k_factor": 1,
     }
     ai_2_params = {
         "num_simulations": 100000,
         "debug": args.debug,
         "ab_p1": 2,
-        "ab_p2": 1,
+        "ab_p2": 3,
         "k_factor": 0.5,
     }
 

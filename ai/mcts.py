@@ -111,9 +111,10 @@ class Node:
             if ab_p1 == 2 and ab_p2 == 2:
                 k *= 1 - (beta_bounds - alpha_bounds)
 
-            if k != 0:
-                k = k_factor * sqrt(log((1 + k) * p_n))
-                c *= k
+            if ab_p1 == 2:
+                if k != 0:
+                    k = k_factor * sqrt(log((1 + k) * p_n))
+                    c *= k
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short
@@ -142,6 +143,9 @@ class Node:
 
             # if imm_alpha is 0, then this is just the simulation mean
             uct_val: cython.double
+            if ab_p1 == 2 and ab_p2 == 3 and alpha != -INFINITY and beta != INFINITY:
+                c_n *= k_factor * (1 + (beta - alpha))
+
             confidence_i: cython.double = sqrt(log(p_n) / c_n)
             child_value: cython.float = child.get_value_imm(self.player, imm_alpha, max_player)
 
