@@ -96,25 +96,25 @@ class Node:
     ) -> Node:
         n_children: cython.Py_ssize_t = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        global ucb_bound, ab_bound
+        # global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
-        child_value: cython.float
         children_lost: cython.short = 0
         children_draw: cython.short = 0
+
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
-        k: cython.float = beta - alpha
 
         if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
-            # Special case for ab_p1 = 1 / ab_p2 = 2
-            if ab_p1 == 2 and ab_p2 == 2:
-                k *= 1 - (beta_bounds - alpha_bounds)
 
-            if ab_p1 == 2:
-                if k != 0:
-                    k = k_factor * sqrt(log((1 + k) * p_n))
-                    c *= k
+            k: cython.float = beta - alpha
+
+            if ab_p1 == 2 and k != 0:
+                if ab_p2 == 2:
+                    k *= 1 - (beta_bounds - alpha_bounds)
+
+                k = k_factor * sqrt(log((1 + k) * p_n))
+                c *= k
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short
@@ -141,30 +141,14 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            # if imm_alpha is 0, then this is just the simulation mean
-            uct_val: cython.double
-            if ab_p1 == 2 and ab_p2 == 3 and alpha != -INFINITY and beta != INFINITY:
-                c_n *= k_factor * (1 + (beta - alpha))
-
-            confidence_i: cython.double = sqrt(log(p_n) / c_n)
-            child_value: cython.float = child.get_value_imm(self.player, imm_alpha, max_player)
-
-            # change the influence of imm based on the k factor
-            # if ab_p1 == 1 and ab_p2 == 2 and alpha != -INFINITY and beta != INFINITY:
-            #     imm_val: cython.float = child.im_value if self.player == max_player else -child.im_value
-            #     # let the k factor determine the imm_alpha
-            #     child_value = (1.0 - (k * imm_alpha)) * (child.v[self.player - 1] / c_n) + ((k * imm_alpha) * imm_val)
-
-            uct_val = child_value + (c * confidence_i)
-
-            # print("UCT value: ", uct_val)
+            uct_val: cython.double = child.get_value_imm(self.player, imm_alpha, max_player) + (
+                c * sqrt(log(p_n) / c_n)
+            )
 
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
 
-            assert not isnan(
-                uct_val
-            ), f"UCT value is NaN! {child_value=} {confidence_i=}.\nNode: {str(self)}\nChild: {str(child)}"
+            assert not isnan(uct_val), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}"
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
 
@@ -190,7 +174,9 @@ class Node:
         # Proven draw
         elif children_draw == n_children:
             self.draw = 1
+
         assert selected_child is not None, f"No child selected in UCT! {str(self)}"
+
         return selected_child
 
     @cython.cfunc
@@ -267,7 +253,7 @@ class Node:
                         params=eval_params,
                     ) + uniform(-0.00001, 0.00001)
                     child.n_visits += 1
-                    # This means that player 2 is minimizing the evaluated value and player 1 is maximizing it
+
                     if (self.player != max_player and child.im_value < self.im_value) or (
                         self.player == max_player and child.im_value > self.im_value
                     ):
@@ -788,11 +774,12 @@ class MCTSPlayer:
                         # Check siblings for new ab bounds
                         for i in range(len(node.children)):
                             ab_child: Node = node.children[i]
-                            # Use the imm values to update the bounds
-                            if node.player == self.player:
-                                alpha = max(alpha, ab_child.im_value)
-                            else:
-                                beta = min(beta, ab_child.im_value)
+                            if node.im_value > alpha and node.im_value < beta:
+                                # Use the imm values to update the bounds
+                                if node.player == self.player:
+                                    alpha = max(alpha, ab_child.im_value)
+                                else:
+                                    beta = min(beta, ab_child.im_value)
 
                     prev_node = node
                     if __debug__:
