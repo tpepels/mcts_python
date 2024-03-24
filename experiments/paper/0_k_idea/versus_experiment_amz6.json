@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 1000,
+    "n_games": 1500,
     "game_key": "amazons",
     "random_openings": 2,
     "game_params": {
@@ -11,7 +11,7 @@
       "num_simulations": 200000,
       "ab_p1": 2,
       "ab_p2": [1, 2],
-      "k_factor": 0.2,
+      "k_factor": [0.1, 0.2, 0.3],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
