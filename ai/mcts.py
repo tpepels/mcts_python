@@ -104,20 +104,15 @@ class Node:
         children_lost: cython.short = 0
         children_draw: cython.short = 0
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
+        k: cython.float = beta - alpha
 
         if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
-            k: cython.float = beta - alpha
-            # TODO For some reason with ab_p1 beta is always smaller than alpha
-
             # Special case for ab_p1 = 1 / ab_p2 = 2
-            if ab_p1 == 1 and ab_p2 == 2:
+            if ab_p1 == 2 and ab_p2 == 2:
                 k *= 1 - (beta_bounds - alpha_bounds)
 
             if k != 0:
-                # TODO Hier was je gebleven...
                 k = k_factor * sqrt(log((1 + k) * p_n))
-                # if p_n < 10:
-                #     print(f"{(beta - alpha)} -> k: {k}")
                 c *= k
 
         # Move through the children to find the one with the highest UCT value

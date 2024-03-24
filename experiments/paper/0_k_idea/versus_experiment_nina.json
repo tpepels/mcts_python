@@ -1,6 +1,6 @@
 [
   {
-    "top_n": 3
+    "top_n": 2
   },
   {
     "n_games": 500,
@@ -12,7 +12,7 @@
       "num_simulations": 200000,
       "ab_p1": 2,
       "ab_p2": [1, 2],
-      "k_factor": [0.5, 1, 1.5],
+      "k_factor": [0.2, 0.4, 0.6, 0.8],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
