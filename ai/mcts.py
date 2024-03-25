@@ -25,12 +25,13 @@ playout_draws: cython.int = 0
 
 if __debug__:
     dynamic_bins: cython.dict = {}
-    n_bins: cython.short = 30
+    n_bins: cython.short = 15
     dynamic_bins["alpha"] = {"bin": DynamicBin(n_bins), "label": "alpha values"}
     dynamic_bins["beta"] = {"bin": DynamicBin(n_bins), "label": "beta values"}
     dynamic_bins["alpha_bounds"] = {"bin": DynamicBin(n_bins), "label": "alpha bounds"}
     dynamic_bins["beta_bounds"] = {"bin": DynamicBin(n_bins), "label": "beta bounds"}
     dynamic_bins["k"] = {"bin": DynamicBin(n_bins), "label": "k"}
+    dynamic_bins["k_comp"] = {"bin": DynamicBin(n_bins), "label": "k_factor * sqrt(log((1 + k) * p_n))"}
 
 
 @cython.cfunc
@@ -96,7 +97,7 @@ class Node:
     ) -> Node:
         n_children: cython.Py_ssize_t = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        # global ucb_bound, ab_bound
+        global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
@@ -107,14 +108,21 @@ class Node:
 
         if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
 
-            k: cython.float = beta - alpha
+            # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
+            k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
 
-            if ab_p1 == 2 and k != 0:
-                if ab_p2 == 2:
-                    k *= 1 - (beta_bounds - alpha_bounds)
-
+            if k != 0:
                 k = k_factor * sqrt(log((1 + k) * p_n))
+
+                if __debug__:  # Add the value to the dynamic bin
+                    dynamic_bins["k_comp"].get("bin").add_data(k)
+
+                ab_bound += 1
                 c *= k
+            else:
+                ucb_bound += 1
+        else:
+            ucb_bound += 1
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short

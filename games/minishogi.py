@@ -1151,9 +1151,10 @@ class MiniShogi(GameState):
         "m_material": 3,
         "m_dominance": 4,
         "m_defenses": 5,
-        "a": 6,
+        "m_occurrence": 6,
+        "a": 7,
     }
-    default_params = array.array("d", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 200.0])
+    default_params = array.array("d", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1197,14 +1198,9 @@ class MiniShogi(GameState):
             )
 
             if self.board[to_row, to_col] != 0:
-                if not is_defense:
-                    attacks += multip * MATERIAL[cython.cast(cython.short, self.board[to_row, to_col])]
-                else:
-                    # print(f"{piece} is defending {self.board[to_row, to_col]} at {to_row},{to_col}")
-                    defenses += multip * MATERIAL[cython.cast(cython.short, self.board[to_row, to_col])]
+                attacks += multip * MATERIAL[cython.cast(cython.short, self.board[to_row, to_col])]
 
-            elif not is_defense:
-                board_control += multip
+            board_control += multip
 
             return False
 
@@ -1217,7 +1213,7 @@ class MiniShogi(GameState):
                     )
                     material_score += multip * MATERIAL[cython.cast(cython.short, piece)]
                     self._generate_moves(
-                        row, col, self.board[row, col], callback, count_defense=params[5] > 0, randomize=False
+                        row, col, self.board[row, col], callback, count_defense=False, randomize=False
                     )
 
         captured_pieces_player: cython.list[cython.short] = (
@@ -1240,16 +1236,34 @@ class MiniShogi(GameState):
         elif self.check and player != self.player:
             score = params[0]
 
+        occ_score: cython.float = 0
+        occurrences: cython.short = self.state_occurrences.get(self.board_hash, 0)
+        if occurrences > 1:
+            if self.check:
+                # For repeated check positions, the opponent loses after 3 repetitions, so it can work for the player to move to force them
+                if self.player == player:
+                    occ_score += occurrences**2
+                else:
+                    occ_score -= occurrences**2
+            else:
+                # player 2 wins after 4 repetitions
+                if self.player == 2:
+                    occ_score += occurrences**2
+                else:
+                    # player 1 loses after 4 repetitions
+                    occ_score -= occurrences**2
+
         score += (
             attacks * params[1]
             + captures * params[2]
             + material_score * params[3]
             + board_control * params[4]
             + defenses * params[5]
+            + occ_score * params[6]
         )
 
         if norm:
-            normalized_score = normalize(score, params[6])
+            normalized_score = normalize(score, params[7])
             return normalized_score
         else:
             return score
