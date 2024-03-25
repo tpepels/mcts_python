@@ -195,10 +195,10 @@ def play_n_random_moves(game: GameState, game_key: str, random_openings: int):
     rand_ai_params = {
         "num_simulations": num_simulations,
         "early_term_turns": 10,
-        "early_term_cutoff": 0.2,
-        "dyn_early_term_cutoff": 0,
+        "early_term_cutoff": 0.1,
+        "dyn_early_term_cutoff": 0.5,
         "c": 2,
-        "imm_alpha": 0.1,
+        "imm_alpha": 0.2,
         "random_top": 40,
         "reuse_tree": False,
     }

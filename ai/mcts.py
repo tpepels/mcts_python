@@ -21,7 +21,6 @@ prunes: cython.int = 0
 non_prunes: cython.int = 0
 ab_bound: cython.int = 0
 ucb_bound: cython.int = 0
-playout_draws: cython.int = 0
 
 if __debug__:
     dynamic_bins: cython.dict = {}
@@ -407,7 +406,7 @@ class MCTSPlayer:
     e_g_subset: cython.int
     early_term: cython.bint
     dyn_early_term: cython.bint
-    early_term_turns: cython.bint
+    early_term_turns: cython.int
     early_term_cutoff: cython.float
     e_greedy: cython.bint
     prog_bias: cython.bint
@@ -431,6 +430,8 @@ class MCTSPlayer:
     max_eval: cython.float
     # The average depth of the playouts, for science
     avg_po_moves: cython.float
+    playout_terminals: cython.int
+    playout_draws: cython.int
     # The average number of playouts per second
     avg_pos_ps: cython.float
     n_moves: cython.int
@@ -597,8 +598,8 @@ class MCTSPlayer:
                     counter = 0
 
         total_time: cython.long = curr_time() - start_time
-
-        self.avg_po_moves = self.avg_po_moves / (i + 1)
+        print(f"{self.avg_po_moves=}")
+        self.avg_po_moves = self.avg_po_moves / float(i + 1)
         self.avg_pos_ps += i / float(max(1, total_time))
         self.avg_depth = cython.cast(cython.int, self.avg_depth / (i + 1))
 
@@ -675,9 +676,9 @@ class MCTSPlayer:
             evaluation: cython.float = next_state.evaluate(params=self.eval_params, player=self.player, norm=False)
             norm_eval: cython.float = next_state.evaluate(params=self.eval_params, player=self.player, norm=True)
             self.max_eval = max(evaluation, self.max_eval)
-            global playout_draws
+
             print(
-                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {playout_draws}"
+                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws} | Terminal Playout: {self.playout_terminals}"
             )
             print(
                 f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
@@ -685,9 +686,11 @@ class MCTSPlayer:
             self.avg_po_moves = 0
             global prunes, non_prunes, ab_bound, ucb_bound
             print(
-                f"prunes: {prunes:,} | non prunes: {non_prunes:,} | % pruned: {(prunes / max(prunes + non_prunes, 1)) * 100:.2f}% | alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
+                f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
             )
-            ucb_bound = ab_bound = playout_draws = prunes = non_prunes = self.max_depth = self.avg_depth = 0
+            ucb_bound = ab_bound = self.playout_draws = prunes = non_prunes = self.max_depth = self.avg_depth = (
+                self.playout_terminals
+            ) = 0
             print("--*--" * 20)
             print(f":: {self.root} :: ")
             print(":: Children ::")
@@ -878,8 +881,7 @@ class MCTSPlayer:
             result = self.play_out(next_state)
             if __debug__:
                 if result == (0.5, 0.5):
-                    global playout_draws
-                    playout_draws += 1
+                    self.playout_draws += 1
         else:
             if node.solved_player == 0 and is_terminal:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
@@ -921,7 +923,6 @@ class MCTSPlayer:
     def play_out(self, state: GameState) -> cython.tuple[cython.float, cython.float]:
         turns: cython.short = 0
         while not state.is_terminal():
-            turns += 1
             # Early termination condition with a fixed number of turns
             if self.early_term and turns >= self.early_term_turns:
                 # ! This assumes symmetric evaluation functions centered around 0!
@@ -974,9 +975,10 @@ class MCTSPlayer:
                 best_action = state.get_random_action()
 
             state.apply_action_playout(best_action)
+            self.avg_po_moves += 1
+            turns += 1
 
-        self.avg_po_moves += turns
-
+        self.playout_terminals += 1
         # Map the result to the players
         res_tuple: cython.tuple[int, int] = state.get_result_tuple()
         # multiply all 1's by 1.3 to reward true wins
