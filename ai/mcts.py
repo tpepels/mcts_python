@@ -885,9 +885,9 @@ class MCTSPlayer:
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
                 result = next_state.get_result_tuple()
             elif node.solved_player == 1:
-                result = (1.0, 0.0)
+                result = (1.3, 0.0)
             elif node.solved_player == 2:
-                result = (0.0, 1.0)
+                result = (0.0, 1.3)
 
         # Keep track of the max depth of the tree
         self.max_depth = max(self.max_depth, len(selected))
@@ -978,7 +978,12 @@ class MCTSPlayer:
         self.avg_po_moves += turns
 
         # Map the result to the players
-        return state.get_result_tuple()
+        res_tuple: cython.tuple[int, int] = state.get_result_tuple()
+        # multiply all 1's by 1.3 to reward true wins
+        if res_tuple[0] == 1:
+            return (1.3, 0.0)
+        elif res_tuple[1] == 1:
+            return (0.0, 1.3)
 
     def print_cumulative_statistics(self) -> str:
         return ""
