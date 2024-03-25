@@ -329,7 +329,7 @@ class BreakthroughGameState(GameState):
                             position, new_position
                         )
 
-                        for _ in range(6):
+                        for _ in range(8):
                             all_moves.push_back(capture_pair)
 
                         if is_safe(new_position, self.player, self.board):

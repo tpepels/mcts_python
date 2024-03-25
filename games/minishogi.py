@@ -729,7 +729,7 @@ class MiniShogi(GameState):
             # print("No legal actions found for player " + str(self.player) + "\n" + self.visualize(True))
             # print(self.get_legal_actions())
             return None
-        print(" ")
+
         # assert len(moves) > 0, "No legal actions found for player " + str(self.player) + "\n" + self.visualize(True)
         return moves[randint(0, len(moves) - 1)]
 
