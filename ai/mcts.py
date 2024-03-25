@@ -678,19 +678,19 @@ class MCTSPlayer:
             self.max_eval = max(evaluation, self.max_eval)
 
             print(
-                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws} | Terminal Playout: {self.playout_terminals}"
+                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws:,} | Terminal Playout: {self.playout_terminals:,}"
             )
             print(
                 f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
             self.avg_po_moves = 0
-            global prunes, non_prunes, ab_bound, ucb_bound
+            global ab_bound, ucb_bound
             print(
                 f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
             )
-            ucb_bound = ab_bound = self.playout_draws = prunes = non_prunes = self.max_depth = self.avg_depth = (
-                self.playout_terminals
-            ) = 0
+            ucb_bound = ab_bound = 0
+            self.playout_draws = self.max_depth = self.avg_depth = 0
+            self.playout_terminals = 0
             print("--*--" * 20)
             print(f":: {self.root} :: ")
             print(":: Children ::")
@@ -928,6 +928,7 @@ class MCTSPlayer:
                 # ! This assumes symmetric evaluation functions centered around 0!
                 # * Figure out the a (max range) for each evaluation function
                 evaluation: cython.float = state.evaluate(params=self.eval_params, player=1, norm=True)
+
                 if evaluation >= self.early_term_cutoff:
                     return (1.0, 0.0)
                 elif evaluation < -self.early_term_cutoff:
@@ -975,10 +976,15 @@ class MCTSPlayer:
                 best_action = state.get_random_action()
 
             state.apply_action_playout(best_action)
+
             self.avg_po_moves += 1
             turns += 1
 
         self.playout_terminals += 1
+        # print("\n\n")
+        # print(turns)
+        # print(f"{state.visualize(True)}")
+        # input("Press Enter to continue...")
         # Map the result to the players
         res_tuple: cython.tuple[int, int] = state.get_result_tuple()
         # multiply all 1's by 1.3 to reward true wins

@@ -378,7 +378,7 @@ class MiniShogi(GameState):
         from_col=cython.short,
         to_row=cython.short,
         to_col=cython.short,
-        piece=cython.short,
+        piece=cython.char,
         captured_piece=cython.char,
         promoted_piece=cython.char,
     )
@@ -580,7 +580,7 @@ class MiniShogi(GameState):
     @cython.locals(
         row=cython.short,
         col=cython.short,
-        piece=cython.short,
+        piece=cython.char,
         player_piece_start=cython.short,
         player_piece_end=cython.short,
         from_row=cython.short,
@@ -600,7 +600,7 @@ class MiniShogi(GameState):
     def get_random_action(self) -> cython.tuple:
         assert self.winner <= -1, "Cannot get legal actions for a terminal state."
 
-        moves: cython.list = []
+        moves: cython.list[cython.tuple] = []
         player_piece_start, player_piece_end = (1, 10) if self.player == 1 else (11, 20)
 
         # Handle move and promotion actions
@@ -609,6 +609,7 @@ class MiniShogi(GameState):
                 piece = self.board[row, col]
                 # Piece belongs to the current player
                 if player_piece_start <= piece <= player_piece_end:
+                    # print(f"checking moves for piece {piece}")
                     # Check if the move is a promotion, promotion can never break check
                     if not self.check and self.is_promotion(row, piece):
                         move: cython.tuple[cython.int, cython.int, cython.int, cython.int] = (row, col, row, col)
@@ -627,67 +628,23 @@ class MiniShogi(GameState):
                             if piece >= 11:
                                 base_piece += P2_OFFS
 
-                                move_count: cython.int = (
-                                    move_indices[cython.cast(cython.short, base_piece + 1)]
-                                    - move_indices[cython.cast(cython.short, base_piece)]
-                                ) // 2
-                                start_random_idx: cython.int = randint(0, move_count - 1)
+                            move_count: cython.int = (
+                                move_indices[cython.cast(cython.short, base_piece + 1)]
+                                - move_indices[cython.cast(cython.short, base_piece)]
+                            ) // 2
 
-                                for i in range(move_count):
-                                    # Circular iteration using modulo
-                                    idx = (
-                                        move_indices[cython.cast(cython.short, base_piece)]
-                                        + ((start_random_idx + i) % move_count) * 2
-                                    )
-                                    new_row, new_col = row, col
+                            for i in range(move_count):
+                                # Circular iteration using modulo
+                                idx = move_indices[cython.cast(cython.short, base_piece)] + (i % move_count) * 2
+                                new_row, new_col = row, col
 
-                                    while 1:
-                                        new_row += flat_moves[idx]
-                                        new_col += flat_moves[idx + 1]
-
-                                        if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
-                                            player_piece_start <= self.board[new_row, new_col] <= player_piece_end
-                                        ):
-                                            break  # Out of bounds or own piece encountered
-
-                                        if not self.simulate_move_exposes_king(row, col, new_row, new_col):
-                                            move: cython.tuple[cython.int, cython.int, cython.int, cython.int] = (
-                                                row,
-                                                col,
-                                                new_row,
-                                                new_col,
-                                            )
-                                            if self.board[new_row, new_col] != 0:
-                                                moves.append(move)
-                                                moves.append(move)
-                                                moves.append(move)
-                                            else:
-                                                moves.append(move)
-
-                                        if self.board[new_row, new_col] != 0:
-                                            break  # Opposing piece encountered, stop extending
-
-                            if piece != 7 and piece != 9 and piece != 17 and piece != 19:
-                                # Logic for standard and limited one-square moves
-
-                                move_count: cython.int = (
-                                    move_indices[cython.cast(cython.short, piece + 1)]
-                                    - move_indices[cython.cast(cython.short, piece)]
-                                ) // 2
-                                start_random_idx: cython.int = randint(0, move_count - 1)
-
-                                for i in range(move_count):
-                                    idx = (
-                                        move_indices[cython.cast(cython.short, piece)]
-                                        + ((start_random_idx + i) % move_count) * 2
-                                    )
-                                    new_row = row + flat_moves[idx]
-                                    new_col = col + flat_moves[idx + 1]
-
+                                while 1:
+                                    new_row += flat_moves[idx]
+                                    new_col += flat_moves[idx + 1]
                                     if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
                                         player_piece_start <= self.board[new_row, new_col] <= player_piece_end
                                     ):
-                                        continue  # Out of bounds or own piece encountered
+                                        break  # Out of bounds or own piece encountered
 
                                     if not self.simulate_move_exposes_king(row, col, new_row, new_col):
                                         move: cython.tuple[cython.int, cython.int, cython.int, cython.int] = (
@@ -702,6 +659,41 @@ class MiniShogi(GameState):
                                             moves.append(move)
                                         else:
                                             moves.append(move)
+
+                                    if self.board[new_row, new_col] != 0:
+                                        break  # Opposing piece encountered, stop extending
+
+                        if piece != 7 and piece != 9 and piece != 17 and piece != 19:
+                            # Logic for standard and limited one-square moves
+
+                            move_count: cython.int = (
+                                move_indices[cython.cast(cython.short, piece + 1)]
+                                - move_indices[cython.cast(cython.short, piece)]
+                            ) // 2
+
+                            for i in range(move_count):
+                                idx = move_indices[cython.cast(cython.short, piece)] + (i % move_count) * 2
+                                new_row = row + flat_moves[idx]
+                                new_col = col + flat_moves[idx + 1]
+
+                                if not (0 <= new_row < 5 and 0 <= new_col < 5) or (
+                                    player_piece_start <= self.board[new_row, new_col] <= player_piece_end
+                                ):
+                                    continue  # Out of bounds or own piece encountered
+
+                                if not self.simulate_move_exposes_king(row, col, new_row, new_col):
+                                    move: cython.tuple[cython.int, cython.int, cython.int, cython.int] = (
+                                        row,
+                                        col,
+                                        new_row,
+                                        new_col,
+                                    )
+                                    if self.board[new_row, new_col] != 0:
+                                        moves.append(move)
+                                        moves.append(move)
+                                        moves.append(move)
+                                    else:
+                                        moves.append(move)
 
         # Handle drop actions
         captured_pieces: cython.list[cython.char] = (
@@ -734,8 +726,10 @@ class MiniShogi(GameState):
 
         if len(moves) == 0:
             self.winner = 3 - self.player
+            # print("No legal actions found for player " + str(self.player) + "\n" + self.visualize(True))
+            # print(self.get_legal_actions())
             return None
-
+        print(" ")
         # assert len(moves) > 0, "No legal actions found for player " + str(self.player) + "\n" + self.visualize(True)
         return moves[randint(0, len(moves) - 1)]
 
@@ -1489,7 +1483,7 @@ class MiniShogi(GameState):
 
     @cython.cfunc
     @cython.inline
-    def is_promotion(self, row: cython.short, piece: cython.short) -> cython.bint:
+    def is_promotion(self, row: cython.short, piece: cython.char) -> cython.bint:
         if piece % 2 == 1:
             return (row == 0 and 2 < piece < 10) or (piece > 12 and row == 4)
         return False
