@@ -1,7 +1,7 @@
 [
   {
     "n_games": 1500,
-    "game_key": "breakhrough",
+    "game_key": "breakthrough",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
