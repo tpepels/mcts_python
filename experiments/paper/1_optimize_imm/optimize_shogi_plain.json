@@ -2,20 +2,22 @@
   { "top_n": 2 },
   {
     "n_games": 400,
-    "game_key": "amazons",
+    "game_key": "minishogi",
     "random_openings": 2,
-    "game_params": { "board_size": 6 },
+    "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 200000,
-      "c": [0.1, 0.2, 0.3],
-      "imm_alpha": [0.4, 0.5, 0.6, 0.7],
+      "num_simulations": 100000,
+      "c": [0.2, 0.4, 0.6, 0.8],
+      "imm_alpha": [0.2, 0.4, 0.6, 0.8],
+      "early_term_turns": [5, 10, 15],
+      "early_term_cutoff": [0.1, 0.2, 0.3],
       "name": "exp_uct"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 200000,
+      "num_simulations": 100000,
       "name": "base_uct"
     },
     "p2_eval_params": {}

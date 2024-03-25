@@ -598,7 +598,7 @@ class MCTSPlayer:
                     counter = 0
 
         total_time: cython.long = curr_time() - start_time
-        print(f"{self.avg_po_moves=}")
+        # print(f"{self.avg_po_moves=}")
         self.avg_po_moves = self.avg_po_moves / float(i + 1)
         self.avg_pos_ps += i / float(max(1, total_time))
         self.avg_depth = cython.cast(cython.int, self.avg_depth / (i + 1))
