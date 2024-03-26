@@ -294,8 +294,7 @@ def print_last_rows_pretty(aggregated_rows):
 
 
 def identify_experiments_to_cancel(aggregated_rows, top_n):
-    # Filter out rows with "N/A" in win rate or CI, and ensure more than 50 games were completed
-    filtered_rows = [row for row in aggregated_rows if row[-3] != "N/A" and row[-2] != "N/A" and int(row[-1]) > 60]
+    filtered_rows = [row for row in aggregated_rows if row[-3] != "N/A" and row[-2] != "N/A" and int(row[-1]) >= 40]
 
     # If there are not enough experiments after filtering, or top_n is 0, return an empty list
     if len(filtered_rows) <= top_n or top_n == 0:
