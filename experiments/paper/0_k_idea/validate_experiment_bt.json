@@ -1,6 +1,7 @@
 [
+  { "top_n": 3 },
   {
-    "n_games": 1500,
+    "n_games": 200,
     "game_key": "breakthrough",
     "random_openings": 2,
     "game_params": {},
@@ -9,7 +10,28 @@
       "num_simulations": 100000,
       "ab_p1": 2,
       "ab_p2": 2,
-      "k_factor": [0.2, 0.3, 0.4],
+      "k_factor": [-0.4, -0.2, 0.2, 0.3, 0.4],
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 500,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "ab_p2": 3,
+      "k_factor": [-5, -2, -1, -0.5, 0.5, 1, 2, 5],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
