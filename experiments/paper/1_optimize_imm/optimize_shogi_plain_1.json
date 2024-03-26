@@ -9,7 +9,7 @@
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 100000,
+      "num_simulations": 30000,
       "c": [0.1, 0.2, 0.3],
       "imm_alpha": [0.5, 0.6, 0.7, 0.8, 0.9],
       "name": "exp_uct"
@@ -17,7 +17,7 @@
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 100000,
+      "num_simulations": 30000,
       "name": "base_uct"
     },
     "p2_eval_params": {}

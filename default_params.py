@@ -4,7 +4,7 @@ DEFAULT_SETTINGS = {
     ("amazons", "mcts"): {
         "ai_params": {
             "c": 0.2,
-            "imm_alpha": 0.6,
+            "imm_alpha": 0.5,
             "early_term_turns": 15,
             "early_term_cutoff": 0.2,
         },
@@ -13,8 +13,8 @@ DEFAULT_SETTINGS = {
     # BREAKTHROUGH
     ("breakthrough", "mcts"): {
         "ai_params": {
-            "c": 0.2,
-            "imm_alpha": 0.6,
+            "c": 0.4,
+            "imm_alpha": 0.4,
             "early_term_turns": 15,
             "early_term_cutoff": 0.3,
             # "e_g_subset": 10,
@@ -37,8 +37,8 @@ DEFAULT_SETTINGS = {
     # GOMOKU
     ("ninarow", "mcts"): {
         "ai_params": {
-            "c": 0.2,
-            "imm_alpha": 0.8,
+            "c": 0.1,
+            "imm_alpha": 0.4,
             "early_term_turns": 15,
             "early_term_cutoff": 0.2,
         },

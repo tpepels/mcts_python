@@ -111,7 +111,13 @@ class Node:
             k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
 
             if k != 0:
-                k = k_factor * sqrt(log((1 + k) * p_n))
+                if ab_p2 == 2:
+                    k = k_factor * sqrt(log((1 + k) * p_n))
+                elif ab_p2 == 3:
+                    # print(f"_pre p_n: {p_n}")
+                    p_n = (1 + (k_factor * k)) * p_n
+                    # print(f"1 + k_f * k = {(1 + (k_factor * k)):.4f} | k={k:.4f} | p_n={p_n:.2f}")
+                    k = 1
 
                 if __debug__:  # Add the value to the dynamic bin
                     dynamic_bins["k_comp"].get("bin").add_data(k)
@@ -781,17 +787,6 @@ class MCTSPlayer:
                                 if beta < old_beta:
                                     beta_bounds = bound
 
-                    elif self.ab_p1 == 1:
-                        # Check siblings for new ab bounds
-                        for i in range(len(node.children)):
-                            ab_child: Node = node.children[i]
-                            if node.im_value > alpha and node.im_value < beta:
-                                # Use the imm values to update the bounds
-                                if node.player == self.player:
-                                    alpha = max(alpha, ab_child.im_value)
-                                else:
-                                    beta = min(beta, ab_child.im_value)
-
                     prev_node = node
                     if __debug__:
                         # Keep track of the data used for each UCT call
@@ -823,23 +818,7 @@ class MCTSPlayer:
                             alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                             beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
                         )
-
-                    elif self.ab_p1 == 1:
-
-                        node = node.uct(
-                            self.c,
-                            self.player,
-                            self.pb_weight,
-                            self.imm_alpha,
-                            ab_p1=self.ab_p1,
-                            ab_p2=self.ab_p2,
-                            alpha=alpha if node.player == self.player else -beta,
-                            beta=beta if node.player == self.player else -alpha,
-                            k_factor=self.k_factor,
-                        )
-
                 else:
-
                     node = node.uct(self.c, self.player, self.pb_weight, self.imm_alpha)
 
                 assert node is not None, f"Node is None after UCT {prev_node}"

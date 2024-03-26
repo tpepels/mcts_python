@@ -3,23 +3,20 @@
     "n_games": 1500,
     "game_key": "amazons",
     "random_openings": 2,
-    "game_params": {
-      "board_size": 6
-    },
+    "game_params": { "board_size": 6 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
       "ab_p1": 2,
       "ab_p2": 2,
-      "k_factor": 0.2,
+      "k_factor": [0.2, 0.3, 0.4],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 100000,
-      "name": "a_plain_uct",
-      "c": [0.1, 0.2, 0.3]
+      "name": "a_plain_uct"
     },
     "p2_eval_params": {}
   }
