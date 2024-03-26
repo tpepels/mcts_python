@@ -105,25 +105,27 @@ class Node:
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
 
-        if ab_p1 != 0 and alpha != -INFINITY and beta != INFINITY:
-
+        if ab_p1 == 2 and alpha != -INFINITY and beta != INFINITY:
             # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
-            k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
+            if ab_p2 == 1 or ab_p2 == 3:
+                k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
+            elif ab_p2 == 2 or ab_p2 == 4:
+                k: cython.float = beta - alpha
 
             if k != 0:
-                if ab_p2 == 2:
+                # This is the case where the bounds are used to adjust the UCT value
+                if ab_p2 == 1 or ab_p2 == 2:
                     k = k_factor * sqrt(log((1 + k) * p_n))
-                elif ab_p2 == 3:
-                    # print(f"_pre p_n: {p_n}")
-                    p_n = (1 + (k_factor * k)) * p_n
-                    # print(f"1 + k_f * k = {(1 + (k_factor * k)):.4f} | k={k:.4f} | p_n={p_n:.2f}")
-                    k = 1
+                    c *= k
+                    if __debug__:  # Add the value to the dynamic bin
+                        dynamic_bins["k_comp"].get("bin").add_data(k)
 
-                if __debug__:  # Add the value to the dynamic bin
-                    dynamic_bins["k_comp"].get("bin").add_data(k)
+                elif ab_p2 == 3 or ab_p2 == 4:
+                    p_n = (1 + (k_factor * k)) * p_n
+                    if __debug__:  # Add the value to the dynamic bin
+                        dynamic_bins["k_comp"].get("bin").add_data(p_n)
 
                 ab_bound += 1
-                c *= k
             else:
                 ucb_bound += 1
         else:
@@ -157,6 +159,15 @@ class Node:
             uct_val: cython.double = child.get_value_imm(self.player, imm_alpha, max_player) + (
                 c * sqrt(log(p_n) / c_n)
             )
+
+            if ab_p1 == 3 and alpha != -INFINITY and beta != INFINITY:
+                # Change the UCT value based on the bounds
+                if uct_val >= alpha and uct_val <= beta:
+                    uct_val += beta
+                elif uct_val < alpha:
+                    uct_val += alpha_bounds
+                elif uct_val > beta:
+                    uct_val += -beta_bounds
 
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
@@ -774,6 +785,33 @@ class MCTSPlayer:
                                 N=prev_node.n_visits,
                             )
 
+                            if prev_node.player == self.player:
+                                old_alpha: cython.float = alpha  # Store the old value of alpha
+                                alpha = max(alpha, val - bound)
+                                # Check if alpha was actually updated by comparing old and new values
+                                if alpha > old_alpha:
+                                    alpha_bounds = -bound
+                            else:
+                                old_beta: cython.float = beta  # Store the old value of beta
+                                beta = min(beta, val + bound)
+                                # Check if beta was actually updated by comparing old and new values
+                                if beta < old_beta:
+                                    beta_bounds = bound
+
+                    if self.ab_p1 == 3:
+                        # This is the version with the harder cutoffs
+                        if node.n_visits > 0 and prev_node is not None:
+
+                            val, bound = node.get_value_with_uct_interval(
+                                c=self.c,
+                                player=self.player,
+                                max_player=self.player,
+                                imm_alpha=self.imm_alpha,
+                                N=prev_node.n_visits,
+                            )
+
+                        if val + bound <= beta and val - bound >= alpha:
+                            # The node is within the bounds, check for new a/b bounds to use
                             if prev_node.player == self.player:
                                 old_alpha: cython.float = alpha  # Store the old value of alpha
                                 alpha = max(alpha, val - bound)
