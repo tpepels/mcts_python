@@ -12,7 +12,7 @@
     },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 200000,
+      "num_simulations": 100000,
       "c": [0.3, 0.4],
       "imm_alpha": [0.1, 0.2, 0.3, 0.4],
       "name": "exp_uct"
@@ -20,7 +20,7 @@
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 200000,
+      "num_simulations": 100000,
       "name": "base_uct"
     },
     "p2_eval_params": {}

@@ -9,7 +9,7 @@
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 200000,
+      "num_simulations": 100000,
       "ab_p1": 1,
       "ab_p2": 3,
       "imm_alpha": [0.2, 0.3, 0.5, 0.6],
@@ -18,7 +18,7 @@
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 200000,
+      "num_simulations": 100000,
       "name": "a_plain_uct",
       "ab_p1": 1,
       "ab_p2": 3
