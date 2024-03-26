@@ -7,7 +7,7 @@
     "game_params": { "board_size": 6 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 50000,
+      "num_simulations": 100000,
       "ab_p1": 2,
       "ab_p2": [1, 2],
       "k_factor": [0.1, 0.2, 0.3, 0.4],
@@ -16,7 +16,7 @@
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 50000,
+      "num_simulations": 100000,
       "name": "a_plain_uct"
     },
     "p2_eval_params": {}
@@ -28,7 +28,7 @@
     "game_params": { "board_size": 6 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 50000,
+      "num_simulations": 100000,
       "ab_p1": 2,
       "ab_p2": [3, 4],
       "k_factor": [-8, -4, -2, -0.5, 0.5, 2, 4, 8],
@@ -37,7 +37,7 @@
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 50000,
+      "num_simulations": 100000,
       "name": "a_plain_uct"
     },
     "p2_eval_params": {}
@@ -49,14 +49,14 @@
     "game_params": { "board_size": 6 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 50000,
+      "num_simulations": 100000,
       "ab_p1": 3,
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 50000,
+      "num_simulations": 100000,
       "name": "a_plain_uct"
     },
     "p2_eval_params": {}
