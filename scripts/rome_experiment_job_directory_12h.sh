@@ -13,7 +13,7 @@ DIRECTORY="${1%/}"
 for json_file in "$DIRECTORY"/*.json; do
     if [ -e "$json_file" ]; then  # Check if json files exist in the directory
         echo "Submitting job for $json_file"
-        sbatch experiment_job_script_12h.sh "$json_file"
+        sbatch rome_experiment_job_script_12h.sh "$json_file"
     else
         echo "No JSON files found in the directory."
         exit 1
