@@ -2,7 +2,7 @@ import argparse
 
 # from tests import playout
 from run_games import init_game
-from playout_test import play_out
+from scripts.playout_test import play_out
 
 parser = argparse.ArgumentParser(description="Run test a playout for a game.")
 parser.add_argument(

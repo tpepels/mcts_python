@@ -1,5 +1,5 @@
 import pygame
-from breakthroughgui import BLUE
+from ui.breakthroughgui import BLUE
 
 from games.minishogi import MiniShogi
 from pygame.locals import *

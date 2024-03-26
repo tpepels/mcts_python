@@ -72,8 +72,8 @@ ext_modules = [
         extra_compile_args=compile_args,
     ),
     Extension(
-        "playout_test",
-        ["playout_test.py"],
+        "scripts.playout_test",
+        ["scripts/playout_test.py"],
         extra_compile_args=compile_args,
     ),
     # Extension("games.blokus", ["games/blokus.py"], include_dirs=[numpy.get_include()]),
