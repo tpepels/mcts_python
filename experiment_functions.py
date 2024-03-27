@@ -108,8 +108,10 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             print(f"Error: {e}")
                             traceback.print_exc()
                             continue
-                        log_files = os.listdir(os.path.join(experiments_path, "log", metadata["exp_name"]))
+                        print(f"Counting log files in {os.path.join(base_path, 'log', metadata['exp_name'])}")
+                        log_files = os.listdir(os.path.join(base_path, "log", metadata["exp_name"]))
                         n_files = len(log_files)
+
                         draws = 0
                         for line in lines[7:]:
                             _, ai_config = line.strip().split(",", 1)
@@ -391,9 +393,7 @@ def extract_ai_param_diffs(ai1, ai2):
     ordered_diffs2 = OrderedDict(sorted(diffs2.items()))
 
     # Combine the differences into one dictionary if needed or return them separately
-    combined_diffs = ordered_diffs1.copy()
-    combined_diffs.update(ordered_diffs2)
-    return combined_diffs
+    return ordered_diffs1, ordered_diffs2
 
 
 # def extract_ai_param_diffs(ai1, ai2):
