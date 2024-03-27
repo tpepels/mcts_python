@@ -1,62 +1,22 @@
 [
   { "top_n": 5 },
   {
-    "n_games": 300,
+    "n_games": 400,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 50000,
+      "max_time": 10,
       "ab_p1": 2,
-      "ab_p2": [1, 2],
-      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "ab_p2": [2, 4, 6],
+      "k_factor": [0.5, 1, 1.5, 2, 3],
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 50000,
-      "name": "a_plain_uct"
-    },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 300,
-    "game_key": "minishogi",
-    "random_openings": 2,
-    "game_params": {},
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "num_simulations": 50000,
-      "ab_p1": 2,
-      "ab_p2": [3, 4],
-      "k_factor": [-8, -4, -2, -0.5, 0.5, 2, 4, 8],
-      "name": "z_uct_ab"
-    },
-    "p1_eval_params": {},
-    "p2_ai_key": "mcts",
-    "p2_ai_params": {
-      "num_simulations": 50000,
-      "name": "a_plain_uct"
-    },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 500,
-    "game_key": "minishogi",
-    "random_openings": 2,
-    "game_params": {},
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "num_simulations": 50000,
-      "ab_p1": 3,
-      "name": "z_uct_ab"
-    },
-    "p1_eval_params": {},
-    "p2_ai_key": "mcts",
-    "p2_ai_params": {
-      "num_simulations": 50000,
+      "max_time": 10,
       "name": "a_plain_uct"
     },
     "p2_eval_params": {}

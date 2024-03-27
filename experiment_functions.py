@@ -64,6 +64,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                     "Win_rate",
                     "± 95% C.I.",
                     "No. Games",
+                    "Exp. Files",
                 ]
             )
             aggregated_rows = []
@@ -107,7 +108,8 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             print(f"Error: {e}")
                             traceback.print_exc()
                             continue
-
+                        log_files = os.listdir(os.path.join(experiments_path, "log", metadata["exp_name"]))
+                        n_files = len(log_files)
                         draws = 0
                         for line in lines[7:]:
                             _, ai_config = line.strip().split(",", 1)
@@ -188,6 +190,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             ai_results[1][1],  # "Win_rate"
                             ai_results[0][2],  # "± 95% C.I."
                             total_games,  # "No. Games"
+                            n_files,  # "Exp. Files"
                         ]
                     )
                 elif len(ai_results) == 1:
@@ -202,6 +205,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             0,  # "Win_rate"
                             ai_results[0][2],  # "± 95% C.I."
                             total_games,  # "No. Games"
+                            n_files,  # "Exp. Files"
                         ]
                     )
                 else:
@@ -216,6 +220,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
                             0,  # "Win_rate",
                             0,  # "± 95% C.I.",
                             total_games,  # "No. Games",
+                            n_files,  # "Exp. Files"
                         ]
                     )
 
@@ -253,7 +258,7 @@ def aggregate_csv_results(output_file, base_path, top_n=0):
 
 def print_last_rows_pretty(aggregated_rows):
     # Add "Experiment Name" to the headers at the beginning
-    headers = ["Exp.", "Param1", "Wins (AI1)", "Param2", "Wins (AI2)", "± 95% C.I.", "No. Games"]
+    headers = ["Exp.", "Param1", "Wins (AI1)", "Param2", "Wins (AI2)", "± 95% C.I.", "No. Games", "No. Exp. Files"]
 
     # Create a PrettyTable with the specified headers
     table = PrettyTable()
@@ -272,19 +277,12 @@ def print_last_rows_pretty(aggregated_rows):
     # "Win_rate",11
     # "± 95% C.I.",12
     # "No. Games", 13
+    # "Exp. Files", 14
 
     # Iterate over each row in the aggregated rows
     for row in aggregated_rows:
         # Extract the relevant part from each row, excluding AI1 and AI2 positions but including exp_name
-        relevant_part = [
-            row[0],
-            row[7],
-            row[8],
-            row[10],
-            row[11],
-            row[12],
-            row[13],
-        ]
+        relevant_part = [row[0], row[7], row[8], row[10], row[11], row[12], row[13], row[14]]
 
         # Add the formatted relevant part of the row to the table
         table.add_row(relevant_part)
@@ -294,7 +292,7 @@ def print_last_rows_pretty(aggregated_rows):
 
 
 def identify_experiments_to_cancel(aggregated_rows, top_n):
-    filtered_rows = [row for row in aggregated_rows if row[-3] != "N/A" and row[-2] != "N/A" and int(row[-1]) >= 40]
+    filtered_rows = [row for row in aggregated_rows if row[-4] != "N/A" and row[-3] != "N/A" and int(row[-2]) >= 40]
 
     # If there are not enough experiments after filtering, or top_n is 0, return an empty list
     if len(filtered_rows) <= top_n or top_n == 0:
@@ -303,7 +301,7 @@ def identify_experiments_to_cancel(aggregated_rows, top_n):
     try:
         # Explicitly sort filtered rows by win rate in descending order
         # Ensure correct index for win rate if different from [-3]
-        filtered_rows.sort(key=lambda row: float(row[-3]), reverse=True)
+        filtered_rows.sort(key=lambda row: float(row[-4]), reverse=True)
     except ValueError as e:
         print(f"Error sorting rows: {e} in identify_experiments_to_cancel. Skipping.")
         # Print the stack trace so we can find the error
@@ -316,16 +314,16 @@ def identify_experiments_to_cancel(aggregated_rows, top_n):
     # Calculate the threshold as the win rate of the worst top N performer minus its CI
     # Assuming CI is ± value, we strip the '±' and convert to float
     worst_top_n_exp = top_n_experiments[-1]
-    worst_top_n_win_rate = float(worst_top_n_exp[-3])
-    worst_top_n_ci = float(worst_top_n_exp[-2].strip("±"))
+    worst_top_n_win_rate = float(worst_top_n_exp[-4])
+    worst_top_n_ci = float(worst_top_n_exp[-3].strip("±"))
 
     performance_threshold = worst_top_n_win_rate - worst_top_n_ci
 
     # Identify experiments to cancel
     experiments_to_cancel = []
     for exp in filtered_rows[top_n:]:
-        exp_win_rate = float(exp[-3])
-        exp_ci = float(exp[-2].strip("±"))
+        exp_win_rate = float(exp[-4])
+        exp_ci = float(exp[-3].strip("±"))
         # exp_ci = 1
 
         # If experiment's win rate + its CI is below the threshold, mark for cancellation

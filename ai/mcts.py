@@ -107,23 +107,32 @@ class Node:
 
         if ab_p1 == 2 and alpha != -INFINITY and beta != INFINITY:
             # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
-            if ab_p2 == 1 or ab_p2 == 3:
+            if ab_p2 == 1 or ab_p2 == 3 or ab_p2 == 5:
                 k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
-            elif ab_p2 == 2 or ab_p2 == 4:
+            elif ab_p2 == 2 or ab_p2 == 4 or ab_p2 == 6:
                 k: cython.float = beta - alpha
+
+            k *= k_factor
 
             if k != 0:
                 # This is the case where the bounds are used to adjust the UCT value
                 if ab_p2 == 1 or ab_p2 == 2:
-                    k = k_factor * sqrt(log((1 + k) * p_n))
-                    c *= k
+                    c *= 1 + k
+
                     if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(k)
+                        dynamic_bins["k_comp"].get("bin").add_data(1 + k)
 
                 elif ab_p2 == 3 or ab_p2 == 4:
-                    p_n = (1 + (k_factor * k)) * p_n
+                    c *= 1 + log(1 + k)
+
                     if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(p_n)
+                        dynamic_bins["k_comp"].get("bin").add_data(1 + log(1 + k))
+
+                elif ab_p2 == 5 or ab_p2 == 6:
+                    c *= sqrt(1 + log(1 + k))
+
+                    if __debug__:  # Add the value to the dynamic bin
+                        dynamic_bins["k_comp"].get("bin").add_data(sqrt(1 + log(1 + k)))
 
                 ab_bound += 1
             else:
@@ -168,7 +177,7 @@ class Node:
                     uct_val += alpha_bounds
                 elif uct_val > beta:
                     uct_val += -beta_bounds
-                
+
                 ab_bound += 1
 
             if pb_weight > 0.0:
