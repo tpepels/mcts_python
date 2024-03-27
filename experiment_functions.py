@@ -363,10 +363,10 @@ def sort_parameters(ai_config):
     return ", ".join(params)
 
 
-# TODO: This is a new version that excludes parameters for an AI if they were not explicitly set
 def extract_ai_param_diffs(ai1, ai2):
-    dict1 = {m.group(1): m.group(2) for m in re.finditer(r"(\w+):([\d.]+)", ai1)}
-    dict2 = {m.group(1): m.group(2) for m in re.finditer(r"(\w+):([\d.]+)", ai2)}
+    # Adjusted to include negative numbers
+    dict1 = {m.group(1): m.group(2) for m in re.finditer(r"(\w+):(-?[\d.]+)", ai1)}
+    dict2 = {m.group(1): m.group(2) for m in re.finditer(r"(\w+):(-?[\d.]+)", ai2)}
 
     diffs1 = {}
     diffs2 = {}
@@ -392,7 +392,10 @@ def extract_ai_param_diffs(ai1, ai2):
     ordered_diffs1 = OrderedDict(sorted(diffs1.items()))
     ordered_diffs2 = OrderedDict(sorted(diffs2.items()))
 
-    return ordered_diffs1, ordered_diffs2
+    # Combine the differences into one dictionary if needed or return them separately
+    combined_diffs = ordered_diffs1.copy()
+    combined_diffs.update(ordered_diffs2)
+    return combined_diffs
 
 
 # def extract_ai_param_diffs(ai1, ai2):
