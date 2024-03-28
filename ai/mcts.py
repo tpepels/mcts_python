@@ -96,7 +96,7 @@ class Node:
     ) -> Node:
         n_children: cython.Py_ssize_t = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        global ucb_bound, ab_bound
+        # global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
@@ -119,10 +119,11 @@ class Node:
 
             if k != 0:
                 c *= sqrt(k_factor * log((1 - k) * p_n))
-            else:
-                ucb_bound += 1
-        else:
-            ucb_bound += 1
+                # ab_bound += 1
+            # else:
+            # ucb_bound += 1
+        # else:
+        # ucb_bound += 1
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short
