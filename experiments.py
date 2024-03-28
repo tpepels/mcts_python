@@ -70,7 +70,8 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
     with open(json_file_path) as json_file:
         data = json.load(json_file)
 
-    if n_procs == 0:
+    if n_procs == None or n_procs == 0:
+        print("Using all available cpus.")
         n_cpus = multiprocessing.cpu_count()
     else:
         print(f"Using {n_procs} (out of {multiprocessing.cpu_count()}) cpus.")
@@ -257,15 +258,15 @@ def run_periodic_status_updates(
         update_running_experiment_status(
             tables_dict, base_path=base_path, total_games=total_games, start_time=start_time, n_procs=n_procs
         )
-        print(f"Status update complete, {datetime.datetime.now()}.\n")
+        counter += 1
+        print(f"Status update {counter} complete, {datetime.datetime.now()}.\n")
 
         # Replace time.sleep calls with this
         if stop_event.wait(timeout=update_interval // 2):
             break  # Exit the loop if stop_event is set
 
-        counter += 1
         # After n updates, aggregate the results and print them
-        if counter > 3 and agg_loc is not None:
+        if counter > 2 and agg_loc is not None:
             print("aggregating results..")
             try:
                 cancel_list = aggregate_csv_results(agg_loc, base_path, top_n=top_n)
@@ -396,7 +397,6 @@ def main():
         "-n",
         "--n_procs",
         type=int,
-        default=4,
         help="Number of processes for parallel execution.",
     )
     parser.add_argument(
