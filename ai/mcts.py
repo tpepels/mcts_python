@@ -110,12 +110,12 @@ class Node:
             if ab_p2 == 1 or ab_p2 == 3 or ab_p2 == 5 or ab_p2 == 7:
                 k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
             elif ab_p2 == 2 or ab_p2 == 4 or ab_p2 == 6 or ab_p2 == 8:
-                k: cython.float = beta - alpha
+                k: cython.float = ((beta - beta_bounds) - (alpha + alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
 
             if k != 0:
                 # This is the case where the bounds are used to adjust the UCT value
                 if ab_p2 == 1 or ab_p2 == 2:
-                    c *= k_factor * sqrt(log((1 - k)) * p_n)
+                    c *= sqrt(k_factor * log((1 - k)) * p_n)
 
                     if __debug__:  # Add the value to the dynamic bin
                         dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 - k)) * p_n))
