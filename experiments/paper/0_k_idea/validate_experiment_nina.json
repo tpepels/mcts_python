@@ -1,7 +1,7 @@
 [
   { "top_n": 5 },
   {
-    "n_games": 400,
+    "n_games": 500,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },

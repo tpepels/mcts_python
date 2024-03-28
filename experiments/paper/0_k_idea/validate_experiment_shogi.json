@@ -1,7 +1,7 @@
 [
   { "top_n": 5 },
   {
-    "n_games": 400,
+    "n_games": 500,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
