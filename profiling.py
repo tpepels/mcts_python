@@ -137,8 +137,8 @@ else:
     eval_params_1 = {}
     eval_params_2 = {}
 
-    ai_1_params = {"max_time": 10, "debug": args.debug, "ab_p1": 2, "ab_p2": 7, "k_factor": 1}
-    ai_2_params = {"max_time": 10, "debug": args.debug, "ab_p1": 2, "ab_p2": 5, "k_factor": 1}
+    ai_1_params = {"max_time": 10, "debug": args.debug, "early_term_turns": 10}
+    ai_2_params = {"max_time": 10, "debug": args.debug, "early_term_turns": 5}
 
     p1_params = AIParams(
         ai_key="mcts",

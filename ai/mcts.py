@@ -121,10 +121,10 @@ class Node:
                         dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 - k)) * p_n))
 
                 elif ab_p2 == 3 or ab_p2 == 4:
-                    c *= k_factor * sqrt(log((1 - k) * p_n))
+                    c *= sqrt(k_factor * log((1 - k) * p_n))
 
                     if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 - k) * p_n)))
+                        dynamic_bins["k_comp"].get("bin").add_data(sqrt(k_factor * log((1 - k) * p_n)))
 
                 elif ab_p2 == 5 or ab_p2 == 6:
                     c *= k_factor * sqrt(log((1 + k)) * p_n)
