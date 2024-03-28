@@ -104,7 +104,7 @@ def start_experiments_from_json(json_file_path, n_procs=0, count_only=False, agg
         return
 
     # Interval for status updates
-    update_interval = 240
+    update_interval = 180
     stop_event = threading.Event()
 
     # Process experiments
