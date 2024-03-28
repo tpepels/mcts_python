@@ -286,6 +286,8 @@ def run_periodic_status_updates(
                 print(f"Error aggregating results: {e}", sys.stderr)
                 # print Traceback
                 traceback.print_exc(file=sys.stderr)
+        else:
+            print(f"Not aggregating results. {counter=}, {agg_loc=}.")
 
 
 exp_names = []
