@@ -106,39 +106,19 @@ class Node:
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
 
         if ab_p1 == 2 and alpha != -INFINITY and beta != INFINITY:
-            # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
-            if ab_p2 == 1 or ab_p2 == 3 or ab_p2 == 5 or ab_p2 == 7:
+            if ab_p2 == 1:
                 k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
-            elif ab_p2 == 2 or ab_p2 == 4 or ab_p2 == 6 or ab_p2 == 8:
-                k: cython.float = ((beta - beta_bounds) - (alpha + alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
+            elif ab_p2 == 2:
+                # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
+                k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
+            elif ab_p2 == 3:
+                # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
+                k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
+            elif ab_p2 == 4:
+                k: cython.float = beta - alpha
 
             if k != 0:
-                # This is the case where the bounds are used to adjust the UCT value
-                if ab_p2 == 1 or ab_p2 == 2:
-                    c *= sqrt(k_factor * log((1 - k)) * p_n)
-
-                    if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 - k)) * p_n))
-
-                elif ab_p2 == 3 or ab_p2 == 4:
-                    c *= sqrt(k_factor * log((1 - k) * p_n))
-
-                    if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(sqrt(k_factor * log((1 - k) * p_n)))
-
-                elif ab_p2 == 5 or ab_p2 == 6:
-                    c *= k_factor * sqrt(log((1 + k)) * p_n)
-
-                    if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 + k)) * p_n))
-
-                elif ab_p2 == 7 or ab_p2 == 8:
-                    c *= k_factor * sqrt(log((1 + k) * p_n))
-
-                    if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 + k) * p_n)))
-
-                ab_bound += 1
+                c *= sqrt(k_factor * log((1 - k) * p_n))
             else:
                 ucb_bound += 1
         else:
@@ -172,17 +152,6 @@ class Node:
             uct_val: cython.double = child.get_value_imm(self.player, imm_alpha, max_player) + (
                 c * sqrt(log(p_n) / c_n)
             )
-
-            if ab_p1 == 3 and alpha != -INFINITY and beta != INFINITY:
-                # Change the UCT value based on the bounds
-                if uct_val >= alpha and uct_val <= beta:
-                    uct_val += beta
-                elif uct_val < alpha:
-                    uct_val += alpha_bounds
-                elif uct_val > beta:
-                    uct_val += -beta_bounds
-
-                ab_bound += 1
 
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
@@ -782,6 +751,8 @@ class MCTSPlayer:
 
         alpha: cython.float = -INFINITY
         beta: cython.float = INFINITY
+        alpha_val: cython.float = -INFINITY
+        beta_val: cython.float = INFINITY
         alpha_bounds: cython.float = -INFINITY
         beta_bounds: cython.float = INFINITY
 
@@ -789,54 +760,26 @@ class MCTSPlayer:
             if node.expanded:
                 if self.ab_p1 != 0:
                     # Check for new a/b bounds
-                    if self.ab_p1 == 2:
-                        if node.n_visits > 0 and prev_node is not None:
-                            val, bound = node.get_value_with_uct_interval(
-                                c=self.c,
-                                player=self.player,
-                                max_player=self.player,
-                                imm_alpha=self.imm_alpha,
-                                N=prev_node.n_visits,
-                            )
-                            if prev_node.player == self.player:
-                                old_alpha: cython.float = alpha  # Store the old value of alpha
-                                alpha = max(alpha, val - bound)
-                                # Check if alpha was actually updated by comparing old and new values
-                                if alpha > old_alpha:
-                                    alpha_bounds = -bound
-                            else:
-                                old_beta: cython.float = beta  # Store the old value of beta
-                                beta = min(beta, val + bound)
-                                # Check if beta was actually updated by comparing old and new values
-                                if beta < old_beta:
-                                    beta_bounds = bound
-
-                    if self.ab_p1 == 3:
-                        # This is the version with the harder cutoffs
-                        if node.n_visits > 0 and prev_node is not None:
-
-                            val, bound = node.get_value_with_uct_interval(
-                                c=self.c,
-                                player=self.player,
-                                max_player=self.player,
-                                imm_alpha=self.imm_alpha,
-                                N=prev_node.n_visits,
-                            )
-
-                            if val + bound <= beta and val - bound >= alpha:
-                                # The node is within the bounds, check for new a/b bounds to use
-                                if prev_node.player == self.player:
-                                    old_alpha: cython.float = alpha  # Store the old value of alpha
-                                    alpha = max(alpha, val - bound)
-                                    # Check if alpha was actually updated by comparing old and new values
-                                    if alpha > old_alpha:
-                                        alpha_bounds = -bound
-                                else:
-                                    old_beta: cython.float = beta  # Store the old value of beta
-                                    beta = min(beta, val + bound)
-                                    # Check if beta was actually updated by comparing old and new values
-                                    if beta < old_beta:
-                                        beta_bounds = bound
+                    if node.n_visits > 0 and prev_node is not None:
+                        val, bound = node.get_value_with_uct_interval(
+                            c=self.c,
+                            player=self.player,
+                            max_player=self.player,
+                            imm_alpha=self.imm_alpha,
+                            N=prev_node.n_visits,
+                        )
+                        if prev_node.player == self.player:
+                            # Check if alpha was actually updated by comparing old and new values
+                            if alpha < val - bound:
+                                alpha_bounds = -bound
+                                alpha_val = val
+                                alpha = val - bound
+                        else:
+                            # Check if beta was actually updated by comparing old and new values
+                            if beta > val + bound:
+                                beta_bounds = bound
+                                beta_val = val
+                                beta = val + bound
 
                     prev_node = node
                     if __debug__:
@@ -861,8 +804,8 @@ class MCTSPlayer:
                         self.imm_alpha,
                         ab_p1=self.ab_p1,
                         ab_p2=self.ab_p2,
-                        alpha=alpha if node.player == self.player else 1 - beta,
-                        beta=beta if node.player == self.player else 1 - alpha,
+                        alpha=alpha if node.player == self.player else 1 - beta_val,
+                        beta=beta if node.player == self.player else 1 - alpha_val,
                         k_factor=self.k_factor,
                         alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                         beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
