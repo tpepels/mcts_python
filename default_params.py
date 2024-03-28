@@ -1,10 +1,10 @@
 DEFAULT_SETTINGS = {
     # Optimized values for plain mcts with imm. Optimized on 22-3-2024
-    # AMAZONS
+    # AMAZONS 8x8
     ("amazons", "mcts"): {
         "ai_params": {
-            "c": 0.2,
-            "imm_alpha": 0.5,
+            "c": 0.3,
+            "imm_alpha": 0.3,
             "early_term_turns": 15,
             "early_term_cutoff": 0.2,
         },

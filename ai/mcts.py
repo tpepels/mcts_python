@@ -115,25 +115,22 @@ class Node:
             if k != 0:
                 # This is the case where the bounds are used to adjust the UCT value
                 if ab_p2 == 1 or ab_p2 == 2:
-                    k *= k_factor
-                    c *= 1 + k
+                    c *= k_factor * sqrt(log((1 - k)) * p_n)
 
                     if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(1 + k)
+                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 - k)) * p_n))
 
                 elif ab_p2 == 3 or ab_p2 == 4:
-                    k *= k_factor
-                    c *= 1 + log(1 + k)
+                    c *= k_factor * sqrt(log((1 - k) * p_n))
 
                     if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(1 + log(1 + k))
+                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 - k) * p_n)))
 
                 elif ab_p2 == 5 or ab_p2 == 6:
-                    k *= k_factor
-                    c *= sqrt(1 + log(1 + k))
+                    c *= k_factor * sqrt(log((1 + k)) * p_n)
 
                     if __debug__:  # Add the value to the dynamic bin
-                        dynamic_bins["k_comp"].get("bin").add_data(sqrt(1 + log(1 + k)))
+                        dynamic_bins["k_comp"].get("bin").add_data(k_factor * sqrt(log((1 + k)) * p_n))
 
                 elif ab_p2 == 7 or ab_p2 == 8:
                     c *= k_factor * sqrt(log((1 + k) * p_n))
