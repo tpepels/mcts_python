@@ -117,11 +117,11 @@ class Node:
             # elif ab_p2 == 4:
             # k: cython.float = beta - alpha
             if k != 0:
-                c *= sqrt(log((1 - k) * p_n))
+                c *= k_factor * sqrt(log((1 - k) * p_n))
                 # print(f"{sqrt(log(2 - k))=}")
-                if __debug__:
-                    dynamic_bins["k"]["bin"].add_data(k)
-                    dynamic_bins["k_comp"]["bin"].add_data(sqrt(log((1 - k) * p_n)))
+                # if __debug__:
+                # dynamic_bins["k"]["bin"].add_data(k)
+                # dynamic_bins["k_comp"]["bin"].add_data(sqrt(log((1 - k) * p_n)))
                 # ab_bound += 1
             # else:
             # ucb_bound += 1
@@ -765,13 +765,6 @@ class MCTSPlayer:
                 if self.ab_p1 != 0:
                     # Check for new a/b bounds
                     if node.n_visits > 0 and prev_node is not None:
-                        # val, bound = node.get_value_with_uct_interval(
-                        #     c=self.c,
-                        #     player=self.player,
-                        #     max_player=self.player,
-                        #     imm_alpha=self.imm_alpha,
-                        #     N=prev_node.n_visits,
-                        # )
                         val, bound = node.get_value_with_uct_interval(
                             c=self.k_factor,
                             player=self.player,
