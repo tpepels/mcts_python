@@ -4,8 +4,8 @@ DEFAULT_SETTINGS = {
     ("amazons", "mcts"): {
         "ai_params": {
             "c": 0.3,
-            "imm_alpha": 0.3,
-            "early_term_turns": 15,
+            "imm_alpha": 0.4,
+            "early_term_turns": 10,
             "early_term_cutoff": 0.2,
         },
         "eval_params": {"a": 60},
@@ -26,8 +26,8 @@ DEFAULT_SETTINGS = {
     ("minishogi", "mcts"): {
         "ai_params": {
             "c": 0.2,
-            "imm_alpha": 0.6,
-            "early_term_turns": 15,
+            "imm_alpha": 0.7,
+            "early_term_turns": 5,
             "early_term_cutoff": 0.2,
             # "epsilon": 0.03,
             # "e_g_subset": 5,

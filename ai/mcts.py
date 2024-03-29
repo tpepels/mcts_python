@@ -106,16 +106,16 @@ class Node:
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
 
         if ab_p1 == 2 and alpha != -INFINITY and beta != INFINITY:
-            if ab_p2 == 1:
-                k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
-            elif ab_p2 == 2:
-                # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
-                k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
-            elif ab_p2 == 3:
-                # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
-                k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
-            elif ab_p2 == 4:
-                k: cython.float = beta - alpha
+            # if ab_p2 == 1:
+            # k: cython.float = (beta - alpha) * (1 - (beta_bounds - alpha_bounds))
+            # elif ab_p2 == 2:
+            # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
+            k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
+            # elif ab_p2 == 3:
+            # Here alpha can be bigger than beta. Beta_bounds is always positive, alpha_bounds is always negative
+            # k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
+            # elif ab_p2 == 4:
+            # k: cython.float = beta - alpha
 
             if k != 0:
                 c *= sqrt(k_factor * log((1 - k) * p_n))
