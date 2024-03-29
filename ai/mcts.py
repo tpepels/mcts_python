@@ -116,10 +116,12 @@ class Node:
             # k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
             # elif ab_p2 == 4:
             # k: cython.float = beta - alpha
-            # TODO Misschien is het toch beter om k te scalen in plaats van log(1 - k), omdat games met een lage c, k ook heel klein is
-            # TODO Of gebruik k als c in de UCT formule
             if k != 0:
-                c *= k_factor * sqrt(log((1 - k) * p_n))
+                c *= sqrt(log((1 - k) * p_n))
+                # print(f"{sqrt(log(2 - k))=}")
+                if __debug__:
+                    dynamic_bins["k"]["bin"].add_data(k)
+                    dynamic_bins["k_comp"]["bin"].add_data(sqrt(log((1 - k) * p_n)))
                 # ab_bound += 1
             # else:
             # ucb_bound += 1
@@ -798,7 +800,7 @@ class MCTSPlayer:
                             dynamic_bins["beta"]["bin"].add_data(beta)
                             dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)
                             dynamic_bins["beta_bounds"]["bin"].add_data(beta_bounds)
-                            dynamic_bins["k"]["bin"].add_data(beta - alpha)
+                            # dynamic_bins["k"]["bin"].add_data(beta - alpha)
                         elif alpha != -INFINITY:
                             dynamic_bins["alpha"]["bin"].add_data(alpha)
                             dynamic_bins["alpha_bounds"]["bin"].add_data(alpha_bounds)
