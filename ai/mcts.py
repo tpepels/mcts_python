@@ -116,9 +116,10 @@ class Node:
             # k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
             # elif ab_p2 == 4:
             # k: cython.float = beta - alpha
-
+            # TODO Misschien is het toch beter om k te scalen in plaats van log(1 - k), omdat games met een lage c, k ook heel klein is
+            # TODO Of gebruik k als c in de UCT formule
             if k != 0:
-                c *= sqrt(k_factor * log((1 - k) * p_n))
+                c *= k_factor * sqrt(log((1 - k) * p_n))
                 # ab_bound += 1
             # else:
             # ucb_bound += 1
@@ -762,8 +763,15 @@ class MCTSPlayer:
                 if self.ab_p1 != 0:
                     # Check for new a/b bounds
                     if node.n_visits > 0 and prev_node is not None:
+                        # val, bound = node.get_value_with_uct_interval(
+                        #     c=self.c,
+                        #     player=self.player,
+                        #     max_player=self.player,
+                        #     imm_alpha=self.imm_alpha,
+                        #     N=prev_node.n_visits,
+                        # )
                         val, bound = node.get_value_with_uct_interval(
-                            c=self.c,
+                            c=self.k_factor,
                             player=self.player,
                             max_player=self.player,
                             imm_alpha=self.imm_alpha,
