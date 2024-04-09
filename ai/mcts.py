@@ -6,13 +6,14 @@ from random import random as rand_float
 from shutil import move
 from typing import Optional
 from colorama import Back, Fore, init
+from numpy import isin
 
 from includes.dynamic_bin import DynamicBin
 
 init(autoreset=True)
 import cython
 from cython.cimports.libc.time import time
-from cython.cimports.libc.math import sqrt, log, INFINITY, isnan
+from cython.cimports.libc.math import sqrt, log, INFINITY, isnan, isfinite
 from cython.cimports.includes import GameState, win, loss
 
 from util import format_time
@@ -98,7 +99,7 @@ class Node:
     ) -> Node:
         n_children: cython.Py_ssize_t = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        # global ucb_bound, ab_bound
+        global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
@@ -108,12 +109,17 @@ class Node:
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         log_p_n: cython.float = log(p_n)
 
-        if ab_p1 == 2 and alpha != -INFINITY and beta != INFINITY:
+        if ab_p1 == 2 and isfinite(alpha) and isfinite(beta):
             k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
             if k != 0:
                 # c *= k_factor * sqrt(log((1 - k) * p_n))
                 # The old method of multiplying c Should be equivalent to this:
                 log_p_n *= k_factor**2 * log((1 - k) * p_n)
+                ab_bound += 1
+            else:
+                ucb_bound += 1
+        else:
+            ucb_bound += 1
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short
@@ -209,6 +215,8 @@ class Node:
 
             self.children = [None] * len(self.actions)
 
+        n_children: cython.Py_ssize_t = len(self.children)
+
         while len(self.actions) > 0:
             # Get a random action from the list of previously generated actions
             action: cython.tuple = self.actions.pop()
@@ -217,7 +225,7 @@ class Node:
             child: Node = Node(new_state.player, action, max_player)
 
             # This works because we pop the actions
-            self.children[len(self.children) - len(self.actions) - 1] = child
+            self.children[(n_children - len(self.actions)) - 1] = child
 
             # Solver mechanics..
             if new_state.is_terminal():
@@ -237,7 +245,7 @@ class Node:
                 # If the game is a draw or a win, we can return the child as any other.
                 return child  # Return a child that is not a loss. This is the node we will explore next.
             # No use to evaluate terminal or solved nodes.
-            elif prog_bias or imm:
+            else:
                 # set the evaluation value to the evaluation of the state
                 if prog_bias:
                     # * eval_value is always in view of max_player
@@ -249,7 +257,8 @@ class Node:
                     child.eval_value = eval_value
 
                 if imm:
-                    # At first, the im value of the child is the same as the evaluation value, when searching deeper, it becomes the min/max of the subtree
+                    # At first, the im value of the child is the same as the evaluation value,
+                    # when searching deeper, it becomes the min/max of the subtree
                     child.im_value = new_state.evaluate(
                         player=max_player,
                         norm=True,
@@ -257,6 +266,7 @@ class Node:
                     ) + uniform(-0.00001, 0.00001)
                     child.n_visits += 1
 
+                    # ! This make sure that we only overwrite if we are sure we've found a "better" move
                     if (self.player != max_player and child.im_value < self.im_value) or (
                         self.player == max_player and child.im_value > self.im_value
                     ):
@@ -269,10 +279,10 @@ class Node:
         self.expanded = 1
 
         # We reached a node with no successors, this means loss/draw depending on the game
-        if len(self.children) == 0:
-            assert (
-                self.solved_player != 0
-            ), f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}"
+        if n_children == 0:
+            if self.solved_player == 0:
+                raise ValueError(f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}")
+
             return None
 
         # Check if all my nodes lead to a loss.
@@ -282,20 +292,17 @@ class Node:
             # Do the full minimax back-up
             best_im: cython.float
             best_node: Node
-
             best_im = -INFINITY if self.player == max_player else INFINITY
-
             i: cython.short
-            for i in range(len(self.children)):
-                child = self.children[i]
-
+            for i in range(n_children):
                 # * Minimize or Maximize my im value over all children
-                if (self.player == max_player and child.im_value > best_im) or (
-                    self.player != max_player and child.im_value < best_im
+                if (self.player == max_player and self.children[i].im_value > best_im) or (
+                    self.player != max_player and self.children[i].im_value < best_im
                 ):
-                    best_im = child.im_value
-                    best_node = child
+                    best_im = self.children[i].im_value
+                    best_node = self.children[i]
 
+            # Now overwrite the im value of the node with the best im value
             self.im_value = best_im
             # Return the best node for another visit
             return best_node
@@ -319,16 +326,15 @@ class Node:
             self.expand(init_state, max_player=max_player, prog_bias=prog_bias, imm=imm, eval_params=eval_params)
 
     @cython.cfunc
-    @cython.locals(child=Node, i=cython.short)
+    @cython.locals(i=cython.short)
     def check_loss_node(self):
         # I'm solved, nothing to see here.
         if self.solved_player != 0:
             return
 
         for i in range(len(self.children)):
-            child = self.children[i]
             # If all children lead to a loss, then we will not return from the function
-            if child.solved_player != 3 - self.player:
+            if self.children[i].solved_player != 3 - self.player:
                 return
 
         self.solved_player = 3 - self.player

@@ -48,7 +48,7 @@ class TicTacToeGameState(GameState):
     board_hash = cython.declare(cython.longlong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
     pre_last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
-
+    longest_lines: cython.short[2]
     # Private variables
     n_moves: cython.short
     pie_move_done: cython.bint
@@ -69,6 +69,8 @@ class TicTacToeGameState(GameState):
         n_moves=0,
         board_hash=0,
         pie_move_done=0,
+        longest_line_1=0,
+        longest_line_2=0,
     ):
         # assert MIN_SIZE <= board_size <= MAX_SIZE
 
@@ -87,11 +89,16 @@ class TicTacToeGameState(GameState):
         if self.board is None:
             self.board = np.zeros((self.size, self.size), dtype=np.int8)
             self.board_hash = 0
+
+            # Longest line per player
+            self.longest_lines = np.zeros(2, dtype=np.int16)
+
             for i in range(self.size):
                 for j in range(self.size):
                     piece = self.board[i][j]
                     self.board_hash ^= self.zobrist_table[i][j][piece]
         else:
+            self.longest_lines = np.array([longest_line_1, longest_line_2], dtype=np.int16)
             # This means that the board is not empty and we should check if the last player made a winning move
             self._check_win()
 
@@ -157,6 +164,8 @@ class TicTacToeGameState(GameState):
             last_action=action,
             pre_last_action=self.last_action,
             pie_move_done=move_increment == 0 or self.pie_move_done,
+            longest_line_1=self.longest_lines[0],
+            longest_line_2=self.longest_lines[1],
         )
 
     @cython.cfunc
@@ -187,34 +196,37 @@ class TicTacToeGameState(GameState):
         j=cython.short,
     )
     def get_random_action(self) -> cython.tuple:
-        if self.n_moves > 1 and randint(0, 100) < 30:
-            last_x = self.pre_last_action[0]
-            last_y = self.pre_last_action[1]
+        # Trie to randomly play close to a previous move
+        if self.n_moves > 2:
+            roll: cython.short = randint(0, 100)
+            if roll < 40 or self.longest_lines[self.player - 1] == self.row_length - 1:
+                last_x = self.pre_last_action[0]
+                last_y = self.pre_last_action[1]
 
-            x = randint(0, 2) - 1 + last_x
-            y = randint(0, 2) - 1 + last_y
+                x = randint(0, 2) - 1 + last_x
+                y = randint(0, 2) - 1 + last_y
 
-            x = max(0, min(self.size - 1, x))
-            y = max(0, min(self.size - 1, y))
+                x = max(0, min(self.size - 1, x))
+                y = max(0, min(self.size - 1, y))
 
-            if self.board[x, y] == 0:
-                # print(":: Pre-last move: ", x, y, "::")
-                return (x, y)
+                if self.board[x, y] == 0:
+                    # print(":: Pre-last move: ", x, y, "::")
+                    return (x, y)
+            elif (roll > 40 and roll <= 70) or self.longest_lines[(3 - self.player) - 1] == self.row_length - 1:
+                last_x = self.last_action[0]
+                last_y = self.last_action[1]
 
-        if randint(0, 100) < 30:
-            last_x = self.last_action[0]
-            last_y = self.last_action[1]
+                x = randint(0, 2) - 1 + last_x
+                y = randint(0, 2) - 1 + last_y
 
-            x = randint(0, 2) - 1 + last_x
-            y = randint(0, 2) - 1 + last_y
+                x = max(0, min(self.size - 1, x))
+                y = max(0, min(self.size - 1, y))
 
-            x = max(0, min(self.size - 1, x))
-            y = max(0, min(self.size - 1, y))
+                if self.board[x, y] == 0:
+                    # print(":: Last move: ", x, y, "::")
+                    return (x, y)
 
-            if self.board[x, y] == 0:
-                # print(":: Last move: ", x, y, "::")
-                return (x, y)
-
+        # If we did not play close to a previous move, play near the centre
         for _ in range(randint(0, 3)):
             x = self.center + (randint(0, 4) - 2)
             y = self.center + (randint(0, 4) - 2)
@@ -297,7 +309,7 @@ class TicTacToeGameState(GameState):
         last_move_y = self.last_action[1]
         # only the last player to make a move can actually win the game, so we can look from their perspective
         last_player = 3 - self.player
-
+        max_count: cython.short = 0
         # Check all 8 directions around the last move made
         for dx in range(-1, 2):
             for dy in range(0, 2):
@@ -336,13 +348,14 @@ class TicTacToeGameState(GameState):
                                 break
                         else:
                             break
+                    max_count = max(max_count, count)
+        self.longest_lines[last_player - 1] = max_count
+        # Check if the board is full
+        if self.n_moves == self.size**2:
+            self.winner = -1
+            return
 
-            # Check if the board is full
-            if self.n_moves == self.size**2:
-                self.winner = -1
-                return
-
-            self.winner = 0
+        self.winner = 0
 
     @cython.cfunc
     def is_capture(self, move: cython.tuple) -> cython.bint:
@@ -430,7 +443,8 @@ class TicTacToeGameState(GameState):
             visual = visual[: len(visual) - 2] + "\n"  # Remove extra spaces at the end of the line and reset color
 
         visual += f"\nPlayer {self.player} | {self.n_moves} moves made | pie_move_done: {self.pie_move_done} | "
-
+        visual += f"Winner: {self.winner if self.winner != 0 else 'None'}\n"
+        visual += f"Longest lines: {self.longest_lines[0]} / {self.longest_lines[1]}\n"
         if full_debug:
             actions = self.get_legal_actions()
             visual += "hash: " + str(self.board_hash)
