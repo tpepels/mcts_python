@@ -44,10 +44,10 @@ def uniform(a: cython.float, b: cython.float) -> cython.float:
     return mod * rand_float()
 
 
-@cython.cfunc
-@cython.exceptval(-1, check=False)
-def curr_time() -> cython.long:
-    return time(cython.NULL)
+# @cython.cfunc
+# @cython.exceptval(-1, check=False)
+# def curr_time() -> cython.double:
+#     return time(cython.NULL)
 
 
 @cython.cclass
@@ -546,7 +546,7 @@ class MCTSPlayer:
                 eval_params=self.eval_params,
             )
 
-        start_time: cython.long = curr_time()
+        start_time: cython.double = time(cython.NULL)
         i: cython.int = 0
         if self.num_simulations:
             for i in range(self.num_simulations):
@@ -572,12 +572,12 @@ class MCTSPlayer:
                     break
                 # Only check the time every once in a while to save cost
                 counter += 1
-                if counter >= 1000:
+                if counter >= 2000:
                     counter = 0
-                    if curr_time() - start_time >= self.max_time:
+                    if time(cython.NULL) - start_time >= self.max_time:
                         break
 
-        total_time: cython.long = curr_time() - start_time
+        total_time: cython.long = cython.cast(cython.long, time(cython.NULL) - start_time)
         self.avg_po_moves = self.avg_po_moves / float(i + 1)
         self.avg_pos_ps += i / float(max(1, total_time))
         self.avg_depth = cython.cast(cython.int, self.avg_depth / (i + 1))
