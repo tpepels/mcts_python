@@ -432,15 +432,16 @@ class TicTacToeGameState(GameState):
         }
 
         visual = "  "
-        for i in range(self.size):
-            visual += str(i) + "  "
+        # Column headers
+        for j in range(self.size):
+            visual += chr(ord("A") + j) + " "  # Using ASCII values to convert numbers to letters
         visual += "\n"  # Add a newline at the end
 
         for i in range(self.size):
-            visual += str(i) + " "  # Print row numbers
+            visual += chr(ord("A") + i) + " "  # Print row letters
             for j in range(self.size):
-                visual += MARKS[self.board[i, j]] + "  "  # Adding two spaces
-            visual = visual[: len(visual) - 2] + "\n"  # Remove extra spaces at the end of the line and reset color
+                visual += MARKS[self.board[i, j]] + " "
+            visual += "\n"  # Newline at the end of each row
 
         visual += f"\nPlayer {self.player} | {self.n_moves} moves made | pie_move_done: {self.pie_move_done} | "
         visual += f"Winner: {self.winner if self.winner != 0 else 'None'}\n"
@@ -449,10 +450,10 @@ class TicTacToeGameState(GameState):
             actions = self.get_legal_actions()
             visual += "hash: " + str(self.board_hash)
             visual += f"\nReward: ({self.get_reward(1)}/{self.get_reward(2)}), Terminal: {self.is_terminal()}"
-            visual += f"\n# moves: {len(actions)} last_action: {self.last_action}"
+            visual += f"\n# moves: {len(actions)} last_action: {actions_to_letters(self.last_action)}"
 
             visual += f"\nEv P1: {self.evaluate(1, params=self.default_params, norm=False)} / {self.evaluate(2, params=self.default_params, norm=False)} | "
-            # visual += f"normalized P1: {self.evaluate(1, params=self.default_params, norm=True)} / {self.evaluate(2, params=self.default_params, norm=True)}"
+            visual += f"normalized P1: {self.evaluate(1, params=self.default_params, norm=True)} / {self.evaluate(2, params=self.default_params, norm=True)}"
             # if len(actions) > 0:
             #     actions = self.evaluate_moves(self.get_legal_actions())
             #     actions = sorted(actions, key=lambda x: x[1], reverse=True)
@@ -475,7 +476,7 @@ class TicTacToeGameState(GameState):
 
     param_order: dict = {"m_power": 0, "m_centre_bonus": 1, "a": 2}
 
-    default_params = array.array("d", [3, 4, 700])
+    default_params = array.array("f", [2, 2, 50])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -504,9 +505,9 @@ class TicTacToeGameState(GameState):
     def evaluate(
         self,
         player: cython.short,
-        params: cython.double[:],
+        params: cython.float[:],
         norm: cython.bint = 0,
-    ) -> cython.double:
+    ) -> cython.float:
         # "m_power": 0, "m_centre_bonus": 1, "a": 2
         score_p1 = 0
         score_p2 = 0
@@ -515,7 +516,7 @@ class TicTacToeGameState(GameState):
         for p in range(1, 3):
             positions[p - 1] = where_is_k2d(self.board, p)
 
-        if self.n_moves < 3 * self.row_length:
+        if self.n_moves < 2 * self.row_length:
             for p in range(1, 3):
                 for posi in range(len(positions[p - 1])):
                     x = positions[p - 1][posi][0]
@@ -526,53 +527,70 @@ class TicTacToeGameState(GameState):
                     else:
                         score_p2 += params[1] * centrality_score
 
-        if self.n_moves > self.row_length:
-            for p in range(1, 3):
-                seen: cython.set = set()
-                o = 3 - p
-                for posi in range(len(positions[p - 1])):
-                    x = positions[p - 1][posi][0]
-                    y = positions[p - 1][posi][1]
+        for p in range(1, 3):
+            seen: cython.set = set()
+            o = 3 - p
+            for posi in range(len(positions[p - 1])):
+                x = positions[p - 1][posi][0]
+                y = positions[p - 1][posi][1]
 
-                    for dx in range(-1, 2):
-                        for dy in range(0, 2):
-                            if (dx != 0 or dy != 0) and not (dx == -1 and dy == 0):
-                                # seen this position already in this direction, so skip it
-                                if (x, y, dx, dy) in seen:
-                                    continue
-                                # Counting marks, looking only in the positive direction
-                                count = 1  # Start with the current mark
-                                line_broken = 0
-                                parts = 0
-                                for offset in range(1, self.row_length):
-                                    nx = x + (dx * offset)
-                                    ny = y + (dy * offset)
-                                    if (
-                                        nx < 0
-                                        or nx >= self.board.shape[0]
-                                        or ny < 0
-                                        or ny >= self.board.shape[1]
-                                        or self.board[nx, ny] == o
-                                    ):
+                for dx in range(-1, 2):
+                    for dy in range(0, 2):
+                        if (dx != 0 or dy != 0) and not (dx == -1 and dy == 0):
+                            # seen this position already in this direction, so skip it
+                            if (x, y, dx, dy) in seen:
+                                continue
+                            # Counting marks, looking only in the positive direction
+                            count = 1  # Start with the current mark
+                            line_broken = 0
+                            parts = 0
+                            for offset in range(1, self.row_length):
+                                nx = x + (dx * offset)
+                                ny = y + (dy * offset)
+                                if (
+                                    nx < 0
+                                    or nx >= self.board.shape[0]
+                                    or ny < 0
+                                    or ny >= self.board.shape[1]
+                                    or self.board[nx, ny] == o
+                                ):
+                                    break
+                                if self.board[nx, ny] == 0 and line_broken == 1:
+                                    break
+                                if self.board[nx, ny] == p and line_broken <= 1:
+                                    count += 1
+                                    # Looking at an unbroken line, we don't want to check this position again
+                                    if line_broken == 0:
+                                        seen.add((nx, ny, dx, dy))
+                                    else:
+                                        parts += 1
+
+                                if self.board[nx, ny] == 0:
+                                    line_broken += 1
+
+                            if count <= 2:
+                                continue
+
+                            # Counting spaces, looking in both directions
+                            space_count = count
+                            for offset in range(1, self.row_length):
+                                nx = x + (dx * offset)
+                                ny = y + (dy * offset)
+                                if (
+                                    nx < 0
+                                    or nx >= self.board.shape[0]
+                                    or ny < 0
+                                    or ny >= self.board.shape[1]
+                                    or self.board[nx, ny] == o
+                                ):
+                                    break
+                                if self.board[nx, ny] == 0 or self.board[nx, ny] == p:
+                                    space_count += 1
+                                    if space_count >= self.row_length:
                                         break
-                                    if self.board[nx, ny] == 0 and line_broken == 1:
-                                        break
-                                    if self.board[nx, ny] == p and line_broken <= 1:
-                                        count += 1
-                                        # Looking at an unbroken line, we don't want to check this position again
-                                        if line_broken == 0:
-                                            seen.add((nx, ny, dx, dy))
-                                        else:
-                                            parts += 1
-                                    if self.board[nx, ny] == 0:
-                                        line_broken += 1
 
-                                if count <= 2:
-                                    continue
-
-                                # Counting spaces, looking in both directions
-                                space_count = count
-                                for offset in range(1, self.row_length):
+                            if space_count < self.row_length:
+                                for offset in range(-1, -self.row_length, -1):
                                     nx = x + (dx * offset)
                                     ny = y + (dy * offset)
                                     if (
@@ -588,40 +606,48 @@ class TicTacToeGameState(GameState):
                                         if space_count >= self.row_length:
                                             break
 
-                                if space_count < self.row_length:
-                                    for offset in range(-1, -self.row_length, -1):
-                                        nx = x + (dx * offset)
-                                        ny = y + (dy * offset)
-                                        if (
-                                            nx < 0
-                                            or nx >= self.board.shape[0]
-                                            or ny < 0
-                                            or ny >= self.board.shape[1]
-                                            or self.board[nx, ny] == o
-                                        ):
-                                            break
-                                        if self.board[nx, ny] == 0 or self.board[nx, ny] == p:
-                                            space_count += 1
-                                            if space_count >= self.row_length:
-                                                break
+                            # If the line can be potentially completed, add the count to the score
+                            if space_count >= self.row_length:
+                                # Prefer unbroken lines, unless we only need one more mark to win
+                                if count != self.row_length - 1:
+                                    power: cython.float = max(
+                                        1, params[0] - parts
+                                    )  # * Parts will be 0 if the line is unbroken
+                                else:
+                                    power: cython.float = params[0]
 
-                                # If the line can be potentially completed, add the count to the score
-                                if space_count >= self.row_length:
-                                    # If the line is broken we don't want that, unless we only need one more mark to win
-                                    if count != self.row_length - 1:
-                                        power: cython.double = max(1, params[0] - parts)
-                                    else:
-                                        power: cython.double = params[0]
-
-                                    if p == 1:
-                                        score_p1 += count**power
-                                    else:
-                                        score_p2 += count**power
+                                if p == 1:
+                                    score_p1 += (count**power) + 0.2 * (space_count - count)
+                                else:
+                                    score_p2 += (count**power) + 0.2 * (space_count - count)
 
         if norm:
-            return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
+            if self.n_moves < 3 * self.row_length:
+                return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2] / 2.0)
+            else:
+                return normalize(score_p1 - score_p2 if player == 1 else score_p2 - score_p1, params[2])
 
         return int(score_p1 - score_p2 if player == 1 else score_p2 - score_p1)
+
+
+@cython.ccall
+def actions_to_letters(action_tuple):
+    """
+    Converts a tuple of numerical actions into their corresponding letters.
+
+    Parameters:
+        action_tuple (tuple): A tuple containing numerical indices of the actions.
+
+    Returns:
+        tuple: A tuple containing the corresponding letters of the alphabet for each action index.
+    """
+    letters = []
+    for action_number in action_tuple:
+        if action_number < 0 or action_number >= 26:
+            return action_tuple
+        letter = chr(ord("A") + action_number)
+        letters.append(letter)
+    return tuple(letters)
 
 
 def evaluate_tictactoe(self: GameState, player: int, m_opp_disc: float = 1.0, m_score: float = 1.0) -> float:

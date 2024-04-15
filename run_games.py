@@ -172,7 +172,7 @@ def init_ai_player(
     assert params.ai_params is not None, f"AI parameters must be provided {params=}"
 
     # Create a python double array containing the evaluation function parameters in the order given in eval_param_order
-    eval_params = array("d", [0.0] * len(eval_param_order))  # Initialize with zeros
+    eval_params = array("f", [0.0] * len(eval_param_order))  # Initialize with zeros
     for param_name, index in eval_param_order.items():
         eval_params[index] = params.eval_params.get(param_name, default_params[index])
 

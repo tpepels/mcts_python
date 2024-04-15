@@ -5,8 +5,7 @@ from libc.math cimport tanh
 
 cdef double Z
 
-
-cdef inline double normalize(double value, double a) except -99999:
+cdef inline float normalize(float value, float a) except -99999:
     """
     Normalize value with range [-a,a] to [-1, 1] using tanh
 

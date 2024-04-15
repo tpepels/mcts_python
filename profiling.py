@@ -137,7 +137,15 @@ else:
     eval_params_1 = {}
     eval_params_2 = {}
 
-    ai_1_params = {"max_time": 10, "debug": args.debug, "ab_p1": 2, "k_factor": 0.3}
+    ai_1_params = {
+        "max_time": 10,
+        "debug": args.debug,
+        # "ab_p1": 2,
+        # "k_factor": 0.3,
+        "mast": True,
+        "epsilon": 0.05,
+        "rave_k": 1000,
+    }
     ai_2_params = {"max_time": 10, "debug": args.debug}
 
     p1_params = AIParams(

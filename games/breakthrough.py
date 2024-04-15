@@ -434,16 +434,16 @@ class BreakthroughGameState(GameState):
         "a": 7,
     }
 
-    default_params = array.array("d", [2.0, 1.0, 2.0, 0, 1.0, 0, 10.0, 200.0])
+    default_params = array.array("f", [2.0, 1.0, 2.0, 0, 1.0, 0, 10.0, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
     def evaluate(
         self,
         player: cython.short,
-        params: cython.double[:],
+        params: cython.float[:],
         norm: cython.bint = 0,
-    ) -> cython.double:
+    ) -> cython.float:
         """
         Evaluate the board
         """

@@ -5,7 +5,6 @@ import glob
 import itertools
 import json
 import math
-import sys
 import traceback
 import os
 import re

@@ -448,16 +448,16 @@ class AmazonsGameState(GameState):
         "a": 5,
     }
 
-    default_params = array.array("d", [12, 1.0, 1.0, 2.0, 2.0, 100.0])
+    default_params = array.array("f", [12, 1.0, 1.0, 2.0, 2.0, 100.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
     def evaluate(
         self,
         player: cython.short,
-        params: cython.double[:],
+        params: cython.float[:],
         norm: cython.bint = 0,
-    ) -> cython.double:
+    ) -> cython.float:
         """
         Evaluates the current game state for Game of the Amazons using Lieberum's evaluation function,
         which takes into account territory control, the potential to capture or save queens, mobility of queens,

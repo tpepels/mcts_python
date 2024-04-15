@@ -51,7 +51,7 @@ cdef double value(
     double beta,
     int depth,
     int max_player,
-    double[:] eval_params,
+    float[:] eval_params,
     TranspositionTable trans_table,
     MoveHistory move_history,
     dict killer_moves,
@@ -225,7 +225,7 @@ cdef double value(
             board=None
         )
 
-cdef double quiescence(GameState state, double alpha, double beta, int max_player, double[:] eval_params) except -88888888:
+cdef double quiescence(GameState state, double alpha, double beta, int max_player, float[:] eval_params) except -88888888:
     # This is the quiescence function, which aims to mitigate the horizon effect by
     # conducting a more exhaustive search on volatile branches of the game tree,
     # such as those involving captures.
@@ -291,7 +291,7 @@ cdef class AlphaBetaPlayer:
 
     cdef int player
     cdef int max_depth
-    cdef double[:] eval_params
+    cdef float[:] eval_params
     cdef bint use_quiescence
     cdef bint use_kill_moves
     cdef bint use_history
@@ -310,7 +310,7 @@ cdef class AlphaBetaPlayer:
         self,
         int player,
         double max_time,
-        double[:] eval_params,
+        float[:] eval_params,
         int max_depth=25,
         unsigned transposition_table_size=2**16,
         bint use_quiescence=False,

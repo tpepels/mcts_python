@@ -1148,7 +1148,7 @@ class MiniShogi(GameState):
         "m_occurrence": 6,
         "a": 7,
     }
-    default_params = array.array("d", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 200.0])
+    default_params = array.array("f", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 200.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1167,9 +1167,9 @@ class MiniShogi(GameState):
     def evaluate(
         self,
         player: cython.short,
-        params: cython.double[:],
+        params: cython.float[:],
         norm: cython.bint = 0,
-    ) -> cython.double:
+    ) -> cython.float:
         # TODO hier was je gebleven, deze moet je nog goed nakijken... Er was bijvoorbeeld iets vreemds met de defense, die niet deterministisch was..
         attacks: cython.short = 0
         captures: cython.short = 0

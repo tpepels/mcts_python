@@ -3,10 +3,8 @@
 import gc
 import random
 from random import random as rand_float
-from shutil import move
 from typing import Optional
 from colorama import Back, Fore, init
-from numpy import isin
 
 from includes.dynamic_bin import DynamicBin
 
@@ -41,14 +39,7 @@ if __debug__:
 @cython.exceptval(-99999999.9, check=False)
 def uniform(a: cython.float, b: cython.float) -> cython.float:
     "Get a random number in the range [a, b) or [a, b] depending on rounding."
-    mod: cython.float = a + (b - a)
-    return mod * rand_float()
-
-
-# @cython.cfunc
-# @cython.exceptval(-1, check=False)
-# def curr_time() -> cython.double:
-#     return time(cython.NULL)
+    return (a + (b - a)) * rand_float()
 
 
 @cython.cclass
@@ -62,11 +53,14 @@ class Node:
     solved_player = cython.declare(cython.short, visibility="public")
     player = cython.declare(cython.short, visibility="public")
     anti_decisive = cython.declare(cython.bint, visibility="public")
+    action = cython.declare(cython.tuple, visibility="public")
+    n_children = cython.declare(cython.short, visibility="public")
     # Private fields
+    amaf_visits: cython.int
+    amaf_wins: cython.float
     draw: cython.bint
     eval_value: cython.float
-    action: cython.tuple
-    actions: cython.list  # A list of actions that is used to expand the node
+    actions: cython.list[cython.tuple]  # A list of actions that is used to expand the node
 
     def __cinit__(self, player: cython.short, action: cython.tuple, max_player: cython.short):
         # The action that led to this state, needed for root selection
@@ -79,6 +73,7 @@ class Node:
         self.solved_player = 0
         self.v = [0.0, 0.0]  # Values for player-1
         self.n_visits = 0
+        self.n_children = 0  # An unexpanded node has no children
         self.actions = []
         self.children = []
 
@@ -89,6 +84,7 @@ class Node:
         max_player: cython.short,
         pb_weight: cython.float = 0.0,
         imm_alpha: cython.float = 0.0,
+        rave_k: cython.float = 0.0,
         ab_p1: cython.short = 0,
         ab_p2: cython.short = 0,
         alpha: cython.float = -INFINITY,
@@ -97,9 +93,8 @@ class Node:
         alpha_bounds: cython.float = 0.0,
         beta_bounds: cython.float = 0.0,
     ) -> Node:
-        n_children: cython.Py_ssize_t = len(self.children)
         assert self.expanded, "Trying to uct a node that is not expanded"
-        global ucb_bound, ab_bound
+        # global ucb_bound, ab_bound
 
         selected_child: Optional[Node] = None
         best_val: cython.double = -INFINITY
@@ -115,15 +110,30 @@ class Node:
                 # c *= k_factor * sqrt(log((1 - k) * p_n))
                 # The old method of multiplying c Should be equivalent to this:
                 log_p_n *= k_factor**2 * log((1 - k) * p_n)
-                ab_bound += 1
-            else:
-                ucb_bound += 1
-        else:
-            ucb_bound += 1
+            #     ab_bound += 1
+            # else:
+            #     ucb_bound += 1
+        # else:
+        #     ucb_bound += 1
+
+        if rave_k > 0.0:
+            # Calculate Beta for the RAVE balance (assumes c_n and total_visits are defined)
+            beta: cython.float = sqrt(rave_k / (3 * p_n + rave_k))
 
         # Move through the children to find the one with the highest UCT value
         ci: cython.short
-        for ci in range(n_children):
+        if imm_alpha > 0.0:
+            # Find the max and min values for the children to normalize them
+            max_imm: cython.float = -INFINITY
+            min_imm: cython.float = INFINITY
+            for ci in range(self.n_children):
+                child: Node = self.children[ci]
+                if child.im_value > max_imm:
+                    max_imm = child.im_value
+                if child.im_value < min_imm:
+                    min_imm = child.im_value
+
+        for ci in range(self.n_children):
             child: Node = self.children[ci]
 
             # ! A none exception could happen in case there's a mistake in how the children are added to the list in expand
@@ -148,10 +158,19 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            # ! The log of p_n is only calculated once, so we can use it here as is.
-            uct_val: cython.double = child.get_value_imm(self.player, imm_alpha, max_player) + (
-                c * sqrt(log_p_n / c_n)
-            )
+            if rave_k > 0.0 and child.amaf_visits > 0:
+                # Calculate the UCT value with RAVE
+                # ! AMAF wins are in view of the parent player, so no need to switch
+                uct_val = (
+                    (1 - beta) * (child.get_value_imm(self.player, imm_alpha, max_player, min_imm, max_imm))
+                    + beta * (child.amaf_wins / cython.cast(cython.float, child.amaf_visits))
+                    + (c * sqrt(log_p_n / c_n))
+                )
+            else:
+                # ! The log of p_n is only calculated once, so we can use it here as is.
+                uct_val: cython.double = child.get_value_imm(self.player, imm_alpha, max_player, min_imm, max_imm) + (
+                    c * sqrt(log_p_n / c_n)
+                )
 
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
@@ -166,14 +185,14 @@ class Node:
                 best_val = uct_val
 
         # It may happen that somewhere else in the tree all my children have been found to be proven losses.
-        if children_lost == n_children:
+        if children_lost == self.n_children:
             # Since all children are losses, we can mark this node as solved for the opponent
             # We do this here because the node may have been expanded and solved elsewhere in the tree
             self.solved_player = 3 - self.player
             # just return a random child, they all lead to a loss anyway
             return random.choice(self.children)
 
-        elif children_lost == (n_children - 1):
+        elif children_lost == (self.n_children - 1):
             self.check_loss_node()
 
             if self.solved_player == 0 or self.solved_player == self.player:
@@ -181,7 +200,7 @@ class Node:
                 self.anti_decisive = 1
 
         # Proven draw
-        elif children_draw == n_children:
+        elif children_draw == self.n_children:
             self.draw = 1
 
         assert selected_child is not None, f"No child selected in UCT! {str(self)}"
@@ -193,7 +212,7 @@ class Node:
         self,
         init_state: GameState,
         max_player: cython.short,
-        eval_params: cython.double[:],
+        eval_params: cython.float[:],
         prog_bias: cython.bint = 0,
         imm: cython.bint = 0,
     ) -> Node:
@@ -214,8 +233,7 @@ class Node:
                 self.im_value = loss
 
             self.children = [None] * len(self.actions)
-
-        n_children: cython.Py_ssize_t = len(self.children)
+            self.n_children = len(self.children)
 
         while len(self.actions) > 0:
             # Get a random action from the list of previously generated actions
@@ -225,7 +243,7 @@ class Node:
             child: Node = Node(new_state.player, action, max_player)
 
             # This works because we pop the actions
-            self.children[(n_children - len(self.actions)) - 1] = child
+            self.children[(self.n_children - len(self.actions)) - 1] = child
 
             # Solver mechanics..
             if new_state.is_terminal():
@@ -265,7 +283,6 @@ class Node:
                         params=eval_params,
                     ) + uniform(-0.00001, 0.00001)
                     child.n_visits += 1
-
                     # ! This make sure that we only overwrite if we are sure we've found a "better" move
                     if (self.player != max_player and child.im_value < self.im_value) or (
                         self.player == max_player and child.im_value > self.im_value
@@ -279,7 +296,7 @@ class Node:
         self.expanded = 1
 
         # We reached a node with no successors, this means loss/draw depending on the game
-        if n_children == 0:
+        if self.n_children == 0:
             if self.solved_player == 0:
                 raise ValueError(f"Node {str(self)} has no children, but is not solved {init_state.visualize(True)}")
 
@@ -290,17 +307,19 @@ class Node:
 
         if imm:
             # Do the full minimax back-up
-            best_im: cython.float
             best_node: Node
-            best_im = -INFINITY if self.player == max_player else INFINITY
+            best_im: cython.float = -INFINITY if self.player == max_player else INFINITY
+            # print(best_im)
             i: cython.short
-            for i in range(n_children):
+            for i in range(self.n_children):
+                child_im: cython.float = self.children[i].im_value
                 # * Minimize or Maximize my im value over all children
-                if (self.player == max_player and self.children[i].im_value > best_im) or (
-                    self.player != max_player and self.children[i].im_value < best_im
+                if (self.player == max_player and child_im > best_im) or (
+                    self.player != max_player and child_im < best_im
                 ):
-                    best_im = self.children[i].im_value
+                    best_im = child_im
                     best_node = self.children[i]
+                    # print(f"New best im value: {best_im} from {str(best_node)}")
 
             # Now overwrite the im value of the node with the best im value
             self.im_value = best_im
@@ -315,7 +334,7 @@ class Node:
         self,
         init_state: GameState,
         max_player: cython.short,
-        eval_params: cython.double[:],
+        eval_params: cython.float[:],
         prog_bias: cython.bint = 0,
         imm: cython.bint = 0,
     ):
@@ -327,27 +346,40 @@ class Node:
 
     @cython.cfunc
     @cython.locals(i=cython.short)
-    def check_loss_node(self):
+    def check_loss_node(self) -> cython.void:
         # I'm solved, nothing to see here.
         if self.solved_player != 0:
             return
-
-        for i in range(len(self.children)):
+        opp: cython.short = 3 - self.player
+        child: Node
+        for i in range(self.n_children):
+            child = self.children[i]
             # If all children lead to a loss, then we will not return from the function
-            if self.children[i].solved_player != 3 - self.player:
+            if child.solved_player != opp:
                 return
 
-        self.solved_player = 3 - self.player
+        self.solved_player = opp
 
     @cython.cfunc
     @cython.inline
     @cython.exceptval(-777777777, check=False)
-    def get_value_imm(self, player: cython.short, imm_alpha: cython.float, max_player: cython.short) -> cython.float:
+    def get_value_imm(
+        self,
+        player: cython.short,
+        imm_alpha: cython.float,
+        max_player: cython.short,
+        min_imm: cython.float,
+        max_imm: cython.float,
+    ) -> cython.float:
         if imm_alpha > 0.0:
             # Since imm values are in view of the maximizing player, flip the sign for the minimizing player
             sign: cython.float = 1.0 if player == max_player else -1.0
-            return ((1.0 - imm_alpha) * (self.v[player - 1] / self.n_visits)) + (sign * imm_alpha * self.im_value)
+            # Normalize the imm value
+            norm_im_val: cython.float = sign * ((self.im_value - min_imm) / (max_imm - min_imm))
+
+            return ((1.0 - imm_alpha) * (self.v[player - 1] / self.n_visits)) + (imm_alpha * norm_im_val)
         else:
+
             return self.v[player - 1] / self.n_visits
 
     def __str__(self):
@@ -371,8 +403,9 @@ class Node:
         return (
             f"{solved_bg}"
             f"{root_mark} "
-            f"{Fore.GREEN}P: {self.player:<1} " + im_str + f"{Fore.YELLOW}EV: {self.eval_value:5.2f} "
-            f"{Fore.CYAN}EXP: {'True' if self.expanded else 'False':<3} "
+            f"{Fore.GREEN}P: {self.player:<1} " + im_str + f"{Fore.YELLOW}EV: {self.eval_value:2.3f} "
+            f"{Fore.BLUE}AMAF_v: {self.amaf_visits:<6} AMAV_w: {self.amaf_wins:5.0f} "
+            f"{Fore.CYAN}EXP: {'True' if self.expanded else 'False':<4} "
             f"{Fore.MAGENTA}SOLVP: {self.solved_player:<3} "
             f"{Fore.MAGENTA}DRW: {self.draw:<3} "
             f"{Fore.WHITE}VAL: {value:2.3f} "
@@ -389,19 +422,22 @@ class MCTSPlayer:
     dyn_early_term: cython.bint
     early_term_turns: cython.short
     early_term_cutoff: cython.float
-    e_greedy: cython.bint
     prog_bias: cython.bint
     pb_weight: cython.float
     imm: cython.bint
     imm_alpha: cython.float
     debug: cython.bint
-    roulette: cython.bint
-    roulette_eps: cython.float
+    # Mast and e greedy both use epsilon
+    mast: cython.bint
+    mast_visits: cython.list[cython.dict[cython.tuple, cython.float]]
+    mast_values: cython.list[cython.dict[cython.tuple, cython.float]]
+    e_greedy: cython.bint
+    epsilon: cython.float
+
     dyn_early_term_cutoff: cython.float
     c: cython.float
-    epsilon: cython.float
     max_time: cython.float
-    eval_params: cython.double[:]
+    eval_params: cython.float[:]
     root: Node
     reuse_tree: cython.bint
     random_top: cython.int
@@ -421,6 +457,9 @@ class MCTSPlayer:
     n_moves: cython.int
     max_depth: cython.int
     avg_depth: cython.int
+    mast_moves: cython.int
+    rave_k: cython.float
+    rave: cython.bint
     # Research additions
     ab_p1: cython.short
     ab_p2: cython.short
@@ -429,7 +468,7 @@ class MCTSPlayer:
     def __init__(
         self,
         player: int,
-        eval_params: cython.double[:],
+        eval_params: cython.float[:],
         transposition_table_size: int = 2**16,
         num_simulations: int = 0,
         max_time: int = 0,
@@ -438,8 +477,10 @@ class MCTSPlayer:
         early_term_turns: int = 0,
         early_term_cutoff: float = 0.0,
         epsilon: float = 0.0,
+        e_greedy: bool = False,
+        mast: bool = False,
+        rave_k: float = 0,
         e_g_subset: int = 20,
-        roulette_epsilon: float = 0.0,
         imm_alpha: float = 0.0,
         ab_p1: int = 0,
         ab_p2: int = 0,
@@ -455,10 +496,9 @@ class MCTSPlayer:
         self.dyn_early_term = dyn_early_term_cutoff > 0.0
         self.dyn_early_term_cutoff = dyn_early_term_cutoff
         self.early_term_cutoff = early_term_cutoff
-        self.e_greedy = epsilon > 0.0
+        self.e_greedy = e_greedy
+        self.mast = mast
         self.epsilon = epsilon
-        self.roulette = roulette_epsilon > 0.0
-        self.roulette_eps = roulette_epsilon
         self.e_g_subset = e_g_subset
         self.early_term = early_term_cutoff > 0.0 or early_term_turns > 0
         self.early_term_turns = early_term_turns
@@ -496,6 +536,10 @@ class MCTSPlayer:
         self.n_moves = 0
         self.avg_depth = 0
         self.max_depth = 0
+        self.mast_moves = 0
+        if rave_k > 0:
+            self.rave = True
+        self.rave_k = rave_k
 
         self.ab_p1 = ab_p1
         self.ab_p2 = ab_p2
@@ -508,6 +552,19 @@ class MCTSPlayer:
     @cython.ccall
     def best_action(self, state: GameState) -> cython.tuple:
         assert state.player == self.player, "The player to move does not match my max player"
+        # Reset the MAST values
+        if self.mast:
+            self.mast_visits = [{}, {}]
+            self.mast_values = [{}, {}]
+            # Insert the move evaluations into the MAST values to kickstart MAST
+            actions: cython.list[cython.tuple] = state.get_legal_actions()
+            action: cython.tuple
+            for action in actions:
+                # Evaluate each action and use that as the initial value for MAST for my player
+                new_state: GameState = state.apply_action(action)
+                value: cython.float = new_state.evaluate(player=self.player, norm=True, params=self.eval_params)
+                self.mast_values[self.player - 1][action] = value * 5
+                self.mast_visits[self.player - 1][action] = 5
 
         self.n_moves += 1
 
@@ -588,7 +645,7 @@ class MCTSPlayer:
         self.avg_pos_ps += i / float(max(1, total_time))
         self.avg_depth = cython.cast(cython.int, self.avg_depth / (i + 1))
 
-        n_children: cython.Py_ssize_t = len(self.root.children)
+        n_children: cython.short = self.root.n_children
 
         all_loss: cython.bint = 1
         max_node: Node = None
@@ -597,6 +654,17 @@ class MCTSPlayer:
 
         if self.random_top == 0:
             c_i: cython.short
+
+            if self.imm:
+                # Find the max and min values for the children to normalize them
+                max_imm: cython.float = -INFINITY
+                min_imm: cython.float = INFINITY
+                for c_i in range(n_children):
+                    child: Node = self.root.children[c_i]
+                    if child.im_value > max_imm:
+                        max_imm = child.im_value
+                    if child.im_value < min_imm:
+                        min_imm = child.im_value
 
             for c_i in range(0, n_children):
 
@@ -613,7 +681,7 @@ class MCTSPlayer:
                 if self.move_selection == 0:
                     value = node.n_visits
                 elif self.move_selection == 1:
-                    value = node.get_value_imm(self.player, self.imm_alpha, self.player)
+                    value = node.get_value_imm(self.player, self.imm_alpha, self.player, min_imm, max_imm)
 
                 if value >= max_value:
                     max_node = node
@@ -621,7 +689,7 @@ class MCTSPlayer:
         else:
             # * For initial "randomized" openings
             # Compute the number of nodes to select based on the percentage (random_top)
-            n_top: cython.int = int(len(self.root.children) * (float(self.random_top) / 100.0))
+            n_top: cython.int = int(self.root.n_children * (float(self.random_top) / 100.0))
             # This is used to kick-start experiments and ensure difference between experiments
             # Select a move at random from the best self.random_top moves
             top_nodes: cython.list = sorted(self.root.children, key=get_node_visits, reverse=True)[:n_top]
@@ -640,7 +708,7 @@ class MCTSPlayer:
 
             # * We should only be here in case of a loss or a draw
             # return a random action if all children are losing moves
-            if len(self.root.children) == 0:
+            if self.root.n_children == 0:
                 self.root = None
                 return None, 0.0
 
@@ -670,6 +738,8 @@ class MCTSPlayer:
     def simulate(self, init_state: GameState):
         # Keep track of selected nodes
         selected: cython.list[Node] = [self.root]
+        p1_actions: cython.list[cython.tuple] = []
+        p2_actions: cython.list[cython.tuple] = []
         # Keep track of the state
         next_state: GameState = init_state
         is_terminal: cython.bint = init_state.is_terminal()
@@ -699,7 +769,20 @@ class MCTSPlayer:
                     # Check for new a/b bounds
                     if node.n_visits > 0 and prev_node is not None:
 
-                        val: cython.float = node.get_value_imm(self.player, self.imm_alpha, self.player)
+                        if self.imm:
+                            # Find the max and min values for the children to normalize them
+                            max_imm: cython.float = -INFINITY
+                            min_imm: cython.float = INFINITY
+                            for ci in range(prev_node.n_children):
+                                child: Node = prev_node.children[ci]
+                                if child.im_value > max_imm:
+                                    max_imm = child.im_value
+                                if child.im_value < min_imm:
+                                    min_imm = child.im_value
+
+                        val: cython.float = node.get_value_imm(
+                            self.player, self.imm_alpha, self.player, min_imm, max_imm
+                        )
                         # Compute the adjustment factor for the prediction interval
                         bound: cython.float = self.k_factor * (
                             sqrt(
@@ -743,6 +826,7 @@ class MCTSPlayer:
                         self.player,
                         self.pb_weight,
                         self.imm_alpha,
+                        rave_k=self.rave_k if self.rave else 0.0,
                         ab_p1=self.ab_p1,
                         ab_p2=self.ab_p2,
                         alpha=alpha if node.player == self.player else 1 - beta_val,
@@ -752,7 +836,9 @@ class MCTSPlayer:
                         beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
                     )
                 else:
-                    node = node.uct(self.c, self.player, self.pb_weight, self.imm_alpha)
+                    node = node.uct(
+                        self.c, self.player, self.pb_weight, self.imm_alpha, rave_k=self.rave_k if self.rave else 0.0
+                    )
 
                 assert node is not None, f"Node is None after UCT {prev_node}"
 
@@ -776,6 +862,13 @@ class MCTSPlayer:
                 break
 
             if node is not None:
+                # For MAST, keep track of the actions taken
+                if self.mast:
+                    if next_state.player == 1:  # ! The player that is GOING TO MAKE the move
+                        p1_actions.append(node.action)
+                    else:
+                        p2_actions.append(node.action)
+
                 next_state = next_state.apply_action(node.action)
                 selected.append(node)
             else:
@@ -790,18 +883,25 @@ class MCTSPlayer:
         # If the node is neither terminal nor solved, then we need a playout
         if not is_terminal and node.solved_player == 0:
             # Do a random playout and collect the result
-            result = self.play_out(next_state)
+            result = self.play_out(next_state, p1_actions, p2_actions)
             if DEBUG:
                 if result == (0.5, 0.5):
                     self.playout_draws += 1
         else:
-            if node.solved_player == 0 and is_terminal:
+            if node.solved_player == 0 and is_terminal:  # A draw
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
                 result = next_state.get_result_tuple()
             elif node.solved_player == 1:
                 result = (1.3, 0.0)
             elif node.solved_player == 2:
                 result = (0.0, 1.3)
+            else:
+                raise ValueError(f"Node is not solved nor terminal {str(node)}")
+
+        if self.mast:
+            # Update the MAST values and visits for both players
+            self.update_player_mast_values(p1_actions, 0, result[0])
+            self.update_player_mast_values(p2_actions, 1, result[1])
 
         # Keep track of the max depth of the tree
         if DEBUG:
@@ -812,27 +912,44 @@ class MCTSPlayer:
         j: cython.int
         for i in range(len(selected), 0, -1):  # Move backwards through the list
             node = selected[i - 1]
+            node.v[0] += result[0]
+            node.v[1] += result[1]
+            node.n_visits += 1
+
+            # Update RAVE statistics for all child nodes
+            if self.rave and node.n_children > 0:
+                for j in range(node.n_children):
+                    child: Node = node.children[j]
+                    # Children are added left to right in expand, so we can break if we reach a None child
+                    if child is None:
+                        break
+                    action: cython.tuple = child.action  # Assumes each child node knows the action that led to it
+                    action_list: cython.list[cython.tuple] = p1_actions if node.player == 1 else p2_actions
+                    if action in action_list:
+                        child.amaf_visits += 1
+                        child.amaf_wins += result[node.player - 1]
 
             # * Backpropagate the result of the playout
             if self.imm and node.expanded:
                 if node.player == self.player:
                     node.im_value = -INFINITY  # Initialize to negative infinity
-                    for j in range(len(node.children)):
+                    for j in range(node.n_children):
                         node.im_value = max(node.im_value, node.children[j].im_value)
                 else:
                     node.im_value = INFINITY  # Initialize to positive infinity
-                    for j in range(len(node.children)):
+                    for j in range(node.n_children):
                         node.im_value = min(node.im_value, node.children[j].im_value)
 
-            node.v[0] += result[0]
-            node.v[1] += result[1]
-
-            node.n_visits += 1
-
     @cython.cfunc
-    def play_out(self, state: GameState) -> cython.tuple[cython.float, cython.float]:
+    def play_out(
+        self,
+        state: GameState,
+        p1_actions: cython.list[cython.tuple],
+        p2_actions: cython.list[cython.tuple],
+    ) -> cython.tuple[cython.float, cython.float]:
         turns: cython.short = 0
         best_action: cython.tuple
+
         while not state.is_terminal():
             if turns > 1:
                 # Early termination condition with a fixed number of turns
@@ -841,7 +958,7 @@ class MCTSPlayer:
                     evaluation: cython.float = state.evaluate(params=self.eval_params, player=1, norm=True)
                     if evaluation >= self.early_term_cutoff:
                         return (1.0, 0.0)
-                    elif evaluation < -self.early_term_cutoff:
+                    elif evaluation <= -self.early_term_cutoff:
                         return (0.0, 1.0)
                     else:
                         return (0.5, 0.5)
@@ -852,12 +969,43 @@ class MCTSPlayer:
                     evaluation = state.evaluate(params=self.eval_params, player=1, norm=True)
                     if evaluation >= self.dyn_early_term_cutoff:
                         return (1.0, 0.0)
-                    elif evaluation < -self.dyn_early_term_cutoff:
+                    elif evaluation <= -self.dyn_early_term_cutoff:
                         return (0.0, 1.0)
 
             action_selected: cython.bint = False
+
+            if not action_selected and self.mast == 1:
+
+                if uniform(0, 1) < self.epsilon:
+                    mast_max: cython.float = -INFINITY
+                    mast_index: cython.short
+                    actions: cython.list[cython.tuple] = state.get_legal_actions()
+                    # Select the move with the highest MAST value
+                    for i in range(len(actions)):
+                        mast_vis: cython.float = cython.cast(
+                            cython.float, self.mast_visits[state.player - 1].get(actions[i], 0)
+                        )
+                        if mast_vis > 0:
+                            mast_val: cython.float = (
+                                self.mast_values[state.player - 1][actions[i]] + uniform(-0.01, 0.01) / mast_vis
+                            )
+                        else:
+                            mast_val: cython.float = 0
+
+                        # Make sure to have visited all moves first
+                        if mast_vis < 5:
+                            mast_val = 1.0 + uniform(0, 1)
+
+                        # If bigger, we have a winner, chose this move
+                        if mast_val > mast_max:
+                            mast_max = mast_val
+                            mast_index = i
+                    self.mast_moves += 1
+                    action_selected = True
+                    best_action = actions[mast_index]
+
             # With probability epsilon choose the best action from a subset of moves
-            if self.e_greedy == 1:
+            if not action_selected and self.e_greedy == 1:
                 if uniform(0, 1) < self.epsilon:
                     actions: cython.list[cython.tuple] = state.get_legal_actions()
                     actions = actions[: self.e_g_subset]
@@ -876,16 +1024,16 @@ class MCTSPlayer:
                             best_action = actions[i]
                             action_selected = True
 
-            # With probability epsilon choose a move using roulette wheel selection based on the move ordering
-            elif self.e_greedy == 0 and self.roulette == 1:
-                if uniform(0, 1) <= self.roulette_eps:
-                    actions: cython.list[cython.tuple] = state.get_legal_actions()
-                    best_action = random.choices(actions, weights=state.move_weights(actions), k=1)[0]
-                    action_selected = True
-
-            # No roulette or e-greedy move was selected, hence select one at random
+            # No mast or e-greedy move was selected, hence select one at random
             if not action_selected:
                 best_action = state.get_random_action()
+
+            # For MAST, keep track of the actions taken
+            if self.mast:
+                if state.player == 1:  # ! The player that is GOING TO MAKE the move
+                    p1_actions.append(best_action)
+                else:
+                    p2_actions.append(best_action)
 
             state.apply_action_playout(best_action)
 
@@ -894,12 +1042,33 @@ class MCTSPlayer:
 
         self.playout_terminals += 1
         # Map the result to the players
-        res_tuple: cython.tuple[cython.int, cython.int] = state.get_result_tuple()
+        res_tuple: cython.tuple[cython.float, cython.float] = state.get_result_tuple()
         # multiply all 1's by 1.3 to reward true wins
         if res_tuple[0] == 1:
             return (1.3, 0.0)
         elif res_tuple[1] == 1:
             return (0.0, 1.3)
+        else:
+            return (0.5, 0.5)
+
+    @cython.cfunc
+    @cython.locals(action=cython.tuple, mast_value=cython.float, mast_visits=cython.int, i=cython.int)
+    def update_player_mast_values(
+        self, actions: cython.list[cython.tuple], player_index: cython.short, score: cython.float
+    ) -> cython.void:
+        """
+        Helper function to update MAST values and visits for a specific player.
+
+        :param actions: List of actions taken by the player.
+        :param player_index: Index of the player (0 for player 1, 1 for player 2).
+        :param score: Score result for the player from res_tuple.
+        """
+        for i in range(len(actions)):
+            action = actions[i]
+            mast_value = self.mast_values[player_index].get(action, 0.0)
+            mast_visits = self.mast_visits[player_index].get(action, 0)
+            self.mast_values[player_index][action] = mast_value + score  # Update based on game result
+            self.mast_visits[player_index][action] = mast_visits + 1
 
     def print_cumulative_statistics(self) -> str:
         return ""
@@ -925,12 +1094,12 @@ class MCTSPlayer:
             self.max_eval = max(evaluation, self.max_eval)
 
             print(
-                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws:,} | Terminal Playout: {self.playout_terminals:,}"
+                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws:,} | Terminal Playout: {self.playout_terminals:,} | MAST moves: {self.mast_moves:,}"
             )
             print(
                 f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
             )
-            self.avg_po_moves = 0
+            self.avg_po_moves = self.mast_moves = 0
             global ab_bound, ucb_bound
             print(
                 f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
@@ -1001,7 +1170,7 @@ def alpha_beta(
     beta: cython.float,
     depth: cython.short,
     max_player: cython.short,
-    eval_params: cython.double[:],
+    eval_params: cython.float[:],
 ):
     if state.is_terminal():
         return state.get_reward(max_player)
@@ -1011,7 +1180,7 @@ def alpha_beta(
 
     is_max_player = state.player == max_player
     # Move ordering
-    actions = state.get_legal_actions()
+    actions: cython.list[cython.tuple] = state.get_legal_actions()
     # actions = state.evaluate_moves(state.get_legal_actions())
     # actions = [(actions[i][0], actions[i][1]) for i in range(n_actions)] # ? I don't think that this line is needed here
     # actions.sort(key=itemgetter(1), reverse=is_max_player)
@@ -1047,7 +1216,7 @@ def alpha_beta(
 @cython.cfunc
 @cython.returns(cython.float)
 @cython.locals(
-    actions=cython.list,
+    actions=cython.list[cython.tuple],
     move=cython.tuple,
     score=cython.float,
     stand_pat=cython.float,
@@ -1058,7 +1227,7 @@ def quiescence(
     state: GameState,
     stand_pat: cython.float,
     max_player: cython.short,
-    eval_params: cython.double[:],
+    eval_params: cython.float[:],
 ):
     actions = state.get_legal_actions()
     for m in range(len(actions)):

@@ -34,4 +34,4 @@ cdef class GameState:
 
     cdef public int evaluate_move(self, tuple move) except -1
 
-    cdef public double evaluate(self, short player, double[:] params, bint norm=*) except -9999999
+    cdef public float evaluate(self, short player, float[:] params, bint norm=*) except -9999999
