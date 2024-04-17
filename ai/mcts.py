@@ -16,7 +16,6 @@ from cython.cimports.includes import GameState, win, loss
 
 from util import format_time
 
-DEBUG: cython.bint = __debug__
 just_play: cython.bint = False
 prunes: cython.int = 0
 non_prunes: cython.int = 0
@@ -109,7 +108,7 @@ class Node:
             if k != 0:
                 # c *= k_factor * sqrt(log((1 - k) * p_n))
                 # The old method of multiplying c Should be equivalent to this:
-                log_p_n *= k_factor**2 * log((1 - k) * p_n)
+                log_p_n *= (k_factor**2) * log((1 - k) * p_n)
             #     ab_bound += 1
             # else:
             #     ucb_bound += 1
@@ -158,7 +157,7 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            if rave_k > 0.0 and child.amaf_visits > 0:
+            if rave_k > 0.0 and child.amaf_visits > 0 and beta > 0.0:
                 # Calculate the UCT value with RAVE
                 # ! AMAF wins are in view of the parent player, so no need to switch
                 uct_val = (
@@ -526,8 +525,8 @@ class MCTSPlayer:
 
         # Because more than one class is involved, just set a global flag
         if debug:
-            global DEBUG
-            DEBUG = 1
+            global __debug__
+            __debug__ = 1
 
         # Variables for debugging and science
         self.avg_po_moves = 0
@@ -573,7 +572,7 @@ class MCTSPlayer:
             # If the root is None then this is either the first move, or something else..
             if state.REUSE and self.root is not None and self.root.expanded:
                 child: Node
-                if DEBUG:
+                if __debug__:
                     print(f"Checking children of root node {str(self.root)} with {len(self.root.children)} children")
                     print(f"Last action: {str(state.last_action)}")
 
@@ -584,7 +583,7 @@ class MCTSPlayer:
                     if child.action == state.last_action:
                         self.root = child
 
-                        if DEBUG:
+                        if __debug__:
                             print(f"Reusing root node {str(child)}")
 
                         self.root.action = ()  # This is what identifies the root node
@@ -695,7 +694,7 @@ class MCTSPlayer:
             top_nodes: cython.list = sorted(self.root.children, key=get_node_visits, reverse=True)[:n_top]
             max_node: Node = random.choice(top_nodes)
 
-            if DEBUG:
+            if __debug__:
                 print(f"Randomly selected node from top {n_top} node: {str(max_node)}")
                 for n in top_nodes:
                     print(f"{str(n)}")
@@ -714,7 +713,7 @@ class MCTSPlayer:
 
             max_node = random.choice(self.root.children)
 
-        if DEBUG:
+        if __debug__:
             # Print debug information if the debug flag is set
             self.print_debug_info(i, total_time, max_node, state)
 
@@ -884,27 +883,29 @@ class MCTSPlayer:
         if not is_terminal and node.solved_player == 0:
             # Do a random playout and collect the result
             result = self.play_out(next_state, p1_actions, p2_actions)
-            if DEBUG:
-                if result == (0.5, 0.5):
-                    self.playout_draws += 1
         else:
             if node.solved_player == 0 and is_terminal:  # A draw
                 # A terminal node is reached, so we can backpropagate the result of the state as if it was a playout
                 result = next_state.get_result_tuple()
             elif node.solved_player == 1:
-                result = (1.3, 0.0)
+                result = (1.5, 0.0)
             elif node.solved_player == 2:
-                result = (0.0, 1.3)
+                result = (0.0, 1.5)
             else:
                 raise ValueError(f"Node is not solved nor terminal {str(node)}")
 
-        if self.mast:
+        is_draw: cython.bint = result == (0.5, 0.5)
+
+        if __debug__ and is_draw:
+            self.playout_draws += 1
+
+        if self.mast and not is_draw:
             # Update the MAST values and visits for both players
             self.update_player_mast_values(p1_actions, 0, result[0])
             self.update_player_mast_values(p2_actions, 1, result[1])
 
         # Keep track of the max depth of the tree
-        if DEBUG:
+        if __debug__:
             self.max_depth = max(self.max_depth, len(selected))
             self.avg_depth += len(selected)
 
@@ -916,8 +917,8 @@ class MCTSPlayer:
             node.v[1] += result[1]
             node.n_visits += 1
 
-            # Update RAVE statistics for all child nodes
-            if self.rave and node.n_children > 0:
+            # Update RAVE statistics for all child nodes, don't update for draws, only win/losses
+            if self.rave and not is_draw and node.n_children > 0:
                 for j in range(node.n_children):
                     child: Node = node.children[j]
                     # Children are added left to right in expand, so we can break if we reach a None child
@@ -1040,15 +1041,18 @@ class MCTSPlayer:
             self.avg_po_moves += 1
             turns += 1
 
-        self.playout_terminals += 1
+        # We've ended the playout in a terminal state, keep track of the number of terminal playouts
+        if __debug__:
+            self.playout_terminals += 1
+
         # Map the result to the players
         res_tuple: cython.tuple[cython.float, cython.float] = state.get_result_tuple()
         # multiply all 1's by 1.3 to reward true wins
         if res_tuple[0] == 1:
-            return (1.3, 0.0)
+            return (1.2, 0.0)
         elif res_tuple[1] == 1:
-            return (0.0, 1.3)
-        else:
+            return (0.0, 1.2)
+        else:  # It's a draw
             return (0.5, 0.5)
 
     @cython.cfunc
@@ -1074,7 +1078,7 @@ class MCTSPlayer:
         return ""
 
     def print_debug_info(self, i: cython.int, total_time: cython.long, max_node: Node, state: GameState):
-        if DEBUG:
+        if __debug__:
             print(
                 f"\n\n** ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second **"
             )
@@ -1281,7 +1285,7 @@ def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
             print("Invalid input. Please enter a number or 'q' to quit.")
 
 
-# if DEBUG:
+# if __debug__:
 #     bins_dict["p1_value_bins"]["bin"].add_data(val if node.player == 1 else -val)
 #     bins_dict["p2_value_bins"]["bin"].add_data(val if node.player == 2 else -val)
 #     bins_dict["bound_bins"]["bin"].add_data(bound)
