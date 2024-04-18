@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Activate the virtual environment
+source $HOME/.mcts_venv/bin/activate
+
 # The directory to scan for JSON files
 DIRECTORY="$1"
 
