@@ -50,7 +50,7 @@ case $DURATION in
 esac
 
 # Construct the job script name based on city and duration
-JOB_SCRIPT="scripts/slurm_job_script.sh"
+JOB_SCRIPT="scripts/slurm_single_job.sh"
 
 # Check if the job script exists
 if [ ! -f "$JOB_SCRIPT" ]; then
