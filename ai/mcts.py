@@ -500,23 +500,23 @@ class MCTSPlayer:
         name: str = "",
     ):
         self.player = player
-        self.dyn_early_term = dyn_early_term_cutoff > 0.0
+        self.dyn_early_term = dyn_early_term_cutoff >= 0.001
         self.dyn_early_term_cutoff = dyn_early_term_cutoff
         self.early_term_cutoff = early_term_cutoff
         self.e_greedy = e_greedy
         self.mast = mast
         self.epsilon = epsilon
         self.e_g_subset = e_g_subset
-        self.early_term = early_term_cutoff > 0.0 or early_term_turns > 0
+        self.early_term = early_term_cutoff >= 0.001 or early_term_turns > 0
         self.early_term_turns = early_term_turns
         self.c = c
         self.eval_params = eval_params
         self.move_selection = move_selection
 
         # Let the enable/disable of
-        self.imm = imm_alpha > 0.0
+        self.imm = imm_alpha >= 0.001
         self.imm_alpha = imm_alpha
-        self.prog_bias = pb_weight > 0.0
+        self.prog_bias = pb_weight >= 0.001
         self.pb_weight = pb_weight
 
         # either we base the time on a fixed number of simulations or on a fixed time
@@ -539,7 +539,7 @@ class MCTSPlayer:
         self.avg_depth = 0
         self.max_depth = 0
         self.mast_moves = 0
-        if rave_k > 0:
+        if rave_k >= 0.01:
             self.rave = True
         self.rave_k = rave_k
 
@@ -1040,6 +1040,7 @@ class MCTSPlayer:
             if not action_selected and self.e_greedy == 1:
                 if uniform(0, 1) < self.epsilon:
                     actions: cython.list[cython.tuple] = state.get_legal_actions()
+                    random.shuffle(actions)
                     actions = actions[: self.e_g_subset]
                     max_value: cython.float = -99999.99
 
