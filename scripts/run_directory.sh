@@ -46,5 +46,4 @@ screen -dmS "$SCREEN_NAME" bash -c "
     fi
 "
 
-# Notify the user where to find the running experiments
 echo "All experiments are running in screen session named: $SCREEN_NAME"
