@@ -19,3 +19,22 @@ cpdef list generate_spiral(int size):
             dx, dy = -dy, dx
         x, y = x+dx, y+dy
     return spiral_coords[:size**2]
+
+cdef unsigned int hash_tuple(tuple input_tuple, short max_value) except -1:
+    cdef unsigned int hash_value = 0
+    cdef unsigned int number
+    cdef short i
+    for i in range(len(input_tuple)):
+        if input_tuple[i] < 0:
+            number = -input_tuple[i] + 999
+        else:
+            number = input_tuple[i]
+        hash_value = (hash_value * 31 + (number + (number << 10)))
+        hash_value ^= (hash_value >> 6)
+    
+    # Finalize the hash value to enhance the avalanche effect
+    hash_value += (hash_value << 3)
+    hash_value ^= (hash_value >> 11)
+    hash_value += (hash_value << 15)
+    # Ensure the hash value is non-negative and fits within the specified range
+    return hash_value % max_value

@@ -1,4 +1,4 @@
-# cython: language_level=3, wraparound=False, nonecheck=False
+# cython: language_level=3
 # distutils: language=c++
 
 import array
@@ -7,50 +7,92 @@ import cython
 import math
 
 # import random
-from fastrand import pcg32randint as randint
+from fastrand import pcg32randint as py_randint
 import numpy as np
-from cython.cimports.libc.math import log
+from cython.cimports import numpy as cnp
+
+cnp.import_array()
+from cython.cimports.libc.math import log, ceil, sqrt, abs as c_abs
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.stack import stack
 from cython.cimports.libcpp.set import set as cset
+from cython.cimports.libc.limits import LONG_MAX
+
 from cython.cimports.includes import normalize, GameState, win, loss, draw, f_index
-from cython.cimports.games.amazons import DIRECTIONS, N_DIRECTIONS
 
 
-DIRECTIONS = [[dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx == 0 and dy == 0)]
-N_DIRECTIONS = 8
+DIRECTIONS = cython.declare(
+    cython.short[2][8], [[dx, dy] for dx in range(-1, 2) for dy in range(-1, 2) if not (dx == 0 and dy == 0)]
+)
+N_DIRECTIONS = cython.declare(cython.short, 8)
+
+
+@cython.cfunc
+@cython.inline
+@cython.exceptval(-99999999, check=False)
+def randint(a: cython.int, b: cython.int) -> cython.int:
+    return py_randint(a, b)
+
+
+zobrist_table_6 = cython.declare(cython.ulonglong[4][36], np.zeros((36, 4), dtype=np.uint64))
+zobrist_table_7 = cython.declare(cython.ulonglong[4][49], np.zeros((49, 4), dtype=np.uint64))
+zobrist_table_8 = cython.declare(cython.ulonglong[4][64], np.zeros((64, 4), dtype=np.uint64))
+zobrist_table_9 = cython.declare(cython.ulonglong[4][81], np.zeros((81, 4), dtype=np.uint64))
+zobrist_table_10 = cython.declare(cython.ulonglong[4][100], np.zeros((100, 4), dtype=np.uint64))
+
+
+@cython.cfunc
+@cython.locals(i=cython.int, j=cython.int, k=cython.int)
+@cython.infer_types(True)
+def init_zobrist():
+    # For some reason this guy always returns 1 the first time..
+    for i in range(0, 100):
+        py_randint(0, LONG_MAX - 1)
+
+    for i in range(6, 10):
+        for j in range(i**2):
+            for k in range(4):
+                if i == 6:
+                    zobrist_table_6[j][k] = py_randint(1, LONG_MAX - 1)
+                elif i == 7:
+                    zobrist_table_7[j][k] = py_randint(1, LONG_MAX - 1)
+                elif i == 8:
+                    zobrist_table_8[j][k] = py_randint(1, LONG_MAX - 1)
+                elif i == 9:
+                    zobrist_table_9[j][k] = py_randint(1, LONG_MAX - 1)
+                else:
+                    zobrist_table_10[j][k] = py_randint(1, LONG_MAX - 1)
+
+
+init_zobrist()
 
 
 @cython.cclass
 class AmazonsGameState(GameState):
-    zobrist_tables = {
-        size: [[randint(1, 2**60 - 1) for _ in range(4)] for _ in range(size**2)]
-        for size in range(6, 11)  # Assuming anything between a 6x6 and 10x10 board
-    }
     REUSE = False
     # Public fields
     board = cython.declare(cython.char[:], visibility="public")
-    board_hash = cython.declare(cython.longlong, visibility="public")
+    board_hash = cython.declare(cython.ulonglong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.int, cython.int, cython.int], visibility="public")
     queens = cython.declare(cython.char[:, :], visibility="public")
+
     # Private fields
     n_moves_per_queen: cython.char[:]
-
     player_has_legal_moves: cython.bint
     board_size: cython.short
     mid: cython.short
     n_moves: cython.short
-    zobrist_table: cython.list
+    zobrist_table: cython.ulonglong[:, :]
 
     def __init__(
         self,
-        board=None,
-        player=1,
-        board_size=10,
-        n_moves=0,
-        queens=None,
-        board_hash=None,
-        last_action=(0, 0, 0),
+        board: cython.char[:] = None,
+        player: cython.short = 1,
+        board_size: cython.short = 10,
+        n_moves: cython.short = 0,
+        queens: cython.char[:, :] = None,
+        board_hash: cython.ulonglong = 0,
+        last_action: cython.tuple[cython.int, cython.int, cython.int] = (0, 0, 0),
     ):
         """
         Initialize the game state with the given board, player, and action.
@@ -61,10 +103,20 @@ class AmazonsGameState(GameState):
         self.player_has_legal_moves = 1
         self.board_size = board_size
         self.player = player
-        self.mid = math.ceil(self.board_size / 2)
+        self.mid = cython.cast(cython.short, ceil(self.board_size // 2))
         self.n_moves = n_moves
         # We can update these whenever we generate moves. When we apply an action then the lists are invalid
-        self.zobrist_table = self.zobrist_tables[self.board_size]
+        if self.board_size == 6:
+            self.zobrist_table = zobrist_table_6
+        elif self.board_size == 7:
+            self.zobrist_table = zobrist_table_7
+        elif self.board_size == 8:
+            self.zobrist_table = zobrist_table_8
+        elif self.board_size == 9:
+            self.zobrist_table = zobrist_table_9
+        elif self.board_size == 10:
+            self.zobrist_table = zobrist_table_10
+
         self.n_moves_per_queen = np.zeros(board_size**2, dtype=np.int8)
 
         if board is not None:
@@ -76,12 +128,13 @@ class AmazonsGameState(GameState):
             self.board = self.initialize_board()
             self.last_action = (-1, -1, -1)
             self.board_hash = 0
+            i: cython.short
             for i in range(self.board_size**2):
                 # Inititally, the board contains empty spaces (0), and four queens
-                self.board_hash ^= self.zobrist_table[i][self.board[i]]
+                self.board_hash ^= self.zobrist_table[i][cython.cast(cython.short, (self.board[i]))]
 
     @cython.ccall
-    def initialize_board(self):
+    def initialize_board(self) -> cython.char[:]:
         """
         Initialize the game board with the starting positions of the Amazon pieces.
         The board is a grid with player 1's pieces represented by 1 and player 2's pieces represented by 2.
@@ -169,7 +222,7 @@ class AmazonsGameState(GameState):
         new_board[t_a] = -1  # Block the position where the arrow was shot
 
         # Update board hash for the movement
-        board_hash = (
+        board_hash: cython.longlong = (
             self.board_hash
             ^ self.zobrist_table[f_p][self.player]
             ^ self.zobrist_table[t_p][self.player]
@@ -448,7 +501,7 @@ class AmazonsGameState(GameState):
         "a": 5,
     }
 
-    default_params = array.array("f", [12, 1.0, 1.0, 2.0, 2.0, 100.0])
+    default_params = array.array("f", [12, 1.0, 1.0, 2.0, 2.0, 30.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -607,11 +660,11 @@ class AmazonsGameState(GameState):
         if score < 40:
             # Calculate score based on the distance of the Amazon's move from the center
             end_x, end_y = end // s, end % s
-            score += (self.mid - abs(self.mid - end_x)) + (self.mid - abs(self.mid - end_y))
+            score += (self.mid - c_abs(self.mid - end_x)) + (self.mid - c_abs(self.mid - end_y))
 
             # Add value to the score based on the distance of the arrow shot from the Amazon
             arrow_x, arrow_y = arrow // s, arrow % s
-            score += abs(end_x - arrow_x) + abs(end_y - arrow_y)
+            score += c_abs(end_x - arrow_x) + c_abs(end_y - arrow_y)
 
         # Subtract the number of moves the queen has available (to prioritize queens with fewer moves)
         score -= cython.cast(cython.int, log(max(1, self.n_moves_per_queen[start])))
@@ -691,14 +744,19 @@ class AmazonsGameState(GameState):
 @cython.cfunc
 @cython.inline
 @cython.exceptval(-2, check=False)
-@cython.locals(dx=cython.short, dy=cython.short, x=cython.short, y=cython.short, s=cython.short)
 def get_random_distance(
     x: cython.short, y: cython.short, dx: cython.short, dy: cython.short, s: cython.short
 ) -> cython.short:
     # Determine the maximum distance in the current direction
     if dx != 0 and dy != 0:  # Diagonal movement
-        max_dist_x: cython.short = (s - 1 - x) // abs(dx) if dx > 0 else x // abs(dx)
-        max_dist_y: cython.short = (s - 1 - y) // abs(dy) if dy > 0 else y // abs(dy)
+        if dx > 0:
+            max_dist_x: cython.short = (s - 1 - x) // dx
+        else:
+            max_dist_x: cython.short = x // -dx
+        if dy > 0:
+            max_dist_y: cython.short = (s - 1 - y) // dy
+        else:
+            max_dist_y: cython.short = y // -dy
         max_dist: cython.short = min(max_dist_x, max_dist_y)
     elif dx != 0:  # Horizontal movement
         max_dist: cython.short = (s - 1 - x) if dx > 0 else x
@@ -831,7 +889,7 @@ def count_reachable_squares(board: cython.char[:], pos: cython.short) -> cython.
     :return: The number of reachable squares.
     """
     reachable: cython.short = 0
-    s: cython.short = cython.cast(cython.short, math.sqrt(board.shape[0]))
+    s: cython.short = cython.cast(cython.short, sqrt(board.shape[0]))
     x: cython.short = pos // s
     y: cython.short = pos % s
     ny: cython.short

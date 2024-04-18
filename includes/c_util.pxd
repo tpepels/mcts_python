@@ -58,3 +58,4 @@ cdef inline short find_2d_index(char[:, :] arr, short x, short y)  except -2:
 
     return -1  # Return -1 if the coordinates were not found
 
+cdef unsigned int hash_tuple(tuple input_tuple, short max_value) except -1

@@ -1,51 +1,49 @@
 # cython: language_level=3
-
 import array
 import itertools
 
 # from random import randint
-from fastrand import pcg32randint as randint
+from fastrand import pcg32randint as py_randint
 import cython
 import numpy as np
-
 from cython.cimports import numpy as cnp
 
 cnp.import_array()
-import numpy as np
-from cython.cimports.includes import (
-    GameState,
-    win,
-    draw,
-    loss,
-    normalize,
-    where_is_k2d,
-    generate_spiral,
-    find_2d_index,
-)
-from cython.cimports.games.tictactoe import MIN_SIZE, MAX_SIZE, SPIRALS
+from cython.cimports.includes import GameState, win, draw, loss, normalize, where_is_k2d
+from cython.cimports.libc.math import pow
+from cython.cimports.games.tictactoe import MIN_SIZE, MAX_SIZE
+from cython.cimports.libc.limits import LONG_MAX
 from termcolor import colored
 
 MAX_SIZE = 19
 MIN_SIZE = 3
+# For some reason this guy always returns 1 the first time..
+for i in range(0, 100):
+    py_randint(0, LONG_MAX - 1)
 
 
-for size in range(MIN_SIZE, MAX_SIZE + 1):
-    spiral = generate_spiral(size)
-    for i in range(len(spiral)):
-        SPIRALS[size - MIN_SIZE][i] = spiral[i]
+@cython.cfunc
+@cython.inline
+@cython.exceptval(-99999999, check=False)
+def randint(a: cython.int, b: cython.int) -> cython.int:
+    return py_randint(a, b)
 
 
 @cython.cclass
 class TicTacToeGameState(GameState):
     zobrist_tables = {
-        size: [[[randint(1, 2**60 - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)]
+        size: np.array(
+            [[[py_randint(1, LONG_MAX - 1) for _ in range(3)] for _ in range(size)] for _ in range(size)],
+            dtype=np.uint64,
+        )
         for size in range(MIN_SIZE, MAX_SIZE + 1)
     }
+
     REUSE = True
 
     # Public variables
     board = cython.declare(cython.char[:, :], visibility="public")
-    board_hash = cython.declare(cython.longlong, visibility="public")
+    board_hash = cython.declare(cython.ulonglong, visibility="public")
     last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
     pre_last_action = cython.declare(cython.tuple[cython.short, cython.short], visibility="public")
     longest_lines: cython.short[2]
@@ -54,23 +52,23 @@ class TicTacToeGameState(GameState):
     pie_move_done: cython.bint
     size: cython.short
     row_length: cython.short
-    zobrist_table: cython.list
+    zobrist_table: cython.ulonglong[:, :, :]
     center: cython.short
     winner: cython.short
 
     def __init__(
         self,
-        board_size=3,
-        row_length=3,
-        last_action=(-1, -1),
-        pre_last_action=(-1, -1),
-        board=None,
-        player=1,
-        n_moves=0,
-        board_hash=0,
-        pie_move_done=0,
-        longest_line_1=0,
-        longest_line_2=0,
+        board_size: cython.short = 3,
+        row_length: cython.short = 3,
+        last_action: cython.tuple[cython.short, cython.short] = (-1, -1),
+        pre_last_action: cython.tuple[cython.short, cython.short] = (-1, -1),
+        board: cython.char[:, :] = None,
+        player: cython.short = 1,
+        n_moves: cython.short = 0,
+        board_hash: cython.ulonglong = 0,
+        pie_move_done: cython.bint = 0,
+        longest_line_1: cython.short = 0,
+        longest_line_2: cython.short = 0,
     ):
         # assert MIN_SIZE <= board_size <= MAX_SIZE
 
@@ -98,7 +96,8 @@ class TicTacToeGameState(GameState):
                     piece = self.board[i][j]
                     self.board_hash ^= self.zobrist_table[i][j][piece]
         else:
-            self.longest_lines = np.array([longest_line_1, longest_line_2], dtype=np.int16)
+            self.longest_lines[0] = longest_line_1
+            self.longest_lines[1] = longest_line_2
             # This means that the board is not empty and we should check if the last player made a winning move
             self._check_win()
 
@@ -106,10 +105,6 @@ class TicTacToeGameState(GameState):
     @cython.locals(x=cython.short, y=cython.short)
     def apply_action_playout(self, action: cython.tuple) -> cython.void:
         x, y = action
-        # assert (
-        #     0 <= x < self.size and 0 <= y < self.size
-        # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
-        # assert self.board[x, y] == 0, "Illegal move"
         self.board[x, y] = self.player
         # For the pie-rule we still switch the player, because we switched the marks
         self.player = 3 - self.player
@@ -124,10 +119,6 @@ class TicTacToeGameState(GameState):
         # assert len(action) == 2, f"Action should be a tuple of length 2, not {action}"
 
         x, y = action
-        # assert (
-        #     0 <= x < self.size and 0 <= y < self.size
-        # ), f"Action {action} is illegal for board size {self.size}, n_moves: {self.n_moves}. \n{self.visualize()}"
-
         new_board: cython.char[:, :] = self.board.copy()
         move_increment: cython.short = 1
         opp: cython.short = 3 - self.player
@@ -351,7 +342,7 @@ class TicTacToeGameState(GameState):
                     max_count = max(max_count, count)
         self.longest_lines[last_player - 1] = max_count
         # Check if the board is full
-        if self.n_moves == self.size**2:
+        if self.n_moves == pow(self.size, 2):
             self.winner = -1
             return
 
@@ -476,7 +467,7 @@ class TicTacToeGameState(GameState):
 
     param_order: dict = {"m_power": 0, "m_centre_bonus": 1, "a": 2}
 
-    default_params = array.array("f", [2, 2, 50])
+    default_params = array.array("f", [2, 2, 40])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -617,9 +608,9 @@ class TicTacToeGameState(GameState):
                                     power: cython.float = params[0]
 
                                 if p == 1:
-                                    score_p1 += (count**power) + 0.2 * (space_count - count)
+                                    score_p1 += pow(count, power) + 0.2 * (space_count - count)
                                 else:
-                                    score_p2 += (count**power) + 0.2 * (space_count - count)
+                                    score_p2 += pow(count, power) + 0.2 * (space_count - count)
 
         if norm:
             if self.n_moves < 3 * self.row_length:

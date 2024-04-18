@@ -5,94 +5,113 @@ import cython
 import numpy as np
 
 # import random
-from fastrand import pcg32randint as randint
-
+from fastrand import pcg32randint as py_randint
+from cython.cimports.libc.math import abs as c_abs
 from cython.cimports.libcpp.vector import vector
 from cython.cimports.libcpp.pair import pair
 from cython.cimports.includes import normalize, where_is_k, win, loss, draw, GameState
-from cython.cimports.games.breakthrough import dirs, lorentz_values, BL_DIR, WH_DIR
+from cython.cimports.libc.limits import LONG_MAX
 
-dirs = [-1, 0, 1]
+dirs = cython.declare(cython.short[3], [-1, 0, 1])
 
 # List of values representing the importance of each square on the board. In view of player 2.
-lorentz_values = [
-    5,
-    15,
-    15,
-    5,
-    5,
-    15,
-    15,
-    5,
-    2,
-    3,
-    3,
-    3,
-    3,
-    3,
-    3,
-    2,
-    4,
-    6,
-    6,
-    6,
-    6,
-    6,
-    6,
-    4,
-    7,
-    10,
-    10,
-    10,
-    10,
-    10,
-    10,
-    7,
-    11,
-    15,
-    15,
-    15,
-    15,
-    15,
-    15,
-    11,
-    16,
-    21,
-    21,
-    21,
-    21,
-    21,
-    21,
-    16,
-    20,
-    28,
-    28,
-    28,
-    28,
-    28,
-    28,
-    20,
-    36,
-    36,
-    36,
-    36,
-    36,
-    36,
-    36,
-    36,
-]
+lorentz_values = cython.declare(
+    cython.short[64],
+    [
+        5,
+        15,
+        15,
+        5,
+        5,
+        15,
+        15,
+        5,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        4,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        4,
+        7,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        7,
+        11,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        11,
+        16,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        16,
+        20,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        20,
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+        36,
+    ],
+)
+
+# For some reason this guy always returns 1 the first time..
+for i in range(0, 100):
+    py_randint(0, LONG_MAX - 1)
+
+# Assuming the import and other setup are correct
+zobrist_table = cython.declare(cython.ulonglong[3][8][8])
+for i in range(8):
+    for j in range(8):
+        for k in range(3):
+            zobrist_table[i][j][k] = py_randint(1, LONG_MAX - 1)
+
+
+@cython.cfunc
+@cython.inline
+@cython.exceptval(-99999999, check=False)
+def randint(a: cython.int, b: cython.int) -> cython.int:
+    return py_randint(a, b)
 
 
 @cython.cclass
 class BreakthroughGameState(GameState):
-    zobrist_table = [[[randint(1, 2**61 - 1) for _ in range(3)] for _ in range(8)] for _ in range(8)]
     REUSE = True
 
-    # player = cython.declare(cython.int, visibility="public")
     board = cython.declare(cython.char[:], visibility="public")
-    board_hash = cython.declare(cython.longlong, visibility="public")
+    board_hash = cython.declare(cython.ulonglong, visibility="public")
     positions = cython.declare(cython.tuple[cython.list[cython.char], cython.list[cython.char]], visibility="public")
-    last_action = cython.declare(cython.tuple, visibility="public")
+    last_action = cython.declare(cython.tuple[cython.int, cython.int], visibility="public")
 
     winner: cython.char
 
@@ -105,12 +124,12 @@ class BreakthroughGameState(GameState):
 
     def __init__(
         self,
-        board=None,
-        player=1,
-        board_hash=0,
-        positions=None,
-        winner=0,
-        last_action=(0, 0),
+        board: cython.char[:] = None,
+        player: cython.short = 1,
+        board_hash: cython.ulonglong = 0,
+        positions: cython.tuple[cython.list[cython.char], cython.list[cython.char]] = None,
+        winner: cython.short = 0,
+        last_action: cython.tuple[cython.int, cython.int] = (0, 0),
     ):
         """
         Initialize the game state with the given board configuration.
@@ -141,12 +160,13 @@ class BreakthroughGameState(GameState):
         board[48:] = 1
         return board
 
-    def _init_hash(self):
-        board_hash = 0
+    @cython.cfunc
+    def _init_hash(self) -> cython.ulonglong:
+        board_hash: cython.ulonglong = 0
         for position in range(64):
-            player = self.board[position]
+            player: cython.short = self.board[position]
             row, col = divmod(position, 8)
-            board_hash ^= BreakthroughGameState.zobrist_table[row][col][player]
+            board_hash ^= zobrist_table[row][col][player]
         return board_hash
 
     @cython.cfunc
@@ -163,7 +183,7 @@ class BreakthroughGameState(GameState):
         act_to: cython.char = move_t[1]
 
         self.board[act_from] = 0  # Remove the piece from its current position
-        captured_player: cython.int = self.board[act_to]  # Check for captures
+        captured_player: cython.short = self.board[act_to]  # Check for captures
         self.board[act_to] = self.player  # Place the piece at its new position
 
         # Keep track of the pieces on the board
@@ -196,11 +216,11 @@ class BreakthroughGameState(GameState):
         """
         new_board: cython.char[:] = self.board.copy()
         move_t: cython.tuple[cython.int, cython.int] = action
-        act_from: cython.char = move_t[0]
-        act_to: cython.char = move_t[1]
+        act_from: cython.short = move_t[0]
+        act_to: cython.short = move_t[1]
 
         new_board[act_from] = 0  # Remove the piece from its current position
-        captured_player: cython.char = new_board[act_to]
+        captured_player: cython.short = new_board[act_to]
         new_board[act_to] = self.player  # Place the piece at its new position
 
         new_positions: cython.tuple[cython.list[cython.char], cython.list[cython.char]] = (
@@ -219,14 +239,14 @@ class BreakthroughGameState(GameState):
         new_positions[self.player - 1].remove(act_from)
         new_positions[self.player - 1].append(act_to)
 
-        to_row: cython.char = act_to // 8
-        to_col: cython.char = act_to % 8
+        to_row: cython.short = act_to // 8
+        to_col: cython.short = act_to % 8
 
         board_hash = (
             self.board_hash
-            ^ BreakthroughGameState.zobrist_table[act_from // 8][act_from % 8][self.player]
-            ^ BreakthroughGameState.zobrist_table[to_row][to_col][captured_player]
-            ^ BreakthroughGameState.zobrist_table[to_row][to_col][self.player]
+            ^ zobrist_table[act_from // 8][act_from % 8][self.player]
+            ^ zobrist_table[to_row][to_col][captured_player]
+            ^ zobrist_table[to_row][to_col][self.player]
         )
 
         if winner == 0:
@@ -434,7 +454,7 @@ class BreakthroughGameState(GameState):
         "a": 7,
     }
 
-    default_params = array.array("f", [2.0, 1.0, 2.0, 0, 1.0, 0, 10.0, 200.0])
+    default_params = array.array("f", [2.0, 1.0, 2.0, 0, 1.0, 0, 10.0, 150.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -447,39 +467,39 @@ class BreakthroughGameState(GameState):
         """
         Evaluate the board
         """
-        board_values: cython.double = 0
-        mobility_values: cython.double = 0
-        safety_values: cython.double = 0
-        endgame_values: cython.double = 0
-        piece_diff: cython.double = 0
-        decisive_values: cython.double = 0
-        caps: cython.double = 0
-        opponent: cython.int = 3 - player
+        board_values: cython.float = 0
+        mobility_values: cython.float = 0
+        safety_values: cython.float = 0
+        endgame_values: cython.float = 0
+        piece_diff: cython.float = 0
+        decisive_values: cython.float = 0
+        caps: cython.float = 0
+        opponent: cython.short = 3 - player
 
-        k: cython.int
-        i: cython.int
+        k: cython.short
+        i: cython.short
 
         for k in range(2):
             positions: cython.list[cython.char] = self.positions[k]
 
             for i in range(len(positions)):
-                position: cython.char = positions[i]
+                position: cython.short = positions[i]
                 piece: cython.char = k + 1
                 # Player or opponent
                 if piece == player:
-                    multiplier: cython.double = 1.0
+                    multiplier: cython.float = 1.0
                 else:
-                    multiplier: cython.double = -1.0
+                    multiplier: cython.float = -1.0
 
                 if piece == 2:
-                    piece_value: cython.double = lorentz_values[position]
+                    piece_value: cython.float = lorentz_values[position]
                 else:
-                    piece_value: cython.double = lorentz_values[63 - position]
+                    piece_value: cython.float = lorentz_values[63 - position]
 
                 board_values += multiplier * piece_value
 
                 if params[1] > 0.0:
-                    mob_val: cython.double = piece_mobility(position, piece, self.board)
+                    mob_val: cython.int = piece_mobility(position, piece, self.board)
                     mobility_values += multiplier * mob_val * (1 + piece_value)
 
                 if params[2] > 0.0 and not is_safe(position, piece, self.board):
@@ -562,8 +582,8 @@ class BreakthroughGameState(GameState):
         :return: The heuristic value of the move.
         """
         score: cython.int = 0
-        from_position: cython.int = move[0]
-        to_position: cython.int = move[1]
+        from_position: cython.short = move[0]
+        to_position: cython.short = move[1]
         # Use lorentz_values for base_value, the max value is 36, so we add 36 to the score to make sure it is non-negative
         if self.player == 2:
             score = 36 + (lorentz_values[to_position] - lorentz_values[from_position])
@@ -777,15 +797,14 @@ WH_DIR = [[-1, 0], [-1, -1], [-1, 1]]
     position=cython.short,
     player=cython.short,
     board=cython.char[:],
-    row=cython.int,
-    col=cython.int,
-    mobility=cython.int,
-    directions=cython.int[3][3],
-    dr=cython.int,
-    dc=cython.int,
-    new_row=cython.int,
-    new_col=cython.int,
-    new_position=cython.int,
+    row=cython.short,
+    col=cython.short,
+    mobility=cython.short,
+    dr=cython.short,
+    dc=cython.short,
+    new_row=cython.short,
+    new_col=cython.short,
+    new_position=cython.short,
 )
 def piece_mobility(position, player, board) -> cython.int:
     """
@@ -818,7 +837,7 @@ def piece_mobility(position, player, board) -> cython.int:
 
         if 0 <= new_row < 8 and 0 <= new_col < 8:
             new_position = new_row * 8 + new_col
-            if (dc == 0 and board[new_position] == 0) or (abs(dc) == 1 and board[new_position] != player):
+            if (dc == 0 and board[new_position] == 0) or (c_abs(dc) == 1 and board[new_position] != player):
                 mobility += 1
     return mobility
 
@@ -919,18 +938,18 @@ def is_safe(position, player, board) -> cython.bint:
     player=cython.short,
     total_capture_moves=cython.short,
     position=cython.char,
-    row=cython.int,
-    col=cython.int,
-    dr=cython.int,
-    piece_capture_moves=cython.int,
-    dc=cython.int,
-    new_row=cython.int,
-    new_col=cython.int,
-    new_position=cython.int,
-    i=cython.int,
-    n=cython.int,
-    opponent=cython.int,
-    piece_value=cython.int,
+    row=cython.short,
+    col=cython.short,
+    dr=cython.short,
+    piece_capture_moves=cython.short,
+    dc=cython.short,
+    new_row=cython.short,
+    new_col=cython.short,
+    new_position=cython.short,
+    i=cython.short,
+    n=cython.short,
+    opponent=cython.short,
+    piece_value=cython.short,
 )
 def count_capture_moves(board, positions, player) -> cython.short:
     """Count the number of pieces that can capture and the total number of possible capture moves for a given player.
@@ -1019,13 +1038,13 @@ def evaluate_breakthrough(
     dc: cython.char
     dist: cython.char
 
-    k: cython.char
+    k: cython.short
     i: cython.short
 
     for k in range(2):
         positions: cython.list[cython.char] = state.positions[k]
         for i in range(len(positions)):
-            pos: cython.char = positions[i]
+            pos: cython.short = positions[i]
             piece = board[pos]
             x = positions[i] // 8
             y = positions[i] % 8

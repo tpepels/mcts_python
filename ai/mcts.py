@@ -1,26 +1,27 @@
 # cython: language_level=3
 
 import gc
+import math
 import random
 from random import random as rand_float
-from typing import Optional
+from re import T
 from colorama import Back, Fore, init
-
+import numpy as np
 from includes.dynamic_bin import DynamicBin
 
 init(autoreset=True)
 import cython
 from cython.cimports.libc.time import time
 from cython.cimports.libc.math import sqrt, log, INFINITY, isnan, isfinite
-from cython.cimports.includes import GameState, win, loss
+from cython.cimports.includes import GameState, win, loss, hash_tuple
 
 from util import format_time
 
-just_play: cython.bint = False
-prunes: cython.int = 0
-non_prunes: cython.int = 0
-ab_bound: cython.int = 0
-ucb_bound: cython.int = 0
+just_play = cython.declare(cython.bint, False)
+prunes = cython.declare(cython.int, 0)
+non_prunes = cython.declare(cython.int, 0)
+ab_bound = cython.declare(cython.int, 0)
+ucb_bound = cython.declare(cython.int, 0)
 
 if __debug__:
     dynamic_bins: cython.dict = {}
@@ -38,7 +39,8 @@ if __debug__:
 @cython.exceptval(-99999999.9, check=False)
 def uniform(a: cython.float, b: cython.float) -> cython.float:
     "Get a random number in the range [a, b) or [a, b] depending on rounding."
-    return (a + (b - a)) * rand_float()
+    r_float: cython.float = rand_float()
+    return a + (b - a) * r_float
 
 
 @cython.cclass
@@ -54,9 +56,9 @@ class Node:
     anti_decisive = cython.declare(cython.bint, visibility="public")
     action = cython.declare(cython.tuple, visibility="public")
     n_children = cython.declare(cython.short, visibility="public")
+    amaf_visits = cython.declare(cython.int, visibility="public")
+    amaf_wins = cython.declare(cython.float, visibility="public")
     # Private fields
-    amaf_visits: cython.int
-    amaf_wins: cython.float
     draw: cython.bint
     eval_value: cython.float
     actions: cython.list[cython.tuple]  # A list of actions that is used to expand the node
@@ -92,13 +94,8 @@ class Node:
         alpha_bounds: cython.float = 0.0,
         beta_bounds: cython.float = 0.0,
     ) -> Node:
-        assert self.expanded, "Trying to uct a node that is not expanded"
+        # assert self.expanded, "Trying to uct a node that is not expanded"
         # global ucb_bound, ab_bound
-
-        selected_child: Optional[Node] = None
-        best_val: cython.double = -INFINITY
-        children_lost: cython.short = 0
-        children_draw: cython.short = 0
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         log_p_n: cython.float = log(p_n)
@@ -120,7 +117,6 @@ class Node:
             beta: cython.float = sqrt(rave_k / (3 * p_n + rave_k))
 
         # Move through the children to find the one with the highest UCT value
-        ci: cython.short
         if imm_alpha > 0.0:
             # Find the max and min values for the children to normalize them
             max_imm: cython.float = -INFINITY
@@ -132,6 +128,11 @@ class Node:
                 if child.im_value < min_imm:
                     min_imm = child.im_value
 
+        selected_index: cython.short
+        best_val: cython.float = -INFINITY
+        children_lost: cython.short = 0
+        children_draw: cython.short = 0
+        ci: cython.short
         for ci in range(self.n_children):
             child: Node = self.children[ci]
 
@@ -174,13 +175,13 @@ class Node:
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
 
-            assert not isnan(uct_val), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}"
+            # assert not isnan(uct_val), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}"
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
 
             # Find the highest UCT value
             if (uct_val + rand_fact) >= best_val:
-                selected_child = child
+                selected_index = ci
                 best_val = uct_val
 
         # It may happen that somewhere else in the tree all my children have been found to be proven losses.
@@ -202,9 +203,9 @@ class Node:
         elif children_draw == self.n_children:
             self.draw = 1
 
-        assert selected_child is not None, f"No child selected in UCT! {str(self)}"
+        # assert selected_child is not None, f"No child selected in UCT! {str(self)}"
 
-        return selected_child
+        return self.children[selected_index]
 
     @cython.cfunc
     def expand(
@@ -310,14 +311,16 @@ class Node:
             best_im: cython.float = -INFINITY if self.player == max_player else INFINITY
             # print(best_im)
             i: cython.short
+            child: Node
             for i in range(self.n_children):
-                child_im: cython.float = self.children[i].im_value
+                child = self.children[i]
+                child_im: cython.float = child.im_value
                 # * Minimize or Maximize my im value over all children
                 if (self.player == max_player and child_im > best_im) or (
                     self.player != max_player and child_im < best_im
                 ):
                     best_im = child_im
-                    best_node = self.children[i]
+                    best_node = child
                     # print(f"New best im value: {best_im} from {str(best_node)}")
 
             # Now overwrite the im value of the node with the best im value
@@ -373,10 +376,14 @@ class Node:
         if imm_alpha > 0.0:
             # Since imm values are in view of the maximizing player, flip the sign for the minimizing player
             sign: cython.float = 1.0 if player == max_player else -1.0
-            # Normalize the imm value
-            norm_im_val: cython.float = sign * ((self.im_value - min_imm) / (max_imm - min_imm))
-
-            return ((1.0 - imm_alpha) * (self.v[player - 1] / self.n_visits)) + (imm_alpha * norm_im_val)
+            if max_imm > min_imm:
+                # Return the value including the imm value, which is normalized between 0 and 1
+                return ((1.0 - imm_alpha) * (self.v[player - 1] / self.n_visits)) + (
+                    imm_alpha * (sign * ((self.im_value - min_imm) / (max_imm - min_imm)))
+                )
+            else:
+                # If the max and min values are the same, then the imm value is the same for all children
+                return ((1.0 - imm_alpha) * (self.v[player - 1] / self.n_visits)) + (imm_alpha * sign * self.im_value)
         else:
 
             return self.v[player - 1] / self.n_visits
@@ -425,11 +432,12 @@ class MCTSPlayer:
     pb_weight: cython.float
     imm: cython.bint
     imm_alpha: cython.float
-    debug: cython.bint
     # Mast and e greedy both use epsilon
     mast: cython.bint
-    mast_visits: cython.list[cython.dict[cython.tuple, cython.float]]
-    mast_values: cython.list[cython.dict[cython.tuple, cython.float]]
+    mast_visits: cython.uint[10000][2]
+    # mast_visits_2: cython.uint[10000]
+    mast_values: cython.float[10000][2]
+    # mast_values_2: cython.float[10000]
     e_greedy: cython.bint
     epsilon: cython.float
 
@@ -486,7 +494,7 @@ class MCTSPlayer:
         k_factor: float = 1.0,
         pb_weight: float = 0.0,
         reuse_tree: bool = True,
-        debug: bool = False,
+        debug: bool = False,  # * Because we use the __debug__ flag, this no longer has any function
         random_top: int = 0,
         move_selection: int = 0,
         name: str = "",
@@ -523,11 +531,6 @@ class MCTSPlayer:
                 self.max_time is not None or num_simulations is not None
             ), "Either provide num_simulations or search time"
 
-        # Because more than one class is involved, just set a global flag
-        if debug:
-            global __debug__
-            __debug__ = 1
-
         # Variables for debugging and science
         self.avg_po_moves = 0
         self.max_eval = -99999999.9
@@ -553,17 +556,19 @@ class MCTSPlayer:
         assert state.player == self.player, "The player to move does not match my max player"
         # Reset the MAST values
         if self.mast:
-            self.mast_visits = [{}, {}]
-            self.mast_values = [{}, {}]
-            # Insert the move evaluations into the MAST values to kickstart MAST
+            self.mast_visits = [[0] * 10000 for _ in range(2)]
+            self.mast_values = [[0.0] * 10000 for _ in range(2)]
+            # Get the legal actions for the current state
             actions: cython.list[cython.tuple] = state.get_legal_actions()
-            action: cython.tuple
-            for action in actions:
+            # Insert the move evaluations into the MAST values to kickstart it
+            c_i: cython.short
+            for c_i in range(len(actions)):
+                action_hash: cython.uint = hash_tuple(actions[c_i], 10000)
                 # Evaluate each action and use that as the initial value for MAST for my player
-                new_state: GameState = state.apply_action(action)
+                new_state: GameState = state.apply_action(actions[c_i])
                 value: cython.float = new_state.evaluate(player=self.player, norm=True, params=self.eval_params)
-                self.mast_values[self.player - 1][action] = value * 5
-                self.mast_visits[self.player - 1][action] = 5
+                self.mast_values[self.player - 1][action_hash] = value * 5
+                self.mast_visits[self.player - 1][action_hash] = 5
 
         self.n_moves += 1
 
@@ -863,9 +868,9 @@ class MCTSPlayer:
             if node is not None:
                 # For MAST, keep track of the actions taken
                 if self.mast:
-                    if next_state.player == 1:  # ! The player that is GOING TO MAKE the move
+                    if next_state.player == 1 and node.action != None:  # ! The player that is GOING TO MAKE the move
                         p1_actions.append(node.action)
-                    else:
+                    elif node.action != None:
                         p2_actions.append(node.action)
 
                 next_state = next_state.apply_action(node.action)
@@ -878,7 +883,7 @@ class MCTSPlayer:
             is_terminal = next_state.is_terminal()
 
         # * Playout / Terminal node reached
-        result: tuple[cython.float, cython.float]
+        result: cython.tuple[cython.float, cython.float]
         # If the node is neither terminal nor solved, then we need a playout
         if not is_terminal and node.solved_player == 0:
             # Do a random playout and collect the result
@@ -894,7 +899,7 @@ class MCTSPlayer:
             else:
                 raise ValueError(f"Node is not solved nor terminal {str(node)}")
 
-        is_draw: cython.bint = result == (0.5, 0.5)
+        is_draw: cython.bint = math.isclose(result[0], 0.5)
 
         if __debug__ and is_draw:
             self.playout_draws += 1
@@ -928,18 +933,36 @@ class MCTSPlayer:
                     action_list: cython.list[cython.tuple] = p1_actions if node.player == 1 else p2_actions
                     if action in action_list:
                         child.amaf_visits += 1
-                        child.amaf_wins += result[node.player - 1]
+                        res: cython.float = result[node.player - 1]
+                        child.amaf_wins += res
 
             # * Backpropagate the result of the playout
             if self.imm and node.expanded:
                 if node.player == self.player:
                     node.im_value = -INFINITY  # Initialize to negative infinity
                     for j in range(node.n_children):
-                        node.im_value = max(node.im_value, node.children[j].im_value)
+                        child_im: cython.float = node.children[j].im_value
+                        node.im_value = max(node.im_value, child_im)
                 else:
                     node.im_value = INFINITY  # Initialize to positive infinity
                     for j in range(node.n_children):
-                        node.im_value = min(node.im_value, node.children[j].im_value)
+                        child_im: cython.float = node.children[j].im_value
+                        node.im_value = min(node.im_value, child_im)
+
+    @cython.cfunc
+    @cython.inline
+    @cython.locals(i=cython.int, action=cython.tuple)
+    def update_player_mast_values(
+        self,
+        actions: cython.list[cython.tuple],
+        player_i: cython.short,
+        score: cython.float,
+    ) -> cython.void:
+        for i in range(len(actions)):
+            action = actions[i]
+            action_hash: cython.uint = hash_tuple(action, 10000)
+            self.mast_values[player_i][action_hash] += score  # Update based on game result
+            self.mast_visits[player_i][action_hash] += 1
 
     @cython.cfunc
     def play_out(
@@ -974,36 +997,44 @@ class MCTSPlayer:
                         return (0.0, 1.0)
 
             action_selected: cython.bint = False
-
             if not action_selected and self.mast == 1:
-
                 if uniform(0, 1) < self.epsilon:
-                    mast_max: cython.float = -INFINITY
-                    mast_index: cython.short
+                    # Get the legal actions for the current state
                     actions: cython.list[cython.tuple] = state.get_legal_actions()
+                    mast_max: cython.float = -INFINITY
+                    c_i: cython.short
+                    action: cython.tuple
                     # Select the move with the highest MAST value
-                    for i in range(len(actions)):
-                        mast_vis: cython.float = cython.cast(
-                            cython.float, self.mast_visits[state.player - 1].get(actions[i], 0)
-                        )
-                        if mast_vis > 0:
-                            mast_val: cython.float = (
-                                self.mast_values[state.player - 1][actions[i]] + uniform(-0.01, 0.01) / mast_vis
-                            )
-                        else:
-                            mast_val: cython.float = 0
+                    for c_i in range(len(actions)):
+                        action = actions[c_i]
+                        if action == None:  # This means that the game is over (MiniShogi)
+                            action_selected = True
+                            best_action = None
+                            break
+                        action_hash: cython.uint = hash_tuple(action, 10000)
 
-                        # Make sure to have visited all moves first
-                        if mast_vis < 5:
-                            mast_val = 1.0 + uniform(0, 1)
+                        mast_vis: cython.float = cython.cast(
+                            cython.float, self.mast_visits[state.player - 1][action_hash]
+                        )
+
+                        if mast_vis >= 5:
+                            mast_val: cython.float = self.mast_values[state.player - 1][action_hash] / mast_vis
+                            mast_val += uniform(-0.01, 0.01)  # Add a bit of randome sugah
+
+                            if __debug__:  # Keep track of the number of MAST moves selected
+                                if not isfinite(mast_max):
+                                    self.mast_moves += (
+                                        1  # We know that we will select a MAST move and count it only once.
+                                    )
+                        else:
+                            # We must have tried all the moves at least a few times to get an average
+                            mast_val: cython.float = 1.0 + uniform(0, 1)
 
                         # If bigger, we have a winner, chose this move
                         if mast_val > mast_max:
                             mast_max = mast_val
-                            mast_index = i
-                    self.mast_moves += 1
-                    action_selected = True
-                    best_action = actions[mast_index]
+                            best_action = action
+                            action_selected = True
 
             # With probability epsilon choose the best action from a subset of moves
             if not action_selected and self.e_greedy == 1:
@@ -1013,12 +1044,18 @@ class MCTSPlayer:
                     max_value: cython.float = -99999.99
 
                     for i in range(len(actions)):
+                        if action == None:  # This means that the game is over (MiniShogi)
+                            action_selected = True
+                            best_action = None
+                            break
+
                         # Evaluate the new state in view of the player to move
                         value: cython.float = state.apply_action(actions[i]).evaluate(
                             params=self.eval_params,
                             player=state.player,
                             norm=False,
                         )
+
                         # Keep track of the best action
                         if value > max_value:
                             max_value = value
@@ -1028,13 +1065,12 @@ class MCTSPlayer:
             # No mast or e-greedy move was selected, hence select one at random
             if not action_selected:
                 best_action = state.get_random_action()
-
-            # For MAST, keep track of the actions taken
-            if self.mast:
-                if state.player == 1:  # ! The player that is GOING TO MAKE the move
-                    p1_actions.append(best_action)
-                else:
-                    p2_actions.append(best_action)
+                # For MAST, keep track of the actions taken
+                if self.mast:
+                    if state.player == 1 and best_action != None:  # ! The player that is GOING TO MAKE the move
+                        p1_actions.append(best_action)
+                    elif best_action != None:
+                        p2_actions.append(best_action)
 
             state.apply_action_playout(best_action)
 
@@ -1055,86 +1091,66 @@ class MCTSPlayer:
         else:  # It's a draw
             return (0.5, 0.5)
 
-    @cython.cfunc
-    @cython.locals(action=cython.tuple, mast_value=cython.float, mast_visits=cython.int, i=cython.int)
-    def update_player_mast_values(
-        self, actions: cython.list[cython.tuple], player_index: cython.short, score: cython.float
-    ) -> cython.void:
-        """
-        Helper function to update MAST values and visits for a specific player.
-
-        :param actions: List of actions taken by the player.
-        :param player_index: Index of the player (0 for player 1, 1 for player 2).
-        :param score: Score result for the player from res_tuple.
-        """
-        for i in range(len(actions)):
-            action = actions[i]
-            mast_value = self.mast_values[player_index].get(action, 0.0)
-            mast_visits = self.mast_visits[player_index].get(action, 0)
-            self.mast_values[player_index][action] = mast_value + score  # Update based on game result
-            self.mast_visits[player_index][action] = mast_visits + 1
-
     def print_cumulative_statistics(self) -> str:
         return ""
 
     def print_debug_info(self, i: cython.int, total_time: cython.long, max_node: Node, state: GameState):
-        if __debug__:
-            print(
-                f"\n\n** ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second **"
-            )
-            if self.root.solved_player != 0:
-                print(f"*** Root node is solved for player {self.root.solved_player} ***")
-            if self.root.anti_decisive:
-                print("*** Anti-decisive move found ***")
-            if self.root.draw:
-                print("*** Proven draw ***")
+        print(
+            f"\n\n** ran {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations per second **"
+        )
+        if self.root.solved_player != 0:
+            print(f"*** Root node is solved for player {self.root.solved_player} ***")
+        if self.root.anti_decisive:
+            print("*** Anti-decisive move found ***")
+        if self.root.draw:
+            print("*** Proven draw ***")
 
-            print("--*--" * 20)
-            print(f"BEST NODE: {max_node}")
-            print("-*=*-" * 15)
-            next_state: GameState = state.apply_action(max_node.action)
-            evaluation: cython.float = next_state.evaluate(params=self.eval_params, player=self.player, norm=False)
-            norm_eval: cython.float = next_state.evaluate(params=self.eval_params, player=self.player, norm=True)
-            self.max_eval = max(evaluation, self.max_eval)
+        print("--*--" * 20)
+        print(f"BEST NODE: {max_node}")
+        print("-*=*-" * 15)
+        next_state: GameState = state.apply_action(max_node.action)
+        evaluation: cython.float = next_state.evaluate(params=self.eval_params, player=self.player, norm=False)
+        norm_eval: cython.float = next_state.evaluate(params=self.eval_params, player=self.player, norm=True)
+        self.max_eval = max(evaluation, self.max_eval)
 
-            print(
-                f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws:,} | Terminal Playout: {self.playout_terminals:,} | MAST moves: {self.mast_moves:,}"
-            )
-            print(
-                f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
-            )
-            self.avg_po_moves = self.mast_moves = 0
-            global ab_bound, ucb_bound
-            print(
-                f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
-            )
-            ucb_bound = ab_bound = 0
-            self.playout_draws = self.max_depth = self.avg_depth = 0
-            self.playout_terminals = 0
-            print("--*--" * 20)
-            print(f":: {self.root} :: ")
-            print(":: Children ::")
-            comparator = ChildComparator()
-            sorted_children = sorted(self.root.children, key=comparator, reverse=True)[:30]
-            print("\n".join([str(child) for child in sorted_children]))
-            print("--*--" * 20)
+        print(
+            f"evaluation: {evaluation:.2f} / (normalized): {norm_eval:.4f} | max_eval: {self.max_eval:.1f} | Playout draws: {self.playout_draws:,} | Terminal Playout: {self.playout_terminals:,} | MAST moves: {self.mast_moves:,}"
+        )
+        print(
+            f"max depth: {self.max_depth} | avg depth: {self.avg_depth:.2f}| avg. playout moves: {self.avg_po_moves:.2f} | avg. playouts p/s.: {self.avg_pos_ps / self.n_moves:,.0f} | {self.n_moves} moves played"
+        )
+        self.avg_po_moves = self.mast_moves = 0
+        global ab_bound, ucb_bound
+        print(
+            f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
+        )
+        ucb_bound = ab_bound = 0
+        self.playout_draws = self.max_depth = self.avg_depth = 0
+        self.playout_terminals = 0
+        print("--*--" * 20)
+        print(f":: {self.root} :: ")
+        print(":: Children ::")
+        comparator = ChildComparator()
+        sorted_children = sorted(self.root.children, key=comparator, reverse=True)[:30]
+        print("\n".join([str(child) for child in sorted_children]))
+        print("--*--" * 20)
 
-            if __debug__ and self.ab_p1 != 0:
+        if __debug__ and self.ab_p1 != 0:
 
-                plot_width = 120
-                plot_height = 26
+            plot_width = 120
+            plot_height = 26
 
-                plot_selected_bins(dynamic_bins, plot_width, plot_height)
-                # Clear bins
-                print("clearing bins, this takes a while..")
-                for _, bin_value in dynamic_bins.items():
-                    del bin_value["bin"]
-                    print(f"\rclearing {bin_value['label']}", end=" ")
-                    bin_value["bin"] = DynamicBin(n_bins)
+            plot_selected_bins(dynamic_bins, plot_width, plot_height)
+            # Clear bins
+            print("clearing bins, this takes a while..")
+            for _, bin_value in dynamic_bins.items():
+                del bin_value["bin"]
+                print(f"\rclearing {bin_value['label']}", end=" ")
+                bin_value["bin"] = DynamicBin(n_bins)
 
-                print("\rCollecting garbage")
-                gc.collect()
-                print("Done\n\n")
+            print("\rCollecting garbage")
+            gc.collect()
+            print("Done\n\n")
 
     def __repr__(self):
         return (
@@ -1326,6 +1342,6 @@ def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
 #     "1_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 1"},
 #     "alpha_2_bins": {"bin": DynamicBin(n_bins), "label": "Alpha values for Player 2 nodes"},
 #     "beta_2_bins": {"bin": DynamicBin(n_bins), "label": "Beta values for Player 2 nodes"},
-#     "2_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 2"},
 #     "ab_uct_bins": {"bin": DynamicBin(n_bins), "label": "Best UCB values"},
+#     "2_dist_bins": {"bin": DynamicBin(n_bins), "label": "Difference between Beta and Alpha for Player 2"},
 # }

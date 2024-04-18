@@ -11,8 +11,7 @@ from util import format_time
 ai_choices = ["mcts", "alphabeta"]
 # Set up argument parser
 parser = argparse.ArgumentParser(description="Run the game with or without profiling.")
-parser.add_argument("--no_profile", action="store_true", help="Run without the profiler.")
-parser.add_argument("--debug", action="store_true", help="Show debug messages.")
+parser.add_argument("--profile", action="store_true", help="Run with the profiler.")
 parser.add_argument("--pause", action="store_true", help="Pause after each turn.")
 parser.add_argument("--battle", action="store_true", help="Run a battle between two AIs.")
 parser.add_argument(
@@ -104,65 +103,39 @@ else:
     game_params = {}
 
 game = game_name
-if not args.battle:
-    algo = args.algo
-    eval_params = {}
-    ai_params = {
-        "max_time": 2,
-        "debug": args.debug,
-        # "early_term": True,
-        # "early_term_turns": 10,
-        # "early_term_cutoff": 0.05,
-        # # "roulette": True,
-        # "prog_bias": True,
-        # "imm": True,
-    }
+# * Battle
+eval_params_1 = {}
+eval_params_2 = {}
 
-    p1_params = AIParams(
-        ai_key=algo,
-        eval_params=eval_params,
-        max_player=1,
-        game_name=game_name,
-        ai_params=ai_params,
-    )
-    p2_params = AIParams(
-        ai_key=algo,
-        eval_params=eval_params,
-        max_player=2,
-        game_name=game_name,
-        ai_params=ai_params,
-    )
-else:
-    # * Battle
-    eval_params_1 = {}
-    eval_params_2 = {}
+ai_1_params = {
+    "max_time": 10,
+    # "ab_p1": 2,
+    # "k_factor": 0.3,
+    "mast": True,
+    "epsilon": 0.05,
+    "rave_k": 1000,
+}
+ai_2_params = {
+    "max_time": 10,
+    "epsilon": 0.05,
+    "rave_k": 1000,
+}
 
-    ai_1_params = {
-        "max_time": 10,
-        "debug": args.debug,
-        # "ab_p1": 2,
-        # "k_factor": 0.3,
-        "mast": True,
-        "epsilon": 0.05,
-        "rave_k": 1000,
-    }
-    ai_2_params = {"max_time": 10, "debug": args.debug}
+p1_params = AIParams(
+    ai_key="mcts",
+    eval_params=eval_params_1,
+    max_player=1,
+    game_name=game_name,
+    ai_params=ai_1_params,
+)
 
-    p1_params = AIParams(
-        ai_key="mcts",
-        eval_params=eval_params_1,
-        max_player=1,
-        game_name=game_name,
-        ai_params=ai_1_params,
-    )
-
-    p2_params = AIParams(
-        ai_key="mcts",
-        eval_params=eval_params_2,
-        max_player=2,
-        game_name=game_name,
-        ai_params=ai_2_params,
-    )
+p2_params = AIParams(
+    ai_key="mcts",
+    eval_params=eval_params_2,
+    max_player=2,
+    game_name=game_name,
+    ai_params=ai_2_params,
+)
 
 
 def run_game_code():
@@ -172,7 +145,7 @@ def run_game_code():
         p1_params=p1_params,
         p2_params=p2_params,
         pause=args.pause,
-        debug=args.debug,
+        debug=__debug__,
         boot_randomizer=False,
         random_openings=args.random_openings,
     )
@@ -180,7 +153,7 @@ def run_game_code():
 
 # Time the game:
 start_time = time.time()
-if args.no_profile:
+if not args.profile:
     print(" --- Running without profiler ---")
     try:
         run_game_code()
@@ -189,7 +162,6 @@ if args.no_profile:
     except Exception as ex:
         print(str(ex))
         traceback.print_exc()
-
 else:
     print(" --- Profiling ---")
     try:
