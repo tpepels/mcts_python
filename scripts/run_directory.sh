@@ -18,27 +18,33 @@ if [ ! -f "$JOB_SCRIPT" ]; then
     exit 1
 fi
 
-# Initialize a variable to track if any JSON files are found
-json_found=false
+# Generate a unique screen name based on timestamp
+SCREEN_NAME="experiment_$(date +%Y%m%d_%H%M%S)"
 
-# Iterate over .json files and run each experiment sequentially
-for json_file in "$DIRECTORY"/*.json; do
-    if [ -e "$json_file" ]; then  # Check if json files exist in the directory
-        echo "Running experiment for $json_file"
-        BASENAME=$(basename -- "$json_file")
-        
-        # Construct output and error file paths with the identifier
-        OUT_FILE="/home/tpepels/out/${BASENAME}.out"
-        ERR_FILE="/home/tpepels/out/err/${BASENAME}.err"
+# Start a detached screen session to run the experiments
+screen -dmS "$SCREEN_NAME" bash -c "
+    json_found=false
+    for json_file in '$DIRECTORY'/*.json; do
+        if [ -e \"\$json_file\" ]; then  # Check if json files exist in the directory
+            echo \"Running experiment for \$json_file\"
+            BASENAME=\$(basename -- \"\$json_file\")
+            
+            # Construct output and error file paths with the identifier
+            OUT_FILE=\"/home/tpepels/out/\${BASENAME}.out\"
+            ERR_FILE=\"/home/tpepels/out/err/\${BASENAME}.err\"
 
-        # Run the experiment using the job script
-        bash "$JOB_SCRIPT" "$json_file" > "$OUT_FILE" 2> "$ERR_FILE"
-        json_found=true
+            # Run the experiment using the job script
+            bash '$JOB_SCRIPT' \"\$json_file\" > \"\$OUT_FILE\" 2> \"\$ERR_FILE\"
+            json_found=true
+        fi
+    done
+
+    # If no JSON files were found, notify the user
+    if [ \"\$json_found\" = false ]; then
+        echo \"No JSON files found in the directory.\"
+        exit 1
     fi
-done
+"
 
-# If no JSON files were found, notify the user
-if [ "$json_found" = false ]; then
-    echo "No JSON files found in the directory."
-    exit 1
-fi
+# Notify the user where to find the running experiments
+echo "All experiments are running in screen session named: $SCREEN_NAME"
