@@ -718,6 +718,10 @@ class MCTSPlayer:
 
             max_node = random.choice(self.root.children)
 
+        print(
+            f"\nRan {i+1:,} simulations in {format_time(total_time)}, {i / float(max(1, total_time)):,.0f} simulations p.s.\n"
+        )
+
         if __debug__:
             # Print debug information if the debug flag is set
             self.print_debug_info(i, total_time, max_node, state)
@@ -1154,12 +1158,36 @@ class MCTSPlayer:
             print("Done\n\n")
 
     def __repr__(self):
-        return (
-            f"MCTS(name={self.name}, p={self.player}, eval_params={self.eval_params}, c={self.c}, "
-            + f"d_early_co={self.dyn_early_term_cutoff}, early_t_t={self.early_term_turns}, eps={self.epsilon}, "
-            + f"e_g_s={self.e_g_subset}, p_b_w={self.pb_weight}, imm_a={self.imm_alpha}, "
-            + f"ab_p1/2={self.ab_p1}/{self.ab_p2})"
-        )
+        full_str: str = f"MCTS(p={self.player}"
+
+        if self.name != "":
+            full_str += f", {self.name}"
+
+        full_str += f", c={self.c:.2f}"
+
+        if self.move_selection == 0:
+            full_str += ", VISITS"
+        elif self.move_selection == 1:
+            full_str += ", VALUE"
+
+        if self.num_simulations:
+            full_str += f", num_sim={self.num_simulations}"
+        elif self.max_time:
+            full_str += f", max_time={self.max_time}"
+        if self.e_greedy:
+            full_str += f", eps_subset={self.e_g_subset}, eps={self.epsilon:.3f}"
+        if self.rave:
+            full_str += f", rave_k={self.rave_k:.2f}"
+        if self.mast:
+            full_str += f", mast, eps={self.epsilon:.3f}"
+        if self.early_term:
+            full_str += f", et_turns={self.early_term_turns}, et_cut={self.early_term_cutoff:.2f}"
+        if self.imm:
+            full_str += f", imm_alpha={self.imm_alpha:.2f}"
+        if self.ab_p1 != 0:
+            full_str += f", ab_p={self.ab_p1}/{self.ab_p2}, k_factor={self.k_factor:.2f}"
+
+        return full_str + ")"
 
 
 class ChildComparator:
@@ -1170,98 +1198,6 @@ class ChildComparator:
 # Define a key function for sorting
 def get_node_visits(node):
     return node.n_visits
-
-
-@cython.cfunc
-@cython.returns(cython.float)
-@cython.exceptval(-88888888, check=False)  # Don't use 99999 because it's win/los
-@cython.locals(
-    is_max_player=cython.bint,
-    v=cython.float,
-    new_v=cython.float,
-    actions=cython.list,
-    move=cython.tuple,
-    m=cython.short,
-    i=cython.short,
-    n_actions=cython.short,
-)
-def alpha_beta(
-    state: GameState,
-    alpha: cython.float,
-    beta: cython.float,
-    depth: cython.short,
-    max_player: cython.short,
-    eval_params: cython.float[:],
-):
-    if state.is_terminal():
-        return state.get_reward(max_player)
-
-    if depth == 0:
-        return state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(-0.0001, 0.0001)
-
-    is_max_player = state.player == max_player
-    # Move ordering
-    actions: cython.list[cython.tuple] = state.get_legal_actions()
-    # actions = state.evaluate_moves(state.get_legal_actions())
-    # actions = [(actions[i][0], actions[i][1]) for i in range(n_actions)] # ? I don't think that this line is needed here
-    # actions.sort(key=itemgetter(1), reverse=is_max_player)
-    # actions = [actions[i][0] for i in range(n_actions)] # ? Nor is this one needed here as long as we use actions[m][0] in the loop (instead of actions[m])
-
-    v = -INFINITY if is_max_player else INFINITY
-    for m in range(len(actions)):
-        move = actions[m]
-
-        new_v = alpha_beta(
-            state=state.apply_action(move),
-            alpha=alpha,
-            beta=beta,
-            depth=depth - 1,
-            max_player=max_player,
-            eval_params=eval_params,
-        )
-        # Update v, alpha or beta based on the player
-        if (is_max_player and new_v > v) or (not is_max_player and new_v < v):
-            v = new_v
-        # Alpha-beta pruning
-        if is_max_player:
-            alpha = max(alpha, new_v)
-        else:
-            beta = min(beta, new_v)
-        # Prune the branch
-        if beta <= alpha:
-            break
-
-    return v
-
-
-@cython.cfunc
-@cython.returns(cython.float)
-@cython.locals(
-    actions=cython.list[cython.tuple],
-    move=cython.tuple,
-    score=cython.float,
-    stand_pat=cython.float,
-    m=cython.short,
-)
-@cython.exceptval(-88888888, check=False)
-def quiescence(
-    state: GameState,
-    stand_pat: cython.float,
-    max_player: cython.short,
-    eval_params: cython.float[:],
-):
-    actions = state.get_legal_actions()
-    for m in range(len(actions)):
-        move = actions[m]
-        if state.is_capture(move):
-            new_state = state.apply_action(move)
-            new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(
-                -0.0001, 0.0001
-            )
-            score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
-            stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
-
-    return stand_pat  # Return the best score found
 
 
 def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
@@ -1300,6 +1236,98 @@ def plot_selected_bins(bins_dict, plot_width=140, plot_height=32):
                 print("Invalid input. The number is out of range. Please try again.")
         else:
             print("Invalid input. Please enter a number or 'q' to quit.")
+
+
+# @cython.cfunc
+# @cython.returns(cython.float)
+# @cython.exceptval(-88888888, check=False)  # Don't use 99999 because it's win/los
+# @cython.locals(
+#     is_max_player=cython.bint,
+#     v=cython.float,
+#     new_v=cython.float,
+#     actions=cython.list,
+#     move=cython.tuple,
+#     m=cython.short,
+#     i=cython.short,
+#     n_actions=cython.short,
+# )
+# def alpha_beta(
+#     state: GameState,
+#     alpha: cython.float,
+#     beta: cython.float,
+#     depth: cython.short,
+#     max_player: cython.short,
+#     eval_params: cython.float[:],
+# ):
+#     if state.is_terminal():
+#         return state.get_reward(max_player)
+
+#     if depth == 0:
+#         return state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(-0.0001, 0.0001)
+
+#     is_max_player = state.player == max_player
+#     # Move ordering
+#     actions: cython.list[cython.tuple] = state.get_legal_actions()
+#     # actions = state.evaluate_moves(state.get_legal_actions())
+#     # actions = [(actions[i][0], actions[i][1]) for i in range(n_actions)] # ? I don't think that this line is needed here
+#     # actions.sort(key=itemgetter(1), reverse=is_max_player)
+#     # actions = [actions[i][0] for i in range(n_actions)] # ? Nor is this one needed here as long as we use actions[m][0] in the loop (instead of actions[m])
+
+#     v = -INFINITY if is_max_player else INFINITY
+#     for m in range(len(actions)):
+#         move = actions[m]
+
+#         new_v = alpha_beta(
+#             state=state.apply_action(move),
+#             alpha=alpha,
+#             beta=beta,
+#             depth=depth - 1,
+#             max_player=max_player,
+#             eval_params=eval_params,
+#         )
+#         # Update v, alpha or beta based on the player
+#         if (is_max_player and new_v > v) or (not is_max_player and new_v < v):
+#             v = new_v
+#         # Alpha-beta pruning
+#         if is_max_player:
+#             alpha = max(alpha, new_v)
+#         else:
+#             beta = min(beta, new_v)
+#         # Prune the branch
+#         if beta <= alpha:
+#             break
+
+#     return v
+
+
+# @cython.cfunc
+# @cython.returns(cython.float)
+# @cython.locals(
+#     actions=cython.list[cython.tuple],
+#     move=cython.tuple,
+#     score=cython.float,
+#     stand_pat=cython.float,
+#     m=cython.short,
+# )
+# @cython.exceptval(-88888888, check=False)
+# def quiescence(
+#     state: GameState,
+#     stand_pat: cython.float,
+#     max_player: cython.short,
+#     eval_params: cython.float[:],
+# ):
+#     actions = state.get_legal_actions()
+#     for m in range(len(actions)):
+#         move = actions[m]
+#         if state.is_capture(move):
+#             new_state = state.apply_action(move)
+#             new_stand_pat = new_state.evaluate(params=eval_params, player=max_player, norm=True) + uniform(
+#                 -0.0001, 0.0001
+#             )
+#             score = -quiescence(new_state, new_stand_pat, max_player, eval_params)
+#             stand_pat = max(stand_pat, score)  # Update best_score if a better score is found
+
+#     return stand_pat  # Return the best score found
 
 
 # if __debug__:
