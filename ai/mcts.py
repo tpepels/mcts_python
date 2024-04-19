@@ -1049,13 +1049,14 @@ class MCTSPlayer:
                     max_value: cython.float = -99999.99
 
                     for i in range(len(actions)):
+                        action: cython.tuple = actions[i]
                         if action == None:  # This means that the game is over (MiniShogi)
                             action_selected = True
                             best_action = None
                             break
 
                         # Evaluate the new state in view of the player to move
-                        value: cython.float = state.apply_action(actions[i]).evaluate(
+                        value: cython.float = state.apply_action(action).evaluate(
                             params=self.eval_params,
                             player=state.player,
                             norm=False,
