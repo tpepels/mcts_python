@@ -1001,7 +1001,7 @@ class MCTSPlayer:
                         return (0.0, 1.0)
 
             action_selected: cython.bint = False
-            if not action_selected and self.mast == 1:
+            if not action_selected and self.mast:
                 if uniform(0, 1) < self.epsilon:
                     # Get the legal actions for the current state
                     actions: cython.list[cython.tuple] = state.get_legal_actions()
@@ -1041,7 +1041,7 @@ class MCTSPlayer:
                             action_selected = True
 
             # With probability epsilon choose the best action from a subset of moves
-            if not action_selected and self.e_greedy == 1:
+            if not action_selected and self.e_greedy:
                 if uniform(0, 1) < self.epsilon:
                     actions: cython.list[cython.tuple] = state.get_legal_actions()
                     random.shuffle(actions)
