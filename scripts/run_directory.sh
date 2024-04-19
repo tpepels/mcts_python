@@ -18,3 +18,12 @@ screen -dmS "$SCREEN_NAME" /bin/bash -c "scripts/run_experiments.sh \"$DIRECTORY
 # Notify the user where to find the running experiments
 echo "All experiments are running in screen session named: $SCREEN_NAME"
 echo "Use 'screen -r $SCREEN_NAME' to attach to the session."
+echo "Use 'screen -S $SCREEN_NAME -X quit' to kill the session."
+
+# Add temporary aliases
+echo "Adding temporary aliases..."
+alias attach_experiment="screen -r $SCREEN_NAME"
+alias kill_experiment="screen -S $SCREEN_NAME -X quit"
+
+echo "Use 'attach_experiment' to attach to the session."
+echo "Use 'kill_experiment' to kill the session."
