@@ -293,7 +293,7 @@ def print_last_rows_pretty(aggregated_rows):
 
 
 def identify_experiments_to_cancel(aggregated_rows, top_n):
-    filtered_rows = [row for row in aggregated_rows if row[-4] != "N/A" and row[-3] != "N/A" and int(row[-2]) >= 40]
+    filtered_rows = [row for row in aggregated_rows if row[-4] != "N/A" and row[-3] != "N/A" and int(row[-2]) >= 30]
 
     # If there are not enough experiments after filtering, or top_n is 0, return an empty list
     if len(filtered_rows) <= top_n or top_n == 0:

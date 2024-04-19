@@ -11,7 +11,7 @@
     "p1_ai_params": {
       "max_time": 10,
       "early_term_cutoff": [0.03, 0.05],
-      "early_term_turns": [15, 20, 25],
+      "early_term_turns": [14, 20, 24],
       "name": "z_no_imm"
     },
     "p1_eval_params": {},
