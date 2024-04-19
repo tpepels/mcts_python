@@ -5,8 +5,8 @@ DEFAULT_SETTINGS = {
         "ai_params": {
             "c": 0.4,
             "imm_alpha": 0.3,
-            "early_term_turns": 10,
-            "early_term_cutoff": 0.2,
+            "early_term_turns": 15,
+            "early_term_cutoff": 0.05,
         },
         "eval_params": {"a": 60},
     },
