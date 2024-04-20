@@ -11,8 +11,8 @@
     "p1_ai_params": {
       "max_time": 10,
       "e_greedy": true,
-      "epsilon": [0.01, 0.05, 0.1],
-      "e_g_subset": [5, 10, 15],
+      "epsilon": [0.005, 0.01],
+      "e_g_subset": [5],
       "name": "z_no_imm"
     },
     "p1_eval_params": {},
@@ -32,7 +32,7 @@
     "p1_ai_params": {
       "max_time": 10,
       "mast": true,
-      "epsilon": [0.1, 0.2, 0.3],
+      "epsilon": [0.05, 0.1],
       "name": "z_no_imm"
     },
     "p1_eval_params": {},
@@ -51,7 +51,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 10,
-      "rave_k": [100, 500, 1000, 2000],
+      "rave_k": [2000, 2500, 3000],
       "name": "z_no_imm"
     },
     "p1_eval_params": {},
