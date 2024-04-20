@@ -1205,7 +1205,7 @@ class MiniShogi(GameState):
         "m_occurrence": 6,
         "a": 7,
     }
-    default_params = array.array("f", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 30.0])
+    default_params = array.array("f", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 120.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)

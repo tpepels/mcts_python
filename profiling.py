@@ -109,16 +109,17 @@ eval_params_2 = {}
 
 ai_1_params = {
     "max_time": 10,
-    # "ab_p1": 2,
-    # "k_factor": 0.3,
-    "mast": True,
-    "epsilon": 0.05,
-    "rave_k": 1000,
+    "early_term_cutoff": 0.2,
+    "early_term_turns": 10,
+    "imm_alpha": 0.3,
+    "c": 0.4,
 }
 ai_2_params = {
     "max_time": 10,
-    "epsilon": 0.05,
-    "rave_k": 1000,
+    "early_term_cutoff": 0.2,
+    "early_term_turns": 10,
+    "imm_alpha": 0.3,
+    "c": 0.4,
 }
 
 p1_params = AIParams(

@@ -128,10 +128,11 @@ class Node:
                 if child.im_value < min_imm:
                     min_imm = child.im_value
 
-        selected_index: cython.short
+        selected_index: cython.short = -1
         best_val: cython.float = -INFINITY
         children_lost: cython.short = 0
         children_draw: cython.short = 0
+
         ci: cython.short
         for ci in range(self.n_children):
             child: Node = self.children[ci]
@@ -158,7 +159,7 @@ class Node:
             if child.draw:
                 children_draw += 1
 
-            if rave_k > 0.0 and child.amaf_visits > 0 and beta > 0.0:
+            if rave_k > 0.0 and child.amaf_visits > 1 and beta > 0.0:
                 # Calculate the UCT value with RAVE
                 # ! AMAF wins are in view of the parent player, so no need to switch
                 uct_val = (
@@ -204,7 +205,9 @@ class Node:
             self.draw = 1
 
         # assert selected_child is not None, f"No child selected in UCT! {str(self)}"
-
+        assert (
+            0 <= selected_index < self.n_children
+        ), f"Selected index out of bounds {selected_index} {self.n_children}"
         return self.children[selected_index]
 
     @cython.cfunc
