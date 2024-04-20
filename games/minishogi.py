@@ -1,5 +1,6 @@
 # cython: language_level=3
 import array
+from math import isfinite
 import random
 import cython
 
@@ -1205,7 +1206,7 @@ class MiniShogi(GameState):
         "m_occurrence": 6,
         "a": 7,
     }
-    default_params = array.array("f", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 120.0])
+    default_params = array.array("f", [20.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.5, 300.0])
 
     @cython.cfunc
     @cython.exceptval(-9999999, check=False)
@@ -1315,6 +1316,7 @@ class MiniShogi(GameState):
 
         if norm:
             normalized_score = normalize(score, params[7])
+            assert isfinite(normalized_score), f"Normalized score is not finite: {normalized_score}"
             return normalized_score
         else:
             return score

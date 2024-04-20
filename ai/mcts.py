@@ -5,6 +5,7 @@ import math
 import random
 from random import random as rand_float
 from re import T
+from typing import Type
 from colorama import Back, Fore, init
 import numpy as np
 from includes.dynamic_bin import DynamicBin
@@ -94,7 +95,8 @@ class Node:
         alpha_bounds: cython.float = 0.0,
         beta_bounds: cython.float = 0.0,
     ) -> Node:
-        # assert self.expanded, "Trying to uct a node that is not expanded"
+        assert self.expanded, "Trying to uct a node that is not expanded"
+        assert self.n_children > 0, "Trying to uct a node with no children"
         # global ucb_bound, ab_bound
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
@@ -119,8 +121,8 @@ class Node:
         # Move through the children to find the one with the highest UCT value
         if imm_alpha > 0.0:
             # Find the max and min values for the children to normalize them
-            max_imm: cython.float = -INFINITY
-            min_imm: cython.float = INFINITY
+            max_imm: cython.float = -1
+            min_imm: cython.float = 1
             for ci in range(self.n_children):
                 child: Node = self.children[ci]
                 if child.im_value > max_imm:
@@ -136,6 +138,7 @@ class Node:
         ci: cython.short
         for ci in range(self.n_children):
             child: Node = self.children[ci]
+            assert child.action is not None, f"Child action is None! {str(self)}"
 
             # ! A none exception could happen in case there's a mistake in how the children are added to the list in expand
 
@@ -205,9 +208,9 @@ class Node:
             self.draw = 1
 
         # assert selected_child is not None, f"No child selected in UCT! {str(self)}"
-        assert (
-            0 <= selected_index < self.n_children
-        ), f"Selected index out of bounds {selected_index} {self.n_children}"
+        # assert (
+        #     0 <= selected_index < self.n_children
+        # ), f"Selected index out of bounds {selected_index} {self.n_children}"
         return self.children[selected_index]
 
     @cython.cfunc
@@ -664,8 +667,8 @@ class MCTSPlayer:
 
             if self.imm:
                 # Find the max and min values for the children to normalize them
-                max_imm: cython.float = -INFINITY
-                min_imm: cython.float = INFINITY
+                max_imm: cython.float = -1
+                min_imm: cython.float = 1
                 for c_i in range(n_children):
                     child: Node = self.root.children[c_i]
                     if child.im_value > max_imm:
@@ -782,8 +785,8 @@ class MCTSPlayer:
 
                         if self.imm:
                             # Find the max and min values for the children to normalize them
-                            max_imm: cython.float = -INFINITY
-                            min_imm: cython.float = INFINITY
+                            max_imm: cython.float = -1
+                            min_imm: cython.float = 1
                             for ci in range(prev_node.n_children):
                                 child: Node = prev_node.children[ci]
                                 if child.im_value > max_imm:
@@ -946,12 +949,12 @@ class MCTSPlayer:
             # * Backpropagate the result of the playout
             if self.imm and node.expanded:
                 if node.player == self.player:
-                    node.im_value = -INFINITY  # Initialize to negative infinity
+                    node.im_value = -1  # Initialize to min negative
                     for j in range(node.n_children):
                         child_im: cython.float = node.children[j].im_value
                         node.im_value = max(node.im_value, child_im)
                 else:
-                    node.im_value = INFINITY  # Initialize to positive infinity
+                    node.im_value = 1  # Initialize to max positive
                     for j in range(node.n_children):
                         child_im: cython.float = node.children[j].im_value
                         node.im_value = min(node.im_value, child_im)
