@@ -1,0 +1,72 @@
+[
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 10,
+      "ab_p1": 2,
+      "k_factor": [0.5, 0.6],
+      "imm_alpha": 0,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "max_time": 10,
+      "imm_alpha": 0,
+      "ab_p1": 0,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 20,
+      "ab_p1": 2,
+      "k_factor": [0.5, 0.6],
+      "imm_alpha": 0,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "max_time": 20,
+      "imm_alpha": 0,
+      "ab_p1": 0,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 30,
+      "ab_p1": 2,
+      "k_factor": [0.5, 0.6],
+      "imm_alpha": 0,
+
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "max_time": 30,
+      "imm_alpha": 0,
+      "ab_p1": 0,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  }
+]

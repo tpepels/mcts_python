@@ -28,7 +28,7 @@ DEFAULT_SETTINGS = {
     ("minishogi", "mcts"): {
         "ai_params": {
             "c": 0.4,
-            "imm_alpha": 0.3,
+            "imm_alpha": 0.4,
             "early_term_turns": 6,
             "early_term_cutoff": 0.4,
             "e_g_subset": 10,
