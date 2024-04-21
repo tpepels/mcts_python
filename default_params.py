@@ -3,8 +3,8 @@ DEFAULT_SETTINGS = {
     # AMAZONS 8x8
     ("amazons", "mcts"): {
         "ai_params": {
-            "c": 0.4,
-            "imm_alpha": 0.3,
+            "c": 0.3,
+            "imm_alpha": 0.2,
             "early_term_turns": 24,
             "early_term_cutoff": 0.03,
             "e_g_subset": 5,
