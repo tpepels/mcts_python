@@ -15,8 +15,8 @@ DEFAULT_SETTINGS = {
     # BREAKTHROUGH
     ("breakthrough", "mcts"): {
         "ai_params": {
-            "c": 0.4,
-            "imm_alpha": 0.3,
+            "c": 0.5,
+            "imm_alpha": 0.4,
             "early_term_turns": 4,
             "early_term_cutoff": 0.4,
             "e_g_subset": 15,
