@@ -3,14 +3,14 @@
     "top_n": 2
   },
   {
-    "n_games": 300,
-    "game_key": "breakthrough",
+    "n_games": 200,
+    "game_key": "amazons",
     "random_openings": 2,
-    "game_params": {},
+    "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "c": [0.2, 0.3, 0.4, 0.5, 0.6],
+      "c": [0.2, 0.3, 0.4, 0.5],
       "imm_alpha": 0.0,
       "name": "z_no_imm"
     },

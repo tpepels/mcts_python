@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 300,
+    "n_games": 200,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
@@ -18,7 +18,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 300,
+    "n_games": 200,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
@@ -36,7 +36,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 300,
+    "n_games": 200,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
@@ -55,7 +55,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 300,
+    "n_games": 200,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
@@ -74,7 +74,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 300,
+    "n_games": 200,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
@@ -93,7 +93,7 @@
     "p2_eval_params": {}
   },
   {
-    "n_games": 300,
+    "n_games": 200,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": { "board_size": 15, "row_length": 5 },
