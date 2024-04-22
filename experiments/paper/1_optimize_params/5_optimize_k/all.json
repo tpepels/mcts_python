@@ -1,0 +1,176 @@
+[
+  {
+    "n_games": 300,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "imm_alpha": 0,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "imm_alpha": 0,
+      "c": 0.4,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0,
+      "c": 0.4,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "ninarow",
+    "random_openings": 2,
+    "game_params": { "board_size": 15, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "ninarow",
+    "random_openings": 2,
+    "game_params": { "board_size": 15, "row_length": 5 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "imm_alpha": 0,
+      "c": 0.6,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0,
+      "c": 0.6,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "minishogi",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 50000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 50000,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 300,
+    "game_key": "minishogi",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 50000,
+      "ab_p1": 2,
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "imm_alpha": 0,
+      "c": 0.3,
+      "name": "z_uct_ab"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 50000,
+      "imm_alpha": 0,
+      "c": 0.3,
+      "name": "a_plain_uct"
+    },
+    "p2_eval_params": {}
+  }
+]
