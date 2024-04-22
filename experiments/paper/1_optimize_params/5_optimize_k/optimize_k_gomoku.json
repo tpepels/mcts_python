@@ -1,6 +1,6 @@
 [
   {
-    "top_n": 2
+    "top_n": 4
   },
   {
     "n_games": 300,
@@ -33,6 +33,7 @@
       "ab_p1": 2,
       "k_factor": [0.1, 0.2, 0.3, 0.4],
       "imm_alpha": 0,
+      "c": 0.6,
       "name": "z_uct_ab"
     },
     "p1_eval_params": {},
@@ -40,6 +41,7 @@
     "p2_ai_params": {
       "num_simulations": 100000,
       "imm_alpha": 0,
+      "c": 0.6,
       "name": "a_plain_uct"
     },
     "p2_eval_params": {}
