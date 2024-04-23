@@ -1,0 +1,129 @@
+[
+  {
+    "n_games": 3000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 75000,
+      "ab_p1": 2,
+      "name": "z_ab_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 75000,
+      "ab_p1": 0,
+      "name": "a_imm"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 150000,
+      "ab_p1": 2,
+      "name": "z_ab_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 150000,
+      "ab_p1": 0,
+      "name": "a_imm"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 225000,
+      "ab_p1": 2,
+      "name": "z_ab_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 225000,
+      "ab_p1": 0,
+      "name": "a_imm"
+    },
+    "p2_eval_params": {}
+  },
+
+  {
+    "n_games": 3000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 75000,
+      "ab_p1": 2,
+      "imm_alpha": 0,
+      "name": "z_ab_no_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 75000,
+      "ab_p1": 0,
+      "imm_alpha": 0,
+      "name": "a_no_imm"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 150000,
+      "ab_p1": 2,
+      "imm_alpha": 0,
+      "name": "z_ab_no_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 150000,
+      "ab_p1": 0,
+      "imm_alpha": 0,
+      "name": "a_no_imm"
+    },
+    "p2_eval_params": {}
+  },
+  {
+    "n_games": 3000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 225000,
+      "ab_p1": 2,
+      "imm_alpha": 0,
+      "name": "a_no_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 225000,
+      "ab_p1": 0,
+      "imm_alpha": 0,
+      "name": "a_no_imm"
+    },
+    "p2_eval_params": {}
+  }
+]

@@ -3,12 +3,13 @@ DEFAULT_SETTINGS = {
     # AMAZONS 8x8
     ("amazons", "mcts"): {
         "ai_params": {
-            "c": 0.3,  # 0.3 without imm
+            "c": 0.3,  # same without imm
             "imm_alpha": 0.2,
             "early_term_turns": 24,
             "early_term_cutoff": 0.03,
             "e_g_subset": 5,
             "epsilon": 0.005,
+            "k_factor": 0.3,  # Same without imm
         },
         "eval_params": {"a": 60},
     },
@@ -34,6 +35,7 @@ DEFAULT_SETTINGS = {
             "early_term_cutoff": 0.4,
             "e_g_subset": 10,
             "epsilon": 0.01,
+            "k_factor": 0.2,  # Same for without imm
         },
         "eval_params": {},
     },
@@ -46,6 +48,7 @@ DEFAULT_SETTINGS = {
             "early_term_cutoff": 0.1,
             "mast": True,
             "epsilon": 0.3,
+            "k_factor": 0.4,  # Same for without imm
         },
         "eval_params": {},
     },
