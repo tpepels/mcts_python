@@ -4,16 +4,14 @@ import gc
 import math
 import random
 from random import random as rand_float
-from re import T
-from typing import Type
 from colorama import Back, Fore, init
-import numpy as np
 from includes.dynamic_bin import DynamicBin
 
 init(autoreset=True)
+
 import cython
 from cython.cimports.libc.time import time
-from cython.cimports.libc.math import sqrt, log, INFINITY, isnan, isfinite
+from cython.cimports.libc.math import sqrt, log, INFINITY, isfinite
 from cython.cimports.includes import GameState, win, loss, hash_tuple
 
 from util import format_time
@@ -69,7 +67,7 @@ class Node:
         self.action = action
         self.player = player
         # Now we know whether we are minimizing or maximizing
-        self.im_value = -INFINITY if self.player == max_player else INFINITY
+        self.im_value = -1 if self.player == max_player else 1
         self.eval_value = 0.0
         self.expanded = 0
         self.solved_player = 0
@@ -314,7 +312,7 @@ class Node:
         if imm:
             # Do the full minimax back-up
             best_node: Node
-            best_im: cython.float = -INFINITY if self.player == max_player else INFINITY
+            best_im: cython.float = -1 if self.player == max_player else 1
             # print(best_im)
             i: cython.short
             child: Node
