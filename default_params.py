@@ -21,6 +21,7 @@ DEFAULT_SETTINGS = {
             "early_term_cutoff": 0.4,
             "e_g_subset": 15,
             "epsilon": 0.005,
+            "k_factor": 0.4,  # Same for without imm
         },
         "eval_params": {},
     },
