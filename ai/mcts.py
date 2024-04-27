@@ -849,8 +849,8 @@ class MCTSPlayer:
                         rave_k=self.rave_k if self.rave else 0.0,
                         ab_p1=self.ab_p1,
                         ab_p2=self.ab_p2,
-                        alpha=alpha if node.player == self.player else 1 - beta_val,
-                        beta=beta if node.player == self.player else 1 - alpha_val,
+                        alpha=beta_val if node.player == self.player else 1 - beta_val,
+                        beta=alpha_val if node.player == self.player else 1 - alpha_val,
                         k_factor=self.k_factor,
                         alpha_bounds=alpha_bounds if node.player == self.player else -beta_bounds,
                         beta_bounds=beta_bounds if node.player == self.player else -alpha_bounds,
@@ -929,6 +929,14 @@ class MCTSPlayer:
         if __debug__:
             self.max_depth = max(self.max_depth, len(selected))
             self.avg_depth += len(selected)
+
+        # If we use alpha/beta (ab_p1 != 0) then update the reward based on alhpa and beta
+        if self.ab_p2 == 3:
+            alpha = (beta_val if node.player == self.player else 1 - beta_val,)
+            beta = (alpha_val if node.player == self.player else 1 - alpha_val,)
+            if isfinite(alpha) and isfinite(beta):
+                result[self.player - 1] += alpha
+                result[3 - (self.player - 1)] += beta
 
         # * Backpropagation
         j: cython.int
