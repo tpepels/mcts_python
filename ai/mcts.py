@@ -99,18 +99,17 @@ class Node:
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         log_p_n: cython.float = log(p_n)
-
-        if ab_p1 == 2 and isfinite(alpha) and isfinite(beta):
+        if isfinite(alpha) and isfinite(beta):
             k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
             if k != 0:
-                # c *= k_factor * sqrt(log((1 - k) * p_n))
-                # The old method of multiplying c Should be equivalent to this:
-                log_p_n *= (k_factor**2) * log((1 - k) * p_n)
-            #     ab_bound += 1
-            # else:
-            #     ucb_bound += 1
-        # else:
-        #     ucb_bound += 1
+                if ab_p1 == 2:
+                    log_p_n *= (k_factor**2) * log((1 - k) * p_n)
+                elif ab_p1 == 3:
+                    log_p_n *= (c**2) * log((1 - k) * p_n)
+                if ab_p1 == 4:
+                    log_p_n *= (k_factor**2) * log((1 + k) * p_n)
+                elif ab_p1 == 5:
+                    log_p_n *= (c**2) * log((1 + k) * p_n)
 
         if rave_k > 0.0:
             # Calculate Beta for the RAVE balance (assumes c_n and total_visits are defined)
@@ -795,13 +794,22 @@ class MCTSPlayer:
                         val: cython.float = node.get_value_imm(
                             self.player, self.imm_alpha, self.player, min_imm, max_imm
                         )
-                        # Compute the adjustment factor for the prediction interval
-                        bound: cython.float = self.k_factor * (
-                            sqrt(
-                                log(cython.cast(cython.float, prev_node.n_visits))
-                                / cython.cast(cython.float, node.n_visits)
+                        if self.ab_p2 == 1:
+                            # Compute the adjustment factor for the prediction interval
+                            bound: cython.float = self.k_factor * (
+                                sqrt(
+                                    log(cython.cast(cython.float, prev_node.n_visits))
+                                    / cython.cast(cython.float, node.n_visits)
+                                )
                             )
-                        )
+                        elif self.ab_p2 == 2:
+                            # Compute the adjustment factor for the prediction interval
+                            bound: cython.float = self.c * (
+                                sqrt(
+                                    log(cython.cast(cython.float, prev_node.n_visits))
+                                    / cython.cast(cython.float, prev_node.n_visits)
+                                )
+                            )
 
                         if prev_node.player == self.player:
                             # Check if alpha was actually updated by comparing old and new values

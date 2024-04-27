@@ -107,20 +107,8 @@ game = game_name
 eval_params_1 = {}
 eval_params_2 = {}
 
-ai_1_params = {
-    "max_time": 20,
-    # "early_term_cutoff": 0.2,
-    # "early_term_turns": 10,
-    # "imm_alpha": 0.3,
-    # "c": 0.4,
-}
-ai_2_params = {
-    "max_time": 20,
-    # "early_term_cutoff": 0.2,
-    # "early_term_turns": 10,
-    # "imm_alpha": 0.3,
-    # "c": 0.4,
-}
+ai_1_params = {"max_time": 20, "ab_p1": 4}
+ai_2_params = {"max_time": 20, "ab_p1": 3}
 
 p1_params = AIParams(
     ai_key="mcts",
