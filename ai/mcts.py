@@ -930,13 +930,11 @@ class MCTSPlayer:
             self.max_depth = max(self.max_depth, len(selected))
             self.avg_depth += len(selected)
 
-        # If we use alpha/beta (ab_p1 != 0) then update the reward based on alhpa and beta
-        if self.ab_p2 == 3:
-            alpha = (beta_val if node.player == self.player else 1 - beta_val,)
-            beta = (alpha_val if node.player == self.player else 1 - alpha_val,)
-            if isfinite(alpha) and isfinite(beta):
-                result[self.player - 1] += alpha
-                result[3 - (self.player - 1)] += beta
+        if self.ab_p2 == 5 and isfinite(alpha) and isfinite(beta):
+            # This method scales playout rewards by the width of the alpha beta bounds
+            k: cython.float = 1 - (beta - alpha)
+            result[0] *= k
+            result[1] *= k
 
         # * Backpropagation
         j: cython.int
@@ -946,6 +944,22 @@ class MCTSPlayer:
             node.v[1] += result[1]
             node.n_visits += 1
 
+            if 4 >= self.ab_p2 >= 3 and i > 1 and isfinite(alpha_val) and isfinite(alpha_val):
+                parent: Node = selected[i - 2]
+
+                alpha = beta_val if parent.player == self.player else 1 - beta_val
+                beta = alpha_val if parent.player == self.player else 1 - alpha_val
+
+                p_idx: cython.short = self.player - 1
+                opp_idx: cython.short = (3 - self.player) - 1
+                # Update the node with alpha and beta values to confirm the bounds
+                if self.ab_p2 == 3:
+                    node.v[p_idx] -= alpha
+                    node.v[opp_idx] += beta
+                elif self.ab_p2 == 4:
+                    node.v[p_idx] += alpha
+                    node.v[opp_idx] -= beta
+
             # Update RAVE statistics for all child nodes, don't update for draws, only win/losses
             if self.rave and not is_draw and node.n_children > 0:
                 for j in range(node.n_children):
@@ -953,6 +967,7 @@ class MCTSPlayer:
                     # Children are added left to right in expand, so we can break if we reach a None child
                     if child is None:
                         break
+
                     action: cython.tuple = child.action  # Assumes each child node knows the action that led to it
                     action_list: cython.list[cython.tuple] = p1_actions if node.player == 1 else p2_actions
                     if action in action_list:
