@@ -1,0 +1,28 @@
+[
+  {
+    "n_games": 1000,
+    "game_key": "breakthrough",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": [
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0
+      ],
+      "name": "z_no_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "name": "a_no_imm",
+      "imm_alpha": 0.0
+    },
+    "p2_eval_params": {}
+  }
+]

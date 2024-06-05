@@ -1,6 +1,7 @@
 import json
 import copy
 import os
+import sys
 
 
 def split_list_parameter(experiment):
@@ -65,3 +66,12 @@ def do_split(input_file):
     # Rename the input file to indicate it has been processed
     processed_file_name = base_name + "_split"
     os.rename(input_file, processed_file_name)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python script_name.py <input_file>")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    do_split(input_file)

@@ -99,9 +99,14 @@ class Node:
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         log_p_n: cython.float = log(p_n)
+
         if isfinite(alpha) and isfinite(beta):
-            k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
+            # k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
+            # TODO Deze versie moet je nog testen
+            k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
             if k != 0:
+                if ab_p1 == 1:
+                    log_p_n = log((1 - k) * p_n)  # TODO Deze versie moet je nog testen
                 if ab_p1 == 2:
                     log_p_n *= (k_factor**2) * log((1 - k) * p_n)
                 elif ab_p1 == 3:
@@ -163,8 +168,8 @@ class Node:
                 # Calculate the UCT value with RAVE
                 # ! AMAF wins are in view of the parent player, so no need to switch
                 uct_val = (
-                    (1 - beta) * (child.get_value_imm(self.player, imm_alpha, max_player, min_imm, max_imm))
-                    + beta * (child.amaf_wins / cython.cast(cython.float, child.amaf_visits))
+                    ((1 - beta) * (child.get_value_imm(self.player, imm_alpha, max_player, min_imm, max_imm)))
+                    + (beta * (child.amaf_wins / cython.cast(cython.float, child.amaf_visits)))
                     + (c * sqrt(log_p_n / c_n))
                 )
             else:
