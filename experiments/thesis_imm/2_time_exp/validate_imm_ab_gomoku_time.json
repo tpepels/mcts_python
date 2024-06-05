@@ -7,7 +7,6 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 2,
-      "imm_alpha": xxx,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -27,7 +26,6 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 5,
-      "imm_alpha": xxx,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -47,7 +45,6 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 10,
-      "imm_alpha": xxx,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -67,7 +64,6 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 20,
-      "imm_alpha": xxx,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -87,7 +83,6 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "max_time": 40,
-      "imm_alpha": xxx,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
