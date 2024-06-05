@@ -12,6 +12,8 @@ fi
 module load 2022
 module load Python/3.10.4-GCCcore-11.3.0
 
+source $HOME/.mcts_venv/bin/activate
+
 # Navigate to the directory containing your Python program
 cd $HOME/mcts_python
 
