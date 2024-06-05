@@ -16,7 +16,7 @@ DEFAULT_SETTINGS = {
     # BREAKTHROUGH
     ("breakthrough", "mcts"): {
         "ai_params": {
-            "c": 0.5,  # 0.4 without imm
+            "c": 0.4,  # 0.5 with imm
             "imm_alpha": 0.3,
             "early_term_turns": 4,
             "early_term_cutoff": 0.4,
@@ -29,7 +29,7 @@ DEFAULT_SETTINGS = {
     # SHOGI
     ("minishogi", "mcts"): {
         "ai_params": {
-            "c": 0.4,  # 0.3 without imm
+            "c": 0.3,  # 0.4 with imm
             "imm_alpha": 0.4,
             "early_term_turns": 6,
             "early_term_cutoff": 0.4,
@@ -42,7 +42,7 @@ DEFAULT_SETTINGS = {
     # GOMOKU
     ("ninarow", "mcts"): {
         "ai_params": {
-            "c": 0.5,  # 0.6 without imm
+            "c": 0.6,  # 0.5 with imm
             "imm_alpha": 0.2,
             "early_term_turns": 16,
             "early_term_cutoff": 0.1,
