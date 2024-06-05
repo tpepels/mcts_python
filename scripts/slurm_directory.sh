@@ -68,8 +68,8 @@ for json_file in "$DIRECTORY"/*.json; do
         BASENAME=$(basename -- "$json_file")
         
         # Construct output and error file paths with the identifier
-        OUT_FILE="/home/tpepels/out/${BASENAME}_%j.out"
-        ERR_FILE="/home/tpepels/out/err/${BASENAME}_%j.err"
+        OUT_FILE="$HOME/out/${BASENAME}_%j.out"
+        ERR_FILE="$HOME/out/err/${BASENAME}_%j.err"
 
         sbatch -p "$CITY" --time="$SBATCH_DURATION" --cpus-per-task=$CPUS --exclusive --job-name="$BASENAME" -o "$OUT_FILE" -e "$ERR_FILE" "$JOB_SCRIPT" "$json_file"
         json_found=true
