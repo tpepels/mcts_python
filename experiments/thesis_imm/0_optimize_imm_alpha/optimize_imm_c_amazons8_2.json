@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 1000,
+    "n_games": 2100,
     "game_key": "amazons",
     "random_openings": 2,
     "game_params": {
@@ -9,13 +9,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": [
-        0.6,
-        0.7,
-        0.8,
-        0.9,
-        1.0
-      ],
+      "imm_alpha": [0.6, 0.7, 0.8, 0.9, 1.0],
       "name": "z_no_imm"
     },
     "p1_eval_params": {},

@@ -1,6 +1,6 @@
 [
   {
-    "n_games": 1000,
+    "n_games": 2100,
     "game_key": "ninarow",
     "random_openings": 2,
     "game_params": {
@@ -10,13 +10,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": [
-        0.1,
-        0.2,
-        0.3,
-        0.4,
-        0.5
-      ],
+      "imm_alpha": [0.1, 0.2, 0.3, 0.4, 0.5],
       "name": "z_no_imm"
     },
     "p1_eval_params": {},
