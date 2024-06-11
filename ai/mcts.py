@@ -95,7 +95,7 @@ class Node:
     ) -> Node:
         assert self.expanded, "Trying to uct a node that is not expanded"
         assert self.n_children > 0, "Trying to uct a node with no children"
-        # global ucb_bound, ab_bound
+        global ucb_bound, ab_bound
 
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         log_p_n: cython.float = log(p_n)
@@ -105,6 +105,7 @@ class Node:
             # TODO Deze versie moet je nog testen
             k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
             if k != 0:
+                ab_bound += 1
                 if ab_p1 == 1:
                     log_p_n = log((1 - k) * p_n)  # TODO Deze versie moet je nog testen
                 if ab_p1 == 2:
@@ -115,6 +116,10 @@ class Node:
                     log_p_n *= (k_factor**2) * log((1 + k) * p_n)
                 elif ab_p1 == 5:
                     log_p_n *= (c**2) * log((1 + k) * p_n)
+            else:
+                ucb_bound += 1
+        else:
+            ucb_bound += 1
 
         if rave_k > 0.0:
             # Calculate Beta for the RAVE balance (assumes c_n and total_visits are defined)
@@ -1172,7 +1177,7 @@ class MCTSPlayer:
         self.avg_po_moves = self.mast_moves = 0
         global ab_bound, ucb_bound
         print(
-            f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {((ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
+            f"alpha/beta bound used: {ab_bound:,} |  ucb bound used: {ucb_bound:,} | percentage: {(float(ab_bound) / max(ab_bound + ucb_bound, 1)) * 100:.2f}%"
         )
         ucb_bound = ab_bound = 0
         self.playout_draws = self.max_depth = self.avg_depth = 0
