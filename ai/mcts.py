@@ -508,15 +508,19 @@ class MCTSPlayer:
         name: str = "",
     ):
         self.player = player
+
         self.dyn_early_term = dyn_early_term_cutoff >= 0.001
         self.dyn_early_term_cutoff = dyn_early_term_cutoff
-        self.early_term_cutoff = early_term_cutoff
+
         self.e_greedy = e_greedy
         self.mast = mast
         self.epsilon = epsilon
         self.e_g_subset = e_g_subset
-        self.early_term = early_term_cutoff >= 0.001 or early_term_turns > 0
+
+        self.early_term = early_term_cutoff >= 0.001 and early_term_turns > 0
+        self.early_term_cutoff = early_term_cutoff
         self.early_term_turns = early_term_turns
+
         self.c = c
         self.eval_params = eval_params
         self.move_selection = move_selection
