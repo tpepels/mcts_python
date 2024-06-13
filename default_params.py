@@ -33,8 +33,8 @@ DEFAULT_SETTINGS = {
             "imm_alpha": 0.4,
             "early_term_turns": 4,
             "early_term_cutoff": 0.1,
-            "e_g_subset": 10,
-            "epsilon": 0.01,
+            "e_g_subset": 5,
+            "epsilon": 0.005,
             "k_factor": 0.2,  # Same without imm
         },
         "eval_params": {},
