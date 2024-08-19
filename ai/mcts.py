@@ -100,22 +100,22 @@ class Node:
         p_n: cython.float = cython.cast(cython.float, max(1, self.n_visits))
         log_p_n: cython.float = log(p_n)
 
-        if isfinite(alpha) and isfinite(beta):
-            # k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
+        if ab_p1 != 0 and isfinite(alpha) and isfinite(beta):
+            k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
             # TODO Deze versie moet je nog testen
-            k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
+            # k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
             if k != 0:
                 ab_bound += 1
-                if ab_p1 == 1:
-                    log_p_n = log((1 - k) * p_n)  # TODO Deze versie moet je nog testen
-                if ab_p1 == 2:
-                    log_p_n *= (k_factor**2) * log((1 - k) * p_n)
-                elif ab_p1 == 3:
-                    log_p_n *= (c**2) * log((1 - k) * p_n)
-                if ab_p1 == 4:
-                    log_p_n *= (k_factor**2) * log((1 + k) * p_n)
-                elif ab_p1 == 5:
-                    log_p_n *= (c**2) * log((1 + k) * p_n)
+                # if ab_p1 == 1:
+                #     log_p_n = log((1 - k) * p_n)  # TODO Deze versie moet je nog testen
+                # if ab_p1 == 2:
+                log_p_n *= (k_factor**2) * log((1 - k) * p_n)
+                # elif ab_p1 == 3:
+                # log_p_n *= (c**2) * log((1 - k) * p_n)
+                # if ab_p1 == 4:
+                # log_p_n *= (k_factor**2) * log((1 + k) * p_n)
+                # elif ab_p1 == 5:
+                # log_p_n *= (c**2) * log((1 + k) * p_n)
             else:
                 ucb_bound += 1
         else:
@@ -186,7 +186,7 @@ class Node:
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
 
-            # assert not isnan(uct_val), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}"
+            # assert not isnan(uct_`val), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}"
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
 
@@ -798,6 +798,7 @@ class MCTSPlayer:
                             # Find the max and min values for the children to normalize them
                             max_imm: cython.float = -2
                             min_imm: cython.float = 2
+
                             for ci in range(prev_node.n_children):
                                 child: Node = prev_node.children[ci]
                                 if child.im_value > max_imm:
@@ -808,22 +809,14 @@ class MCTSPlayer:
                         val: cython.float = node.get_value_imm(
                             self.player, self.imm_alpha, self.player, min_imm, max_imm
                         )
-                        if self.ab_p2 == 1:
-                            # Compute the adjustment factor for the prediction interval
-                            bound: cython.float = self.k_factor * (
-                                sqrt(
-                                    log(cython.cast(cython.float, prev_node.n_visits))
-                                    / cython.cast(cython.float, node.n_visits)
-                                )
+
+                        # Compute the adjustment factor for the prediction interval
+                        bound: cython.float = self.k_factor * (
+                            sqrt(
+                                log(cython.cast(cython.float, prev_node.n_visits))
+                                / cython.cast(cython.float, node.n_visits)
                             )
-                        elif self.ab_p2 == 2:
-                            # Compute the adjustment factor for the prediction interval
-                            bound: cython.float = self.c * (
-                                sqrt(
-                                    log(cython.cast(cython.float, prev_node.n_visits))
-                                    / cython.cast(cython.float, prev_node.n_visits)
-                                )
-                            )
+                        )
 
                         if prev_node.player == self.player:
                             # Check if alpha was actually updated by comparing old and new values

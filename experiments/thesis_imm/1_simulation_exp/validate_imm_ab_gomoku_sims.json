@@ -6,13 +6,14 @@
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "max_time": 2,
+      "num_simulations": 50000,
+      "ab_p1": 1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "max_time": 2,
+      "num_simulations": 50000,
       "imm_alpha": 0,
       "name": "a_imm"
     },
@@ -25,32 +26,14 @@
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "max_time": 5,
+      "num_simulations": 100000,
+      "ab_p1": 1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "max_time": 5,
-      "imm_alpha": 0,
-      "name": "a_imm"
-    },
-    "p2_eval_params": {}
-  },
-  {
-    "n_games": 21000,
-    "game_key": "ninarow",
-    "random_openings": 2,
-    "game_params": { "board_size": 15, "row_length": 5 },
-    "p1_ai_key": "mcts",
-    "p1_ai_params": {
-      "max_time": 10,
-      "name": "z_ab_imm"
-    },
-    "p1_eval_params": {},
-    "p2_ai_key": "mcts",
-    "p2_ai_params": {
-      "max_time": 10,
+      "num_simulations": 100000,
       "imm_alpha": 0,
       "name": "a_imm"
     },
@@ -63,13 +46,14 @@
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "max_time": 20,
+      "num_simulations": 150000,
+      "ab_p1": 1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "max_time": 20,
+      "num_simulations": 150000,
       "imm_alpha": 0,
       "name": "a_imm"
     },
@@ -82,13 +66,14 @@
     "game_params": { "board_size": 15, "row_length": 5 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "max_time": 40,
+      "num_simulations": 200000,
+      "ab_p1": 1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "max_time": 40,
+      "num_simulations": 200000,
       "imm_alpha": 0,
       "name": "a_imm"
     },
