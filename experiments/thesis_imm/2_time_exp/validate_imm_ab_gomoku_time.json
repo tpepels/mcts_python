@@ -8,6 +8,7 @@
     "p1_ai_params": {
       "max_time": 2,
       "ab_p1": 1,
+      "imm_alpha": 0.3,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -28,6 +29,7 @@
     "p1_ai_params": {
       "max_time": 5,
       "ab_p1": 1,
+      "imm_alpha": 0.3,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -48,6 +50,7 @@
     "p1_ai_params": {
       "max_time": 10,
       "ab_p1": 1,
+      "imm_alpha": 0.3,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -68,6 +71,7 @@
     "p1_ai_params": {
       "max_time": 20,
       "ab_p1": 1,
+      "imm_alpha": 0.3,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -88,6 +92,7 @@
     "p1_ai_params": {
       "max_time": 40,
       "ab_p1": 1,
+      "imm_alpha": 0.3,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},

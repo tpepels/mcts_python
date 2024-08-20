@@ -7,6 +7,7 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
+      "imm_alpha": 0.1,
       "ab_p1": 1,
       "name": "z_ab_imm"
     },
@@ -28,6 +29,7 @@
     "p1_ai_params": {
       "num_simulations": 100000,
       "ab_p1": 1,
+      "imm_alpha": 0.1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -48,6 +50,7 @@
     "p1_ai_params": {
       "num_simulations": 150000,
       "ab_p1": 1,
+      "imm_alpha": 0.1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -68,6 +71,7 @@
     "p1_ai_params": {
       "num_simulations": 200000,
       "ab_p1": 1,
+      "imm_alpha": 0.1,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
