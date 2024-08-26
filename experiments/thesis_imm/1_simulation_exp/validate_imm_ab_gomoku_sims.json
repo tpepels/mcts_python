@@ -7,15 +7,16 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
-      "ab_p1": 1,
-      "imm_alpha": 0.3,
+      "ab_p1": [0, 1],
+      "imm_alpha": [0, 0.2],
+      "k_factor": [0.3, 0.4, 0.5],
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 50000,
-      "imm_alpha": 0,
+      "imm_alpha": [0, 0.2],
       "name": "a_imm"
     },
     "p2_eval_params": {}
@@ -28,15 +29,16 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "ab_p1": 1,
-      "imm_alpha": 0.3,
+      "ab_p1": [0, 1],
+      "imm_alpha": [0, 0.2],
+      "k_factor": [0.3, 0.4, 0.5],
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": 0,
+      "imm_alpha": [0, 0.2],
       "name": "a_imm"
     },
     "p2_eval_params": {}
@@ -49,15 +51,16 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 150000,
-      "ab_p1": 1,
-      "imm_alpha": 0.3,
+      "ab_p1": [0, 1],
+      "imm_alpha": [0, 0.2],
+      "k_factor": [0.3, 0.4, 0.5],
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 150000,
-      "imm_alpha": 0,
+      "imm_alpha": [0, 0.2],
       "name": "a_imm"
     },
     "p2_eval_params": {}
@@ -70,15 +73,16 @@
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "ab_p1": 1,
-      "imm_alpha": 0.3,
+      "ab_p1": [0, 1],
+      "imm_alpha": [0, 0.2],
+      "k_factor": [0.3, 0.4, 0.5],
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 200000,
-      "imm_alpha": 0,
+      "imm_alpha": [0, 0.2],
       "name": "a_imm"
     },
     "p2_eval_params": {}
