@@ -34,7 +34,6 @@ parser.add_argument(
         "gomoku",
         "minishogi",
     ],
-    default="ninarow",
     help="Choose the game (amazons, breakthrough, ninarow, kalah, blokus, gomoku, minishogi).",
 )
 # New argument for the number of random openings
@@ -81,26 +80,28 @@ args = parser.parse_args()
 # debug: bool = False,
 
 # Check if the game starts with "ninarow" or "kalah"
-if args.game.startswith("ninarow"):
-    game_name = "ninarow"
-    row_length, board_size = int(args.game[-2]), int(args.game[-1])
-    game_params = {"row_length": row_length, "board_size": board_size}
-elif args.game.startswith("kalah"):
-    game_name = "kalah"
-    n_houses, init_seeds = int(args.game[-2]), int(args.game[-1])
-    game_params = {"n_houses": n_houses, "init_seeds": init_seeds}
-elif args.game.startswith("gomoku"):
-    game_name = "ninarow"
-    game_params = {"row_length": 5, "board_size": 15}
-elif args.game.startswith("amazons") and (args.game.endswith("8") or args.game.endswith("6")):
-    game_name = "amazons"
-    board_size = int(args.game[-1])
-    game_params = {
-        "board_size": board_size,
-    }
-else:
-    game_name = args.game
-    game_params = {}
+if args.game is not None:
+    if args.game.startswith("ninarow"):
+        game_name = "ninarow"
+        print(args.game)
+        row_length, board_size = int(args.game[-2]), int(args.game[-1])
+        game_params = {"row_length": row_length, "board_size": board_size}
+    elif args.game.startswith("kalah"):
+        game_name = "kalah"
+        n_houses, init_seeds = int(args.game[-2]), int(args.game[-1])
+        game_params = {"n_houses": n_houses, "init_seeds": init_seeds}
+    elif args.game.startswith("gomoku"):
+        game_name = "ninarow"
+        game_params = {"row_length": 5, "board_size": 15}
+    elif args.game.startswith("amazons") and (args.game.endswith("8") or args.game.endswith("6")):
+        game_name = "amazons"
+        board_size = int(args.game[-1])
+        game_params = {
+            "board_size": board_size,
+        }
+    else:
+        game_name = args.game
+        game_params = {}
 
 game = game_name
 # * Battle
