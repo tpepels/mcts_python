@@ -1319,30 +1319,30 @@ class MiniShogi(GameState):
         else:
             normalized_score = score
 
-        assert isfinite(normalized_score), f"Normalized score is not finite: {normalized_score}"
-        assert not isnan(normalized_score), f"Normalized score is NaN: {normalized_score}"
-        assert 1 >= normalized_score >= -1.0, f"Normalized score is less than -1: {normalized_score}"
-        mistake: cython.bint = False
-        if not isfinite(normalized_score):
-            print(f"Score: {score}, Normalized score: {normalized_score}")
-            mistake = True
-        if isnan(normalized_score):
-            print("Normalized score is nan..")
-            mistake = True
-        if not (1 >= normalized_score >= -1):
-            print(f"Normalized score out of bounds: {normalized_score}")
-            mistake = True
+        # assert isfinite(normalized_score), f"Normalized score is not finite: {normalized_score}"
+        # assert not isnan(normalized_score), f"Normalized score is NaN: {normalized_score}"
+        # assert 1 >= normalized_score >= -1.0, f"Normalized score is less than -1: {normalized_score}"
+        # mistake: cython.bint = False
+        # if not isfinite(normalized_score):
+        #     print(f"Score: {score}, Normalized score: {normalized_score}")
+        #     mistake = True
+        # if isnan(normalized_score):
+        #     print("Normalized score is nan..")
+        #     mistake = True
+        # if not (1 >= normalized_score >= -1):
+        #     print(f"Normalized score out of bounds: {normalized_score}")
+        #     mistake = True
 
-        if mistake:
-            # Print the parts of the score
-            print(
-                f"Attacks: {attacks * params[1]}, Captures: {captures * params[2]}, Material: {material_score * params[3]}, Board control: {board_control * params[4]}, Defenses: {defenses * params[5]}, Occurrences: {occ_score * params[6]}"
-            )
-            #
-            print(self.visualize(True))
-            assert False
+        # if mistake:
+        #     # Print the parts of the score
+        #     print(
+        #         f"Attacks: {attacks * params[1]}, Captures: {captures * params[2]}, Material: {material_score * params[3]}, Board control: {board_control * params[4]}, Defenses: {defenses * params[5]}, Occurrences: {occ_score * params[6]}"
+        #     )
+        #     #
+        #     print(self.visualize(True))
+        #     assert False
 
-        return score
+        return normalized_score
 
     @cython.cfunc
     def evaluate_moves(self, moves: cython.list) -> cython.list:

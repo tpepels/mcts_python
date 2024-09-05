@@ -1,5 +1,6 @@
 # cython: language_level=3
 
+from cmath import isnan
 import gc
 import math
 import random
@@ -67,7 +68,7 @@ class Node:
         self.action = action
         self.player = player
         # Now we know whether we are minimizing or maximizing
-        self.im_value = -INFINITY if self.player == max_player else INFINITY
+        self.im_value = loss - 1 if self.player == max_player else win + 1
         self.eval_value = 0.0
         self.expanded = 0
         self.solved_player = 0
@@ -128,8 +129,8 @@ class Node:
         # Move through the children to find the one with the highest UCT value
         if imm_alpha > 0.0:
             # Find the max and min values for the children to normalize them
-            max_imm: cython.float = -INFINITY
-            min_imm: cython.float = INFINITY
+            max_imm: cython.float = loss - 1
+            min_imm: cython.float = win + 1
             for ci in range(self.n_children):
                 child: Node = self.children[ci]
                 if child.im_value > max_imm:
@@ -186,7 +187,9 @@ class Node:
             if pb_weight > 0.0:
                 uct_val += pb_weight * (cython.cast(cython.float, child.eval_value) / (1.0 + c_n))
 
-            # assert not isnan(uct_`val), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}"
+            assert not isnan(
+                uct_val
+            ), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}\n{(self.player, imm_alpha, max_player, min_imm, max_imm)}\n{c * sqrt(log_p_n / c_n)}\n{str(child.children)}"
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
 
@@ -214,10 +217,11 @@ class Node:
         elif children_draw == self.n_children:
             self.draw = 1
 
-        # assert selected_child is not None, f"No child selected in UCT! {str(self)}"
-        # assert (
-        #     0 <= selected_index < self.n_children
-        # ), f"Selected index out of bounds {selected_index} {self.n_children}"
+        assert selected_index is not None, f"No child selected in UCT! {str(self)}"
+        assert (
+            0 <= selected_index < self.n_children
+        ), f"Selected index out of bounds {selected_index} {self.n_children}"
+
         return self.children[selected_index]
 
     @cython.cfunc
@@ -321,7 +325,7 @@ class Node:
         if imm:
             # Do the full minimax back-up
             best_node: Node
-            best_im: cython.float = -INFINITY if self.player == max_player else INFINITY
+            best_im: cython.float = loss - 1 if self.player == max_player else win + 1
             # print(best_im)
             i: cython.short
             child: Node
@@ -680,8 +684,8 @@ class MCTSPlayer:
 
             if self.imm:
                 # Find the max and min values for the children to normalize them
-                max_imm: cython.float = -INFINITY
-                min_imm: cython.float = INFINITY
+                max_imm: cython.float = loss - 1
+                min_imm: cython.float = win + 1
                 for c_i in range(n_children):
                     child: Node = self.root.children[c_i]
                     if child.im_value > max_imm:
@@ -798,8 +802,8 @@ class MCTSPlayer:
 
                         if self.imm:
                             # Find the max and min values for the children to normalize them
-                            max_imm: cython.float = -INFINITY
-                            min_imm: cython.float = INFINITY
+                            max_imm: cython.float = loss - 1
+                            min_imm: cython.float = win + 1
 
                             for ci in range(prev_node.n_children):
                                 child: Node = prev_node.children[ci]
@@ -987,12 +991,12 @@ class MCTSPlayer:
             # * Backpropagate the result of the playout
             if self.imm and node.expanded:
                 if node.player == self.player:
-                    node.im_value = -INFINITY  # Initialize to min negative
+                    node.im_value = loss - 1  # Initialize to min negative
                     for j in range(node.n_children):
                         child_im: cython.float = node.children[j].im_value
                         node.im_value = max(node.im_value, child_im)
                 else:
-                    node.im_value = INFINITY  # Initialize to max positive
+                    node.im_value = win + 1  # Initialize to max positive
                     for j in range(node.n_children):
                         child_im: cython.float = node.children[j].im_value
                         node.im_value = min(node.im_value, child_im)
