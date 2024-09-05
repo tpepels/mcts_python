@@ -43,6 +43,9 @@ case $DURATION in
     2d)
         SBATCH_DURATION="48:00:00"
         ;;
+    4d)
+        SBATCH_DURATION="96:00:00"
+        ;;
     *)
         echo "Invalid duration format."
         exit 1

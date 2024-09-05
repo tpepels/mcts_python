@@ -67,7 +67,7 @@ class Node:
         self.action = action
         self.player = player
         # Now we know whether we are minimizing or maximizing
-        self.im_value = -2 if self.player == max_player else 2
+        self.im_value = -INFINITY if self.player == max_player else INFINITY
         self.eval_value = 0.0
         self.expanded = 0
         self.solved_player = 0
@@ -128,8 +128,8 @@ class Node:
         # Move through the children to find the one with the highest UCT value
         if imm_alpha > 0.0:
             # Find the max and min values for the children to normalize them
-            max_imm: cython.float = -2
-            min_imm: cython.float = 2
+            max_imm: cython.float = -INFINITY
+            min_imm: cython.float = INFINITY
             for ci in range(self.n_children):
                 child: Node = self.children[ci]
                 if child.im_value > max_imm:
@@ -321,7 +321,7 @@ class Node:
         if imm:
             # Do the full minimax back-up
             best_node: Node
-            best_im: cython.float = -2 if self.player == max_player else 2
+            best_im: cython.float = -INFINITY if self.player == max_player else INFINITY
             # print(best_im)
             i: cython.short
             child: Node
@@ -335,6 +335,8 @@ class Node:
                     best_im = child_im
                     best_node = child
                     # print(f"New best im value: {best_im} from {str(best_node)}")
+                # else:
+                #     print(f"Child {str(child)} is not the best im value")
 
             # Now overwrite the im value of the node with the best im value
             self.im_value = best_im
@@ -678,8 +680,8 @@ class MCTSPlayer:
 
             if self.imm:
                 # Find the max and min values for the children to normalize them
-                max_imm: cython.float = -2
-                min_imm: cython.float = 2
+                max_imm: cython.float = -INFINITY
+                min_imm: cython.float = INFINITY
                 for c_i in range(n_children):
                     child: Node = self.root.children[c_i]
                     if child.im_value > max_imm:
@@ -796,8 +798,8 @@ class MCTSPlayer:
 
                         if self.imm:
                             # Find the max and min values for the children to normalize them
-                            max_imm: cython.float = -2
-                            min_imm: cython.float = 2
+                            max_imm: cython.float = -INFINITY
+                            min_imm: cython.float = INFINITY
 
                             for ci in range(prev_node.n_children):
                                 child: Node = prev_node.children[ci]
@@ -985,12 +987,12 @@ class MCTSPlayer:
             # * Backpropagate the result of the playout
             if self.imm and node.expanded:
                 if node.player == self.player:
-                    node.im_value = -2  # Initialize to min negative
+                    node.im_value = -INFINITY  # Initialize to min negative
                     for j in range(node.n_children):
                         child_im: cython.float = node.children[j].im_value
                         node.im_value = max(node.im_value, child_im)
                 else:
-                    node.im_value = 2  # Initialize to max positive
+                    node.im_value = INFINITY  # Initialize to max positive
                     for j in range(node.n_children):
                         child_im: cython.float = node.children[j].im_value
                         node.im_value = min(node.im_value, child_im)
