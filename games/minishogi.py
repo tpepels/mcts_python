@@ -1,5 +1,6 @@
 # cython: language_level=3
 import array
+from math import pi
 import random
 import cython
 
@@ -427,7 +428,7 @@ class MiniShogi(GameState):
         to_row = shogi_action[2]
         to_col = shogi_action[3]
 
-        if from_row == -1:
+        if from_row == -1 and from_col != -1:
             # Handle drop action
             # ! This assumes that pieces are demoted on capture, i.e. the capture lists have only unpromoted pieces
             piece = from_col
@@ -522,7 +523,7 @@ class MiniShogi(GameState):
         to_row = shogi_action[2]
         to_col = shogi_action[3]
 
-        if from_row == -1:
+        if from_row == -1 and from_col != -1:
             # Handle drop action
             # ! This assumes that pieces are demoted on capture, i.e. the capture lists have only unpromoted pieces
             piece = from_col
@@ -531,8 +532,14 @@ class MiniShogi(GameState):
 
             # Remove the piece from the captured pieces list
             if new_state.player == 1:
+                assert (
+                    piece in new_state.captured_pieces_1
+                ), f"Piece {piece} not in captured pieces 1\n{self.visualize(True)}"
                 new_state.captured_pieces_1.remove(piece)
             else:
+                assert (
+                    piece in new_state.captured_pieces_2
+                ), f"Piece {piece} not in captured pieces 2\n{self.visualize(True)}"
                 new_state.captured_pieces_2.remove(piece)
 
         elif from_row == to_row and from_col == to_col:

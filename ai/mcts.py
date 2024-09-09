@@ -1012,11 +1012,6 @@ class MCTSPlayer:
                             child.im_value = 0
                         node.im_value = min(node.im_value, child.im_value)
 
-                if abs(node.im_value) > win:
-                    for c in node.children:
-                        print(c)
-                    assert False, f"IM value is out of bounds {node.im_value}\n{str(node)}"
-
     @cython.cfunc
     @cython.inline
     @cython.locals(i=cython.int, action=cython.tuple)
