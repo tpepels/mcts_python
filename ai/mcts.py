@@ -1,6 +1,6 @@
 # cython: language_level=3
 
-from cmath import isnan
+from cmath import isinf, isnan
 import gc
 import math
 import random
@@ -103,10 +103,13 @@ class Node:
 
         if ab_p1 != 0 and isfinite(alpha) and isfinite(beta):
             # AB_UCT
-            k: cython.float = (1 - ((beta + beta_bounds) - (alpha - alpha_bounds))) * (1 - (beta_bounds - alpha_bounds))
+            k: cython.float = (1 - ((beta + beta_bounds) - (alpha - alpha_bounds))) * (
+                1 - (beta_bounds - alpha_bounds)
+            )
             if k != 0:
                 ab_bound += 1
-                log_p_n *= (k_factor**2) * log((1 - k) * p_n)
+                log_p_n *= (k_factor**2) * log(k * p_n)
+                assert not isnan(log_p_n), f"Log value is NaN! {log_p_n=}, {log(p_n)=}, {k=},{k_factor=},{p_n=}"
             else:
                 ucb_bound += 1
         else:
@@ -117,6 +120,7 @@ class Node:
             beta: cython.float = sqrt(rave_k / (3 * p_n + rave_k))
 
         # Move through the children to find the one with the highest UCT value
+        # IMM
         if imm_alpha > 0.0:
             # Find the max and min values for the children to normalize them
             max_imm: cython.float = loss - 1
@@ -179,7 +183,7 @@ class Node:
 
             assert not isnan(
                 uct_val
-            ), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}\n{(self.player, imm_alpha, max_player, min_imm, max_imm)}\n{c * sqrt(log_p_n / c_n)}\n{str(child.children)}"
+            ), f"UCT value is NaN!.\nNode: {str(self)}\nChild: {str(child)}\n{(self.player, imm_alpha, max_player, min_imm, max_imm)}\n{c * sqrt(log_p_n / c_n)}\n{str(child.children)}\n{beta=},{alpha=},{beta_bounds=},{alpha_bounds=},{log_p_n=},{c_n=},{k_factor=},{ab_p1=},{ab_p2=}"
 
             rand_fact: cython.float = uniform(-0.0001, 0.0001)
 
@@ -238,11 +242,10 @@ class Node:
             if self.actions[0] == None and len(self.actions) == 1:
 
                 assert init_state.is_terminal(), "State with None action is not terminal.."
-
                 self.actions = []
-                # A pass move means that I lost because I have no remaining moves
+
+                # A pass move means that the player to move
                 self.solved_player = 3 - self.player
-                self.im_value = loss
 
             self.children = [None] * len(self.actions)
             self.n_children = len(self.children)
@@ -263,10 +266,8 @@ class Node:
 
                 if result == win:  # We've found a winning position, hence this node and the child are solved
                     self.solved_player = child.solved_player = self.player
-                    child.im_value = win
                 # We've found a losing position, we cannot yet tell if it is solved, but no need to return the child
                 elif result == loss:
-                    child.im_value = loss
                     child.solved_player = 3 - self.player
                     continue
                 else:
@@ -295,6 +296,11 @@ class Node:
                         params=eval_params,
                     ) + uniform(-0.00001, 0.00001)
                     child.n_visits += 1
+
+                    assert not isnan(child.im_value), f"IMM value is NaN! {str(child)}"
+                    assert not isinf(child.im_value), f"IMM value is Inf! {str(child)}"
+                    assert isfinite(child.im_value), f"IMM value is not finite! {str(child)}"
+
                     # ! This make sure that we only overwrite if we are sure we've found a "better" move
                     if (self.player != max_player and child.im_value < self.im_value) or (
                         self.player == max_player and child.im_value > self.im_value
@@ -984,17 +990,32 @@ class MCTSPlayer:
                         child.amaf_wins += res
 
             # * Backpropagate the result of the playout
-            if self.imm and node.expanded:
+            if self.imm and node.expanded and node.solved_player == 0:
                 if node.player == self.player:
-                    node.im_value = loss - 1  # Initialize to min negative
+                    node.im_value = loss - 2  # Initialize to min negative
                     for j in range(node.n_children):
-                        child_im: cython.float = node.children[j].im_value
-                        node.im_value = max(node.im_value, child_im)
+
+                        child: Node = node.children[j]
+                        if child.solved_player != 0:
+                            child.im_value = 1 if child.solved_player == self.player else -1
+                        if child.draw:
+                            child.im_value = 0
+
+                        node.im_value = max(node.im_value, child.im_value)
                 else:
-                    node.im_value = win + 1  # Initialize to max positive
+                    node.im_value = win + 2  # Initialize to max positive
                     for j in range(node.n_children):
-                        child_im: cython.float = node.children[j].im_value
-                        node.im_value = min(node.im_value, child_im)
+                        child: Node = node.children[j]
+                        if child.solved_player != 0:
+                            child.im_value = 1 if child.solved_player == self.player else -1
+                        if child.draw:
+                            child.im_value = 0
+                        node.im_value = min(node.im_value, child.im_value)
+
+                if abs(node.im_value) > win:
+                    for c in node.children:
+                        print(c)
+                    assert False, f"IM value is out of bounds {node.im_value}\n{str(node)}"
 
     @cython.cfunc
     @cython.inline
