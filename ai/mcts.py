@@ -102,21 +102,11 @@ class Node:
         log_p_n: cython.float = log(p_n)
 
         if ab_p1 != 0 and isfinite(alpha) and isfinite(beta):
-            k: cython.float = ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
-            # TODO Deze versie moet je nog testen
-            # k: cython.float = (beta + beta_bounds) - (alpha - alpha_bounds)
+            # AB_UCT
+            k: cython.float = (1 - ((beta + beta_bounds) - (alpha - alpha_bounds))) * (1 - (beta_bounds - alpha_bounds))
             if k != 0:
                 ab_bound += 1
-                # if ab_p1 == 1:
-                #     log_p_n = log((1 - k) * p_n)  # TODO Deze versie moet je nog testen
-                # if ab_p1 == 2:
                 log_p_n *= (k_factor**2) * log((1 - k) * p_n)
-                # elif ab_p1 == 3:
-                # log_p_n *= (c**2) * log((1 - k) * p_n)
-                # if ab_p1 == 4:
-                # log_p_n *= (k_factor**2) * log((1 + k) * p_n)
-                # elif ab_p1 == 5:
-                # log_p_n *= (c**2) * log((1 + k) * p_n)
             else:
                 ucb_bound += 1
         else:
@@ -222,7 +212,12 @@ class Node:
             0 <= selected_index < self.n_children
         ), f"Selected index out of bounds {selected_index} {self.n_children}"
 
-        return self.children[selected_index]
+        try:
+            return self.children[selected_index]
+        except TypeError:
+            print(f"Selected index: {selected_index} {self.n_children}")
+            print(f"Children: {self.children}")
+            raise
 
     @cython.cfunc
     def expand(
