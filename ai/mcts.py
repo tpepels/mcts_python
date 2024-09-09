@@ -103,13 +103,12 @@ class Node:
 
         if ab_p1 != 0 and isfinite(alpha) and isfinite(beta):
             # AB_UCT
-            k: cython.float = (1 - ((beta + beta_bounds) - (alpha - alpha_bounds))) * (
-                1 - (beta_bounds - alpha_bounds)
-            )
+            k: cython.float = 1 - ((beta + beta_bounds) - (alpha - alpha_bounds)) * (1 - (beta_bounds - alpha_bounds))
             if k != 0:
                 ab_bound += 1
                 log_p_n *= (k_factor**2) * log(k * p_n)
                 assert not isnan(log_p_n), f"Log value is NaN! {log_p_n=}, {log(p_n)=}, {k=},{k_factor=},{p_n=}"
+                assert log_p_n >= 0, f"Log value is negative! {log_p_n=}, {log(p_n)=}, {k=},{k_factor=},{p_n=}"
             else:
                 ucb_bound += 1
         else:

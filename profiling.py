@@ -108,8 +108,8 @@ game = game_name
 eval_params_1 = {}
 eval_params_2 = {}
 
-ai_1_params = {"num_simulations": 50_000, "ab_p1": 1, "imm_alpha": 0.6, "k_factor": 0.3}
-ai_2_params = {"num_simulations": 50_000, "ab_p1": 1, "imm_alpha": 0.6, "k_factor": 0.3}
+ai_1_params = {"num_simulations": 50_000, "ab_p1": 1, "imm_alpha": 0, "k_factor": 0.3}
+ai_2_params = {"num_simulations": 50_000, "ab_p1": 1, "imm_alpha": 0, "k_factor": 0.3}
 
 p1_params = AIParams(
     ai_key="mcts",
