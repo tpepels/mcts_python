@@ -1,15 +1,14 @@
 [
   {
     "n_games": 5000,
-    "game_key": "ninarow",
+    "game_key": "amazons",
     "random_openings": 2,
-    "game_params": { "board_size": 15, "row_length": 5 },
+    "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 50000,
-      "imm_alpha": 0.2,
+      "imm_alpha": 0.1,
       "ab_p1": 1,
-      "k_factor": 0.4,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -24,15 +23,14 @@
   },
   {
     "n_games": 5000,
-    "game_key": "ninarow",
+    "game_key": "amazons",
     "random_openings": 2,
-    "game_params": { "board_size": 15, "row_length": 5 },
+    "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": 0.2,
+      "imm_alpha": 0.1,
       "ab_p1": 1,
-      "k_factor": 0.4,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -47,15 +45,14 @@
   },
   {
     "n_games": 5000,
-    "game_key": "ninarow",
+    "game_key": "amazons",
     "random_openings": 2,
-    "game_params": { "board_size": 15, "row_length": 5 },
+    "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 150000,
-      "imm_alpha": 0.2,
+      "imm_alpha": 0.1,
       "ab_p1": 1,
-      "k_factor": 0.4,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
@@ -70,15 +67,14 @@
   },
   {
     "n_games": 5000,
-    "game_key": "ninarow",
+    "game_key": "amazons",
     "random_openings": 2,
-    "game_params": { "board_size": 15, "row_length": 5 },
+    "game_params": { "board_size": 8 },
     "p1_ai_key": "mcts",
     "p1_ai_params": {
       "num_simulations": 200000,
-      "imm_alpha": 0.2,
+      "imm_alpha": 0.1,
       "ab_p1": 1,
-      "k_factor": 0.4,
       "name": "z_ab_imm"
     },
     "p1_eval_params": {},
