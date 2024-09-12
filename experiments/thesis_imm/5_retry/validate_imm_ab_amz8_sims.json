@@ -15,7 +15,7 @@
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 50000,
-      "imm_alpha": [0.2, 0],
+      "imm_alpha": 0.1,
       "ab_p1": 0,
       "name": "a_plain_or_imm"
     },
@@ -37,7 +37,7 @@
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 100000,
-      "imm_alpha": [0.2, 0],
+      "imm_alpha": 0.1,
       "ab_p1": 0,
       "name": "a_plain_or_imm"
     },
@@ -59,7 +59,7 @@
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 150000,
-      "imm_alpha": [0.2, 0],
+      "imm_alpha": 0.1,
       "ab_p1": 0,
       "name": "a_plain_or_imm"
     },
@@ -81,7 +81,7 @@
     "p2_ai_key": "mcts",
     "p2_ai_params": {
       "num_simulations": 200000,
-      "imm_alpha": [0.2, 0],
+      "imm_alpha": 0.1,
       "ab_p1": 0,
       "name": "a_plain_or_imm"
     },
