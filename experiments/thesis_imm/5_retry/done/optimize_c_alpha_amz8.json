@@ -1,0 +1,26 @@
+[
+  {
+    "n_games": 1000,
+    "game_key": "amazons",
+    "random_openings": 2,
+    "game_params": { "board_size": 8 },
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0.1,
+      "c": [0.2, 0.3, 0.4],
+      "k_factor": [0.1, 0.2, 0.3, 0.4],
+      "ab_p1": 1,
+      "name": "z_ab_imm"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "num_simulations": 100000,
+      "imm_alpha": 0.1,
+      "ab_p1": 0,
+      "name": "a_imm"
+    },
+    "p2_eval_params": {}
+  }
+]
