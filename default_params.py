@@ -42,13 +42,13 @@ DEFAULT_SETTINGS = {
     # GOMOKU
     ("ninarow", "mcts"): {
         "ai_params": {
-            "c": 0.4,  # 0.6 without imm
+            "c": 0.3,  # 0.6 without imm
             "imm_alpha": 0.2,
             "early_term_turns": 16,
             "early_term_cutoff": 0.1,
             "mast": True,
             "epsilon": 0.3,
-            "k_factor": 0.4,  # Same for without imm
+            "k_factor": 0.3,  # Same for without imm
         },
         "eval_params": {},
     },
