@@ -38,7 +38,7 @@ if __debug__:
 @cython.inline
 @cython.exceptval(-99999999.9, check=False)
 def uniform(a: cython.float, b: cython.float) -> cython.float:
-    "Get a random number in the range [a, b) or [a, b] depending on rounding."
+    # Get a random number in the range [a, b) or [a, b] depending on rounding.
     r_float: cython.float = rand_float()
     return a + (b - a) * r_float
 
