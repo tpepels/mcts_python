@@ -1,96 +1,106 @@
 [
   {
-    "n_games": 5000,
+    "n_games": 2000,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 50000,
-      "c": xx,
-      "imm_alpha": xx,
-      "ab_p1": 1,
+      "max_time": 2,
+      "c": 0.4,
+      "imm_alpha": 0.2,
       "name": "z"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 50000,
-      "ab_p1": 0,
-      "imm_alpha": xx,
-      "c": xx,
+      "max_time": 2,
+      "imm_alpha": 0,
       "name": "a"
     },
     "p2_eval_params": {}
   },
   {
-    "n_games": 5000,
+    "n_games": 2000,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 100000,
-      "c": xx,
-      "imm_alpha": xx,
-      "ab_p1": 1,
+      "max_time": 5,
+      "c": 0.4,
+      "imm_alpha": 0.2,
       "name": "z"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 100000,
-      "imm_alpha": xx,
-      "c": xx,
-      "ab_p1": 0,
+      "max_time": 5,
+      "imm_alpha": 0,
       "name": "a"
     },
     "p2_eval_params": {}
   },
   {
-    "n_games": 5000,
+    "n_games": 2000,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 150000,
-      "c": xx,
-      "imm_alpha": xx,
-      "ab_p1": 1,
+      "max_time": 10,
+      "c": 0.4,
+      "imm_alpha": 0.2,
       "name": "z"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 150000,
-      "imm_alpha": xx,
-      "c": xx,
-      "ab_p1": 0,
+      "max_time": 10,
+      "imm_alpha": 0,
       "name": "a"
     },
     "p2_eval_params": {}
   },
   {
-    "n_games": 5000,
+    "n_games": 2000,
     "game_key": "minishogi",
     "random_openings": 2,
     "game_params": {},
     "p1_ai_key": "mcts",
     "p1_ai_params": {
-      "num_simulations": 200000,
-      "c": xx,
-      "imm_alpha": xx,
-      "ab_p1": 1,
+      "max_time": 20,
+      "c": 0.4,
+      "imm_alpha": 0.2,
       "name": "z"
     },
     "p1_eval_params": {},
     "p2_ai_key": "mcts",
     "p2_ai_params": {
-      "num_simulations": 200000,
-      "imm_alpha": xx,
-      "c": xx,
-      "ab_p1": 0,
+      "max_time": 20,
+      "imm_alpha": 0,
+      "name": "a"
+    },
+    "p2_eval_params": {}
+  },
+  ,
+  {
+    "n_games": 2000,
+    "game_key": "minishogi",
+    "random_openings": 2,
+    "game_params": {},
+    "p1_ai_key": "mcts",
+    "p1_ai_params": {
+      "max_time": 40,
+      "c": 0.4,
+      "imm_alpha": 0.2,
+      "name": "z"
+    },
+    "p1_eval_params": {},
+    "p2_ai_key": "mcts",
+    "p2_ai_params": {
+      "max_time": 40,
+      "imm_alpha": 0,
       "name": "a"
     },
     "p2_eval_params": {}
